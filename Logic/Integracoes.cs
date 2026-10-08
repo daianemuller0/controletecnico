@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace ControleTecnico.Logic;
 
 /// <summary>Nivel: endereco | cidade | estado | pais — até onde a busca em cascata conseguiu chegar.</summary>
-public sealed record GeoResultado(bool Ok, double? Lat, double? Lon, string Fonte, string Mensagem, string Nivel = "");
+public sealed record GeoResultado(bool Ok, double? Lat, double? Lon, string Fonte, string Mensagem, string Nivel = "", bool ErroServico = false);
 public sealed record RotaResultado(bool Ok, double? Km, int? Minutos, string Mensagem);
 
 /// <summary>Geocodificação por Nominatim/OpenStreetMap (ou instância compatível).
@@ -19,6 +19,10 @@ public sealed class Geocoder
     private readonly int _intervaloMs;
     private readonly SemaphoreSlim _ritmo = new(1, 1);
     private DateTime _ultimo = DateTime.MinValue;
+    // Muitas plantas dividem cidade/estado/país: a mesma consulta (inclusive "não encontrado") nunca é repetida.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede)> _cache = new();
+    public int ConsultasRealizadas { get; private set; }
+    public int ConsultasEmCache { get; private set; }
 
     public Geocoder(IHttpClientFactory f, IConfiguration cfg, Data.Db? db = null)
     {
@@ -61,7 +65,7 @@ public sealed class Geocoder
         foreach (var (nivel, q) in niveis)
         {
             var r = await ConsultarAsync(q, ct);
-            if (r.erro is not null && !r.ok && r.falhaDeRede) return new(false, null, null, "", r.erro);   // rede/serviço fora: não conclui "não existe"
+            if (r.erro is not null && !r.ok && r.falhaDeRede) return new(false, null, null, "", r.erro, "", true);   // rede/serviço fora: não conclui "não existe"
             if (r.ok)
             {
                 var msg = tentados.Count == 0 ? r.nome : $"{r.nome} — não encontrado: {string.Join(", ", tentados)}; posição aproximada ao nível de {nivel}.";
@@ -84,7 +88,17 @@ public sealed class Geocoder
 
     private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede)> ConsultarAsync(Dictionary<string, string> parametros, CancellationToken ct)
     {
+        var chave = string.Join("&", parametros.OrderBy(kv => kv.Key).Select(kv => kv.Key + "=" + kv.Value.Trim().ToLowerInvariant()));
+        if (_cache.TryGetValue(chave, out var guardado)) { ConsultasEmCache++; return guardado; }
+        var res = await ConsultarSemCacheAsync(parametros, ct);
+        if (!res.falhaDeRede) _cache[chave] = res;           // falha de rede/serviço não é guardada: tenta de novo depois
+        return res;
+    }
+
+    private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede)> ConsultarSemCacheAsync(Dictionary<string, string> parametros, CancellationToken ct)
+    {
         await _ritmo.WaitAsync(ct);
+        ConsultasRealizadas++;
         try
         {
             // política do Nominatim público: no máximo 1 requisição por segundo

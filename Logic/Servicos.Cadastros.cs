@@ -102,7 +102,7 @@ public sealed partial class Servicos
     }
 
     /// <summary>Aplica o resultado da busca em cascata à planta.</summary>
-    private static void AplicarGeo(Planta p, GeoResultado r)
+    public static void AplicarGeo(Planta p, GeoResultado r)
     {
         if (r.Ok)
         {
@@ -112,7 +112,7 @@ public sealed partial class Servicos
         else { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoNivel = ""; p.GeoFonte = r.Mensagem; }
     }
 
-    private static Task<GeoResultado> Localizar(Geocoder geo, Planta p, CancellationToken ct = default) =>
+    public static Task<GeoResultado> Localizar(Geocoder geo, Planta p, CancellationToken ct = default) =>
         geo.BuscarHierarquicoAsync(p.Pais, p.Estado, p.Cidade, string.Join(" ", new[] { p.Rua, p.Numero }.Where(x => !string.IsNullOrWhiteSpace(x))),
             string.IsNullOrWhiteSpace(p.Cidade) && string.IsNullOrWhiteSpace(p.Estado) ? p.EnderecoCompleto : null, ct);
 
@@ -156,7 +156,7 @@ public sealed partial class Servicos
         return p;
     }
 
-    private static bool TemLocal(Planta p) => !string.IsNullOrWhiteSpace(p.Pais) || !string.IsNullOrWhiteSpace(p.Estado) || !string.IsNullOrWhiteSpace(p.Cidade) || !string.IsNullOrWhiteSpace(p.EnderecoCompleto);
+    public static bool TemLocal(Planta p) => !string.IsNullOrWhiteSpace(p.Pais) || !string.IsNullOrWhiteSpace(p.Estado) || !string.IsNullOrWhiteSpace(p.Cidade) || !string.IsNullOrWhiteSpace(p.EnderecoCompleto);
 
     /// <summary>Localiza as plantas sem coordenadas, em cascata (endereço → cidade → estado → país), 1 consulta por segundo.
     /// Plantas posicionadas à mão nunca são alteradas. Devolve (localizadas, ainda pendentes).</summary>

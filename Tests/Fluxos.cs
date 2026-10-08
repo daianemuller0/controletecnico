@@ -672,3 +672,90 @@ public class GeocodificacaoCascataTests
         Assert.Equal("manual", a.Db.Plantas.Obter(p.Id)!.GeoStatus); Assert.Equal("", a.Db.Plantas.Obter(p.Id)!.GeoNivel);
     }
 }
+
+public class VolumeTests
+{
+    [Fact]
+    public void Importa_7000_plantas_em_tempo_razoavel_e_em_um_unico_arquivo()
+    {
+        using var a = new Amb(); var imp = new Importador(a.Db, a.Svc);
+        var sb = new System.Text.StringBuilder("Account;Country;City;State;Address1\n");
+        for (var i = 0; i < 7000; i++) sb.Append($"Planta {i:0000};Brasil;Cidade {i % 300};{(i % 2 == 0 ? "SP" : "MG")};Rua {i}, {i % 99}\n");
+        var arq = Importador.Ler("grande.csv", new MemoryStream(System.Text.Encoding.UTF8.GetBytes(sb.ToString())));
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var linhas = imp.Analisar(arq, Importador.SugerirMapeamento(arq.Cabecalhos));
+        var tAnalise = sw.ElapsedMilliseconds;
+        var r = imp.Aplicar(a.Admin, linhas); sw.Stop();
+        Assert.Equal(7000, r.Importadas); Assert.Empty(r.Rejeitadas);
+        Assert.Equal(7000, a.Db.Plantas.Contar());
+        Assert.True(a.Db.Store.FileCount("plantas") <= 2, "a importação deve gravar em lote, não um arquivo por planta");
+        Assert.True(tAnalise < 5000 && sw.ElapsedMilliseconds < 30000, $"lento: análise {tAnalise} ms, total {sw.ElapsedMilliseconds} ms");
+        // reimportar: reconhece tudo pelo nome (índice), sem varrer a lista a cada linha
+        sw.Restart(); var l2 = imp.Analisar(arq, Importador.SugerirMapeamento(arq.Cabecalhos));
+        Assert.All(l2, x => Assert.True(x.Existente)); Assert.True(sw.ElapsedMilliseconds < 5000, $"reanálise lenta: {sw.ElapsedMilliseconds} ms");
+        // leitura de volta (reabrir)
+        Assert.Equal(7000, new Db(new ParquetStore(a.Dir)).Plantas.Todos().Count);
+    }
+
+    [Fact]
+    public void Planilha_xlsx_de_7000_linhas_e_lida()
+    {
+        using var wb = new ClosedXML.Excel.XLWorkbook(); var ws = wb.AddWorksheet("P");
+        string[] cab = { "Account", "Country", "City", "State", "Address1" };
+        for (var c = 0; c < 5; c++) ws.Cell(1, c + 1).Value = cab[c];
+        for (var i = 0; i < 7000; i++) { ws.Cell(i + 2, 1).Value = "P" + i; ws.Cell(i + 2, 2).Value = "Brasil"; ws.Cell(i + 2, 3).Value = "C" + i % 50; ws.Cell(i + 2, 4).Value = "SP"; ws.Cell(i + 2, 5).Value = "Rua " + i; }
+        using var ms = new MemoryStream(); wb.SaveAs(ms); ms.Position = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var arq = Importador.Ler("g.xlsx", ms);
+        Assert.Equal(7000, arq.Linhas.Count); Assert.True(sw.ElapsedMilliseconds < 20000, $"leitura xlsx lenta: {sw.ElapsedMilliseconds} ms");
+    }
+
+    [Fact]
+    public async Task Cache_evita_repetir_consulta_da_mesma_cidade_e_job_grava_em_lotes()
+    {
+        using var a = new Amb();
+        var chamadas = 0;
+        var handler = new CountingHandler(() => chamadas++);
+        var cfg = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:Contato"] = "ti@x.com", ["Geocoding:IntervaloMs"] = "0" }).Build();
+        var geo = new Geocoder(new CountingFactory(handler), cfg);
+        for (var i = 0; i < 200; i++) a.Db.Plantas.Salvar(new Planta { Nome = "P" + i, Pais = "Brasil", Estado = "SP", Cidade = "Cidade " + i % 5 });   // só cidade: 5 cidades distintas
+        var antes = a.Db.Store.FileCount("plantas");
+        var job = new GeocodificacaoJob(a.Db, a.Svc, geo);
+        Assert.Equal(200, job.Faltam());
+        job.Iniciar(a.Admin);
+        for (var i = 0; i < 300 && job.Rodando; i++) await Task.Delay(50);
+        Assert.False(job.Rodando); Assert.Null(job.Erro);
+        Assert.Equal(200, job.Localizadas); Assert.Equal(0, job.Faltam());
+        Assert.Equal(5, chamadas);                                          // 5 cidades => 5 consultas, não 200
+        Assert.True(geo.ConsultasEmCache >= 195);
+        Assert.True(a.Db.Store.FileCount("plantas") - antes <= 6, "gravação em lotes de 50, não uma por planta");
+        Assert.All(a.Db.Plantas.Todos(), p => { Assert.True(p.TemCoord); Assert.Equal("cidade", p.GeoNivel); });
+        Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "planta.geocodificar");
+    }
+
+    [Fact]
+    public async Task Servico_recusando_interrompe_o_job_sem_perder_o_que_ja_foi_feito()
+    {
+        using var a = new Amb(); var n = 0;
+        var handler = new CountingHandler(() => { n++; }, status: () => n > 2 ? System.Net.HttpStatusCode.Forbidden : System.Net.HttpStatusCode.OK);
+        var cfg = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:Contato"] = "ti@x.com", ["Geocoding:IntervaloMs"] = "0" }).Build();
+        for (var i = 0; i < 20; i++) a.Db.Plantas.Salvar(new Planta { Nome = "P" + i, Pais = "Brasil", Estado = "SP", Cidade = "Cidade " + i });
+        var job = new GeocodificacaoJob(a.Db, a.Svc, new Geocoder(new CountingFactory(handler), cfg));
+        job.Iniciar(a.Admin); for (var i = 0; i < 300 && job.Rodando; i++) await Task.Delay(50);
+        Assert.NotNull(job.Erro); Assert.Contains("Interrompido", job.Erro!);
+        Assert.Equal(2, job.Localizadas); Assert.Equal(2, a.Db.Plantas.Onde(p => p.TemCoord).Count);      // as 2 primeiras ficaram gravadas
+        Assert.True(n <= 6);                                               // parou depois de 3 falhas seguidas, sem martelar o serviço
+    }
+
+    private sealed class CountingHandler : HttpMessageHandler
+    {
+        private readonly Action _n; private readonly Func<System.Net.HttpStatusCode>? _st;
+        public CountingHandler(Action n, Func<System.Net.HttpStatusCode>? status = null) { _n = n; _st = status; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
+        {
+            _n(); var st = _st?.Invoke() ?? System.Net.HttpStatusCode.OK;
+            return Task.FromResult(new HttpResponseMessage(st) { Content = new StringContent(st == System.Net.HttpStatusCode.OK ? "[{\"lat\":\"-23.1\",\"lon\":\"-47.1\",\"display_name\":\"x\"}]" : "") });
+        }
+    }
+    private sealed class CountingFactory : IHttpClientFactory { private readonly HttpMessageHandler _h; public CountingFactory(HttpMessageHandler h) => _h = h; public HttpClient CreateClient(string n) => new(_h); }
+}

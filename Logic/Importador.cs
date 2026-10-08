@@ -49,8 +49,8 @@ public sealed class Importador
 {
     private readonly Db _db;
     private readonly Servicos _svc;
-    public const int MaxLinhas = 5000;
-    public const long MaxBytes = 10 * 1024 * 1024;
+    public const int MaxLinhas = 20000;
+    public const long MaxBytes = 25 * 1024 * 1024;
 
     public Importador(Db db, Servicos svc) { _db = db; _svc = svc; }
 
@@ -116,7 +116,7 @@ public sealed class Importador
     {
         using var ms = new MemoryStream();
         conteudo.CopyTo(ms);
-        if (ms.Length > MaxBytes) throw new ValidacaoException("Arquivo acima de 10 MB.");
+        if (ms.Length > MaxBytes) throw new ValidacaoException("Arquivo acima de 25 MB.");
         if (ms.Length == 0) throw new ValidacaoException("O arquivo está vazio.");
         var ext = Path.GetExtension(nome).ToLowerInvariant();
         ms.Position = 0;
@@ -236,7 +236,10 @@ public sealed class Importador
         var porCliente = clientes.GroupBy(c => DocEngine.Norm(c.Nome)).ToDictionary(g => g.Key, g => g.First());
         var plantaPorChave = plantas.GroupBy(p => $"{p.ClienteId}|{DocEngine.Norm(p.Nome)}").ToDictionary(g => g.Key, g => g.First());
         var vistos = new Dictionary<string, int>();
-        var res = new List<LinhaImport>();
+        var res = new List<LinhaImport>(a.Linhas.Count);
+        // índice por nome (sem cliente): busca O(1) em vez de varrer todas as plantas a cada linha (20 mil linhas × milhares de plantas)
+        var plantaPorNome = plantas.GroupBy(x => DocEngine.Norm(x.Nome)).ToDictionary(g => g.Key, g => g.OrderBy(x => x.ClienteId == "" ? 0 : 1).First());
+        var clientePorId = clientes.ToDictionary(c => c.Id);
 
         for (var i = 0; i < a.Linhas.Count; i++)
         {
@@ -297,8 +300,8 @@ public sealed class Importador
                 else
                 {
                     // sem cliente na planilha: o nome da planta é a chave (é o que se seleciona ao enviar o técnico)
-                    pl = plantas.Where(x => DocEngine.Norm(x.Nome) == kp).OrderBy(x => x.ClienteId == "" ? 0 : 1).FirstOrDefault();
-                    if (pl is not null && pl.ClienteId != "") cli = clientes.FirstOrDefault(c => c.Id == pl.ClienteId);
+                    plantaPorNome.TryGetValue(kp, out pl);
+                    if (pl is not null && pl.ClienteId != "") clientePorId.TryGetValue(pl.ClienteId, out cli);
                 }
                 if (pl is not null) { l.PlantaExistenteId = pl.Id; if (!l.Rejeitada) MontarDiferencas(l, cli, pl); }
             }

@@ -5,6 +5,7 @@
 @inject Db Db
 @inject Importador Imp
 @inject Geocoder Geo
+@inject GeocodificacaoJob Job
 @inject Sessao Sessao
 @inject IJSRuntime JS
 @inject IConfiguration Cfg
@@ -70,18 +71,19 @@ else if (_aba == "plantas")
         <span class="grow"></span>
         @if (_pode)
         {
-            @if (_plantas.Any(p => !p.TemCoord && p.GeoStatus != "manual") && Geo.Configurado)
+            @if (Geo.Configurado && !Job.Rodando && _plantas.Any(p => !p.TemCoord && p.GeoStatus != "manual"))
             {
-                <button class="btn-ghost" @onclick="LocalizarPendentes" disabled="@_localizando">@(_localizando ? "Localizando…" : $"Localizar pendentes ({_plantas.Count(p => !p.TemCoord)})")</button>
+                <button class="btn-ghost" @onclick="IniciarJob">@Icons.Svg("pin")Localizar pendentes (@_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual"))</button>
             }
             <button class="btn-primary" @onclick="NovaPlanta">@Icons.Svg("plus")Nova planta</button>
         }
     </div>
+    @PainelJob()
     @if (!string.IsNullOrEmpty(_msgGeo)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@_msgGeo</div></div> }
     <div class="table-wrap"><table class="grid-tbl">
         <thead><tr><th>Cliente</th><th>Planta / unidade</th><th>Local</th><th>Fuso</th><th>Localização</th><th>Situação</th><th></th></tr></thead>
         <tbody>
-        @foreach (var p in PlantasFiltradas)
+        @foreach (var p in PlantasFiltradas.Skip(PagPl * TamPag).Take(TamPag))
         {
             <tr>
                 <td>@_clientes.FirstOrDefault(c => c.Id == p.ClienteId)?.Nome</td>
@@ -97,6 +99,7 @@ else if (_aba == "plantas")
         }
         </tbody>
     </table></div>
+    @Paginacao(PlantasFiltradas.Count(), PagPl, n => _pagPl = n)
     @if (!PlantasFiltradas.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("pin")</div><h3>Nenhuma planta encontrada</h3><p>Cadastre uma planta ou importe uma planilha.</p></div> }
 }
 else if (_aba == "importar" && _pode)
@@ -111,7 +114,7 @@ else if (_aba == "importar" && _pode)
     {
         <div class="panel">
             <div class="panel-head"><div class="panel-title">1. Escolha o arquivo</div></div>
-            <p>Aceita <strong>.xlsx</strong> e <strong>.csv</strong> (até 10 MB e 5.000 linhas). Colunas: <strong>Account</strong> (nome da planta), <strong>Country</strong>, <strong>City</strong>, <strong>State</strong> e <strong>Address1</strong>. Só o nome da planta é obrigatório.</p>
+            <p>Aceita <strong>.xlsx</strong> e <strong>.csv</strong> (até 25 MB e 20.000 linhas). Colunas: <strong>Account</strong> (nome da planta), <strong>Country</strong>, <strong>City</strong>, <strong>State</strong> e <strong>Address1</strong>. Só o nome da planta é obrigatório.</p>
             <div class="imp-acoes">
                 <a class="btn-ghost" href="/modelo/plantas.xlsx" download>@Icons.Svg("download")Baixar planilha modelo</a>
                 <label class="btn-primary file-btn">@Icons.Svg("upload")Selecionar arquivo<InputFile OnChange="AoArquivo" accept=".xlsx,.csv" class="sr-only" /></label>
@@ -138,7 +141,7 @@ else if (_aba == "importar" && _pode)
             @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
             <div class="modal-actions">
                 <button class="btn-ghost" @onclick="ReiniciarImport">Voltar</button>
-                <button class="btn-primary" @onclick="Analisar">Validar e ver prévia @Icons.Svg("arrow-right")</button>
+                <button class="btn-primary" @onclick="Analisar" disabled="@_lendo">@(_lendo ? "Validando…" : "Validar e ver prévia")@Icons.Svg("arrow-right")</button>
             </div>
         </div>
     }
@@ -166,11 +169,11 @@ else if (_aba == "importar" && _pode)
                     <span class="muted sm">Você pode mudar linha a linha abaixo. Nada é substituído sem aparecer aqui.</span>
                 </div>
             }
-            <div class="toolbar"><label class="chk-inline"><input type="checkbox" @bind="_soProblemas" />Mostrar só linhas com erro, aviso ou duplicidade</label></div>
+            <div class="toolbar"><label class="chk-inline"><input type="checkbox" @bind="_soProblemas" @bind:after="@(() => _pagPrev = 0)" />Mostrar só linhas com erro, aviso ou duplicidade</label><span class="muted sm">@_linhas.Count.ToString("N0") linha(s) lidas; a tabela é paginada, mas a importação vale para todas.</span></div>
             <div class="table-wrap prev-wrap"><table class="grid-tbl">
                 <thead><tr><th>Linha</th><th>Cliente</th><th>Planta</th><th>Local</th><th>Situação</th><th>Ação</th></tr></thead>
                 <tbody>
-                @foreach (var l in _linhas.Where(l => !_soProblemas || l.Rejeitada || l.Existente || l.Avisos.Count > 0))
+                @foreach (var l in LinhasPrev.Skip(_pagPrev * TamPag).Take(TamPag))
                 {
                     <tr class="@(l.Rejeitada ? "lin-erro" : "")">
                         <td>@l.Numero</td><td>@l.Cliente</td><td>@l.Planta</td>
@@ -194,9 +197,10 @@ else if (_aba == "importar" && _pode)
                 }
                 </tbody>
             </table></div>
+            @Paginacao(LinhasPrev.Count(), _pagPrev, n => _pagPrev = n)
             <div class="modal-actions">
                 <button class="btn-ghost" @onclick="@(() => _passo = 2)">Voltar</button>
-                <button class="btn-primary" @onclick="ConfirmarImport" disabled="@(_linhas.All(l => l.Rejeitada || l.Acao == AcaoImport.Ignorar))">@Icons.Svg("check")Confirmar importação</button>
+                <button class="btn-primary" @onclick="ConfirmarImport" disabled="@(_importando || _linhas.All(l => l.Rejeitada || l.Acao == AcaoImport.Ignorar))">@Icons.Svg(_importando ? "clock" : "check")@(_importando ? "Importando… aguarde" : "Confirmar importação")</button>
             </div>
             @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
         </div>
@@ -226,9 +230,10 @@ else if (_aba == "importar" && _pode)
                 <ul class="difs">@foreach (var a in _res.Avisos) { <li>Linha @a.linha: @a.detalhe</li> }</ul>
             }
             <p class="muted mt16">As plantas novas ficam como <strong>localização pendente</strong> até serem localizadas. A busca é em cascata: tenta o endereço; se não achar, para na cidade; depois no estado; depois no país.</p>
-            @if (Geo.Configurado) { <button class="btn-primary" @onclick="LocalizarPendentes" disabled="@_localizando">@Icons.Svg("pin")@(_localizando ? "Localizando…" : $"Localizar no mapa as {_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual")} plantas pendentes")</button> }
-            else { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@Geo.Pendencia</div></div> }
-            @if (!string.IsNullOrEmpty(_msgGeo)) { <div class="alert-box alert-info mt8">@Icons.Svg("info")<div>@_msgGeo</div></div> }
+            @PainelJob()
+            @if (Geo.Configurado && !Job.Rodando) { <button class="btn-primary" @onclick="IniciarJob">@Icons.Svg("pin")Localizar no mapa as @_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual") plantas pendentes</button> }
+            else if (!Geo.Configurado) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@Geo.Pendencia</div></div> }
+
             <div class="modal-actions">
                 <button class="btn-ghost" @onclick="ReiniciarImport">Nova importação</button>
                 <button class="btn-primary" @onclick="@(() => { _aba = "plantas"; _fGeo = ""; ReiniciarImport(); })">Ver plantas</button>
@@ -317,7 +322,7 @@ else if (_aba == "importar" && _pode)
     {
         _ator = await Sessao.AtorAsync(); _pode = _ator.Pode(Perm.EditarClientes);
         _ref = DotNetObjectReference.Create(this);
-        Sessao.Mudou += Ao;
+        Sessao.Mudou += Ao; Job.Mudou += AoJob;
         Carregar();
     }
     private void Ao() => InvokeAsync(StateHasChanged);
@@ -430,6 +435,54 @@ else if (_aba == "importar" && _pode)
         _salvando = false;
     }
 
+    private const int TamPag = 100;
+    private int _pagPl, _pagPrev;
+    private int PagPl => Math.Min(_pagPl, Math.Max(0, (int)Math.Ceiling(PlantasFiltradas.Count() / (double)TamPag) - 1));
+    private IEnumerable<LinhaImport> LinhasPrev => _linhas.Where(l => !_soProblemas || l.Rejeitada || l.Existente || l.Avisos.Count > 0);
+
+    private RenderFragment Paginacao(int total, int pag, Action<int> ir) => __builder =>
+    {
+        var paginas = Math.Max(1, (int)Math.Ceiling(total / (double)TamPag));
+        if (paginas <= 1) return;
+        <div class="paginacao">
+            <button class="btn-ghost sm" disabled="@(pag <= 0)" @onclick="() => ir(pag - 1)">@Icons.Svg("chevron-left")</button>
+            <span>Página @(pag + 1) de @paginas · @total.ToString("N0") registros</span>
+            <button class="btn-ghost sm" disabled="@(pag >= paginas - 1)" @onclick="() => ir(pag + 1)">@Icons.Svg("chevron-right")</button>
+        </div>
+    };
+
+    private RenderFragment PainelJob() => __builder =>
+    {
+        if (!Job.Rodando && Job.Inicio is null) return;
+        <div class="alert-box @(Job.Erro is not null ? "alert-aviso" : Job.Rodando ? "alert-info" : "alert-ok") job-painel">
+            @Icons.Svg(Job.Rodando ? "clock" : "pin")
+            <div>
+                @if (Job.Rodando)
+                {
+                    <strong>Localizando plantas no mapa… @Job.Feitas.ToString("N0") de @Job.Total.ToString("N0")</strong>
+                    <div class="barra"><i style="width:@((Job.Total == 0 ? 0 : 100.0 * Job.Feitas / Job.Total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></i></div>
+                    <div class="sm">@Job.Localizadas.ToString("N0") localizadas · @Job.Pendentes.ToString("N0") sem localização · @Job.Atual@(Job.Restante is { } r ? $" · faltam ≈ {Tempo.Duracao(r)}" : "")</div>
+                    <div class="sm muted">Roda no servidor: pode fechar esta página. Plantas que dividem a mesma cidade reaproveitam a consulta.</div>
+                    <button class="btn-ghost sm mt8" @onclick="Job.Parar">Parar</button>
+                }
+                else
+                {
+                    <strong>Localização concluída: @Job.Localizadas.ToString("N0") localizada(s), @Job.Pendentes.ToString("N0") sem localização (de @Job.Total.ToString("N0"))</strong>
+                    @if (Job.Erro is not null) { <div class="sm">@Job.Erro</div> }
+                    <div class="sm muted">Consultas ao serviço de mapas: @Geo.ConsultasRealizadas.ToString("N0") (evitadas pelo cache: @Geo.ConsultasEmCache.ToString("N0")).</div>
+                }
+            </div>
+        </div>
+    };
+
+    private void IniciarJob()
+    {
+        try { Job.Iniciar(_ator); }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
+
+    private void AoJob() => InvokeAsync(() => { if (!Job.Rodando) Carregar(); StateHasChanged(); });
+
     private async Task LocalizarPendentes()
     {
         _localizando = true; _msgGeo = "Consultando endereços (1 por segundo)…"; StateHasChanged();
@@ -469,11 +522,12 @@ else if (_aba == "importar" && _pode)
         if (int.TryParse(v, out var i) && i >= 0) _map[key] = i; else _map.Remove(key);
     }
 
-    private void Analisar()
+    private async Task Analisar()
     {
-        _errosImp = null;
-        try { _linhas = Imp.Analisar(_arq!, _map); _passo = 3; }
+        _errosImp = null; _lendo = true; StateHasChanged();
+        try { _linhas = await Task.Run(() => Imp.Analisar(_arq!, _map)); _passo = 3; _pagPrev = 0; _soProblemas = _linhas.Count > 300; }
         catch (Exception ex) { _errosImp = Ui.Erros(ex); }
+        _lendo = false;
     }
 
     private void AplicarPadrao(string? acao)
@@ -482,11 +536,13 @@ else if (_aba == "importar" && _pode)
         foreach (var l in _linhas.Where(l => l.Existente && !l.Rejeitada)) l.Acao = a;
     }
 
-    private void ConfirmarImport()
+    private bool _importando;
+    private async Task ConfirmarImport()
     {
-        _errosImp = null;
-        try { _res = Imp.Aplicar(_ator, _linhas); _passo = 4; Carregar(); Sessao.Avisar("Importação concluída."); }
+        _errosImp = null; _importando = true; StateHasChanged();
+        try { _res = await Task.Run(() => Imp.Aplicar(_ator, _linhas)); _passo = 4; Carregar(); Sessao.Avisar("Importação concluída."); }
         catch (Exception ex) { _errosImp = Ui.Erros(ex); }
+        _importando = false;
     }
 
     private void ReiniciarImport() { _passo = 1; _arq = null; _linhas = new(); _res = null; _errosImp = null; _map = new(); }
@@ -497,5 +553,5 @@ else if (_aba == "importar" && _pode)
         await JS.InvokeVoidAsync("app.baixarTexto", "erros_importacao.csv", "text/csv;charset=utf-8", Importador.ErrosCsvTexto(_res), true);
     }
 
-    public void Dispose() { Sessao.Mudou -= Ao; try { _ = JS.InvokeVoidAsync("app.mapa.destruir", "mapa-planta"); } catch { } _ref?.Dispose(); }
+    public void Dispose() { Sessao.Mudou -= Ao; Job.Mudou -= AoJob; try { _ = JS.InvokeVoidAsync("app.mapa.destruir", "mapa-planta"); } catch { } _ref?.Dispose(); }
 }

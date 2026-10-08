@@ -81,6 +81,7 @@ builder.Services.AddSingleton<ImportadorTecnicos>();
 builder.Services.AddHttpClient("geo", c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddSingleton<Geocoder>();
 builder.Services.AddSingleton<Rota>();
+builder.Services.AddSingleton<GeocodificacaoJob>();
 builder.Services.AddSingleton<LoginGuard>();
 builder.Services.AddScoped<Sessao>();
 
