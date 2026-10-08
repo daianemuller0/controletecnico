@@ -81,7 +81,7 @@ Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSen
 |---|---|---|
 | Geocodificação (Nominatim/OSM ou instância própria) | `Geocoding__Contato` (e-mail exigido pela política de uso), `Geocoding__BaseUrl` | Plantas ficam **"localização pendente"**; posicionamento manual no mapa funciona |
 | Estimativa de rota de carro (OSRM) | `Routing__BaseUrl` | Distância/duração informadas manualmente (marcadas como *informada*) |
-| Camada do mapa | `Mapa__TileUrl`, `Mapa__Atribuicao` | Usa o servidor público do OpenStreetMap (adequado só a baixo volume; em produção use provedor com chave ou instância própria) |
+| Camada do mapa | `Mapa__TileUrl`, `Mapa__Atribuicao` (o servidor público do OSM exige o cabeçalho Referer e bloqueia uso intenso; se aparecer "Access blocked", use outro provedor/instância própria) | Usa o servidor público do OpenStreetMap (adequado só a baixo volume; em produção use provedor com chave ou instância própria) |
 
 ## Limitações e pendências reais
 

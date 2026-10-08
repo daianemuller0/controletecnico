@@ -29,7 +29,15 @@ app.mapa = {
         this.destruir(id);
         const map = L.map(el, { zoomControl: true, worldCopyJump: true }).setView(cfg.centro || [-15, -52], cfg.zoom || 4);
         if (cfg.tileUrl) {
-            L.tileLayer(cfg.tileUrl, { maxZoom: 18, attribution: cfg.atribuicao || '' }).addTo(map);
+            let erros = 0;
+            const tl = L.tileLayer(cfg.tileUrl, { maxZoom: 18, attribution: cfg.atribuicao || '', referrerPolicy: 'strict-origin-when-cross-origin' }).addTo(map);
+            tl.on('tileerror', () => {
+                if (++erros === 6 && !el.querySelector('.mapa-aviso')) {
+                    const d = document.createElement('div'); d.className = 'mapa-aviso';
+                    d.textContent = 'Não foi possível carregar o fundo do mapa (bloqueio de rede ou do provedor). Marcadores e rotas continuam válidos. Veja Mapa:TileUrl na configuração.';
+                    el.appendChild(d);
+                }
+            });
         }
         const camada = L.layerGroup().addTo(map);
         this._m[id] = { map, camada, ref, ro: null };

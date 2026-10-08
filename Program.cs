@@ -113,7 +113,8 @@ using (var scope = app.Services.CreateScope())
 app.Use(async (ctx, next) =>
 {
     ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    ctx.Response.Headers["Referrer-Policy"] = "same-origin";
+    // o servidor de mapas (OSM) exige o Referer da origem; "same-origin" fazia o pedido ser bloqueado (403)
+    ctx.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
     ctx.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
     await next();
 });
