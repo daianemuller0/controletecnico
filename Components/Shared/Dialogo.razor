@@ -1,0 +1,29 @@
+<div class="modal-backdrop" @onclick="Fundo" role="presentation">
+    <div class="modal @(Largo ? "modal-largo" : "")" role="dialog" aria-modal="true" aria-label="@Titulo" @onclick:stopPropagation="true">
+        <div class="modal-topo">
+            <h2>@Titulo</h2>
+            <button type="button" class="icon-btn" @onclick="Fechar" aria-label="Fechar">@Icons.Svg("x")</button>
+        </div>
+        @if (Erros is { Count: > 0 })
+        {
+            <div class="alert-box alert-erro" role="alert">
+                @Icons.Svg("alert")
+                <div>@foreach (var e in Erros) { <div>@e</div> }</div>
+            </div>
+        }
+        @ChildContent
+        @if (Rodape is not null) { <div class="modal-actions">@Rodape</div> }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Titulo { get; set; } = "";
+    [Parameter] public bool Largo { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Rodape { get; set; }
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public List<string>? Erros { get; set; }
+    [Parameter] public bool FecharNoFundo { get; set; }
+    private Task Fechar() => OnFechar.InvokeAsync();
+    private Task Fundo() => FecharNoFundo ? OnFechar.InvokeAsync() : Task.CompletedTask;
+}

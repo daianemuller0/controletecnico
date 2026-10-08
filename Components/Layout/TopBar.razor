@@ -1,0 +1,54 @@
+@implements IDisposable
+@inject Sessao Sessao
+@inject IJSRuntime JS
+
+<header class="topbar no-print">
+    <div>
+        <div class="topbar-title">@Icons.Svg("wrench", "nav-ico")Controle Técnico</div>
+        <div class="topbar-sub">Viagens, agenda, disponibilidade e documentação dos técnicos</div>
+    </div>
+    <div class="topbar-right">
+        <button type="button" class="btn-ghost sm @(Sessao.Apresentacao ? "on" : "")" @onclick="Alternar"
+                title="Amplia mapa, indicadores e agenda e oculta contatos, códigos de reserva e conteúdo de documentos">
+            @Icons.Svg(Sessao.Apresentacao ? "eye-off" : "monitor")
+            @(Sessao.Apresentacao ? "Sair da apresentação" : "Modo apresentação")
+        </button>
+        <AuthorizeView>
+            <Authorized>
+                <div class="user">
+                    <div class="user-name">@context.User.Identity?.Name</div>
+                    <div class="user-role">@Roles.Label(Roles.Normalize(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value))</div>
+                </div>
+                <div class="avatar">@Iniciais(context.User.Identity?.Name)</div>
+                <a class="icon-btn" href="/senha" title="Alterar minha senha">@Icons.Svg("lock")</a>
+                <form method="post" action="/auth/logout">
+                    <button class="icon-btn" type="submit" title="Sair">@Icons.Svg("logout")</button>
+                </form>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+</header>
+
+@code {
+    protected override void OnInitialized() => Sessao.Mudou += Ao;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { Sessao.Apresentacao = await JS.InvokeAsync<bool>("app.apresentacaoAtual"); } catch { }
+    }
+    private void Ao() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Sessao.Mudou -= Ao;
+
+    private async Task Alternar()
+    {
+        Sessao.Apresentacao = !Sessao.Apresentacao;
+        try { await JS.InvokeVoidAsync("app.apresentacao", Sessao.Apresentacao); } catch { }
+    }
+
+    private static string Iniciais(string? nome)
+    {
+        if (string.IsNullOrWhiteSpace(nome)) return "?";
+        return string.Concat(nome.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+}

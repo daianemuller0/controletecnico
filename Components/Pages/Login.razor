@@ -1,0 +1,67 @@
+@page "/login"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+@inject Db Db
+
+<PageTitle>Acesso · Controle Técnico</PageTitle>
+<div class="cover">
+    <div class="cover-left">
+        <div class="cover-top">
+            <div class="cover-brand">
+                <div class="brand-mark big">CT</div>
+                <div class="cover-brand-text"><strong>Controle Técnico</strong><span>Operação de campo</span></div>
+            </div>
+            <div class="cover-tags-top"><span>VIAGENS</span><span class="dot">·</span><span>AGENDA</span><span class="dot">·</span><span>DOCUMENTAÇÃO</span></div>
+        </div>
+        <div class="cover-hero">
+            <div class="cover-eyebrow">Gestão e controladoria</div>
+            <h1 class="cover-title">Onde cada técnico está, o que faz e <span>quando ficará disponível</span></h1>
+            <p class="cover-desc">
+                Mapa, agenda e linha do tempo integrados às viagens, plantas dos clientes e à validade de documentos,
+                treinamentos e certificações de toda a equipe.
+            </p>
+            <ul class="cover-list">
+                <li>@Icons.Svg("check")Localização prevista e confirmada, sempre identificadas como tal</li>
+                <li>@Icons.Svg("check")Viagens de carro e avião com múltiplos trechos e tempos separados</li>
+                <li>@Icons.Svg("check")Conflitos de agenda e de deslocamento sinalizados antes de confirmar</li>
+                <li>@Icons.Svg("check")Aptidão documental por planta e serviço, durante todo o atendimento</li>
+            </ul>
+        </div>
+    </div>
+    <div class="cover-right">
+        <div class="cover-form">
+            @if (Db.Demo)
+            {
+                <div class="demo-chip">@Icons.Svg("info")Ambiente de demonstração · dados fictícios</div>
+            }
+            <div class="cover-eyebrow dark">Acesso restrito</div>
+            <h2 class="cover-form-title">Entrar no sistema</h2>
+            <p class="cover-form-sub">Use o usuário e a senha fornecidos pela administração.</p>
+
+            @if (Erro == "1") { <div class="alert-error" role="alert">Usuário ou senha inválidos.</div> }
+            @if (Erro == "2") { <div class="alert-error" role="alert">Muitas tentativas. Aguarde alguns minutos e tente de novo.</div> }
+
+            <form method="post" action="/auth/login" class="login-form">
+                <label>Usuário
+                    <input type="text" name="usuario" autocomplete="username" placeholder="seu.usuario" required autofocus />
+                </label>
+                <label>Senha
+                    <input type="password" name="senha" autocomplete="current-password" placeholder="••••••••" required />
+                </label>
+                <button type="submit" class="btn-primary">Acessar @Icons.Svg("arrow-right")</button>
+            </form>
+            @if (Db.Demo)
+            {
+                <div class="demo-creds">
+                    <strong>Perfis de demonstração</strong> (senha <code>demo2026</code>):
+                    <code>admin</code> · <code>gestao</code> · <code>controladoria</code> · <code>carlos</code> (técnico) · <code>consulta</code>
+                </div>
+            }
+            <div class="cover-form-foot">@Icons.Svg("lock")<span>Acesso exclusivo para usuários autorizados</span></div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")] public string? Erro { get; set; }
+}

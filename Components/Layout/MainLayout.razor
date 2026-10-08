@@ -1,0 +1,26 @@
+@inherits LayoutComponentBase
+@inject Db Db
+@inject Sessao Sessao
+
+<div class="app-shell @(_apres ? "apres" : "")">
+    <NavMenu />
+    <div class="main-col">
+        @if (Db.Demo)
+        {
+            <div class="demo-banner no-print" role="status">
+                @Icons.Svg("info")<strong>AMBIENTE DE DEMONSTRAÇÃO</strong><span>Todos os técnicos, clientes, viagens e documentos são fictícios.</span>
+            </div>
+        }
+        <TopBar />
+        <main class="content @(_apres ? "content-wide" : "")">
+            @Body
+        </main>
+        <Toaster />
+    </div>
+</div>
+
+@code {
+    private bool _apres;
+    protected override void OnInitialized() { _apres = Sessao.Apresentacao; Sessao.Mudou += Ao; }
+    private void Ao() => InvokeAsync(() => { _apres = Sessao.Apresentacao; StateHasChanged(); });
+}

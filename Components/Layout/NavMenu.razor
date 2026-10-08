@@ -1,0 +1,63 @@
+@implements IDisposable
+@inject NavigationManager Nav
+@inject Sessao Sessao
+
+<aside class="sidebar no-print">
+    <div class="brand">
+        <div class="brand-mark">CT</div>
+        <div class="brand-text">
+            <div class="brand-name">Controle Técnico</div>
+            <div class="brand-sub">Operação de campo</div>
+        </div>
+    </div>
+    <nav class="nav" aria-label="Navegação principal">
+        <div class="nav-section">Operação</div>
+        @foreach (var it in Itens.Where(i => Visivel(i)))
+        {
+            <a class="nav-item @(Ativo(it.Rota) ? "active" : "")" href="@it.Rota" title="@it.Rotulo">
+                @Icons.Svg(it.Icone, "nav-ico")<span>@it.Rotulo</span>
+            </a>
+        }
+        @if (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.VerAuditoria))
+        {
+            <div class="nav-section">Sistema</div>
+            <a class="nav-item @(Ativo("/admin") ? "active" : "")" href="/admin" title="Administração">
+                @Icons.Svg("admin", "nav-ico")<span>Administração</span>
+            </a>
+        }
+    </nav>
+    <div class="sidebar-footer"><div class="version">Controle Técnico · v1.0</div></div>
+</aside>
+
+@code {
+    private record Item(string Rota, string Icone, string Rotulo, bool SoEquipe = false);
+    private static readonly Item[] Itens =
+    {
+        new("/", "map", "Visão operacional"),
+        new("/agenda", "calendar", "Agenda"),
+        new("/clientes", "customers", "Clientes e plantas", true),
+        new("/viagens", "plane", "Controladoria e viagens"),
+        new("/tecnicos", "users", "Técnicos"),
+    };
+    private Ator _ator = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Sessao.AtorAsync();
+        Nav.LocationChanged += Ao;
+    }
+    private void Ao(object? s, LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+    public void Dispose() => Nav.LocationChanged -= Ao;
+
+    private bool Visivel(Item i) => !i.SoEquipe || _ator.VeTodaEquipe;
+
+    private bool Ativo(string rota)
+    {
+        var rel = Nav.ToBaseRelativePath(Nav.Uri);
+        var corte = rel.IndexOfAny(new[] { '?', '#' });
+        if (corte >= 0) rel = rel[..corte];
+        var path = "/" + rel.Trim('/');
+        if (rota == "/") return path == "/";
+        return path.Equals(rota, StringComparison.OrdinalIgnoreCase) || path.StartsWith(rota + "/", StringComparison.OrdinalIgnoreCase);
+    }
+}

@@ -1,0 +1,154 @@
+@page "/admin"
+@attribute [Authorize(Roles = "admin,gestao")]
+@inject Servicos Svc
+@inject Db Db
+@inject Geocoder Geo
+@inject Rota Rt
+@inject Sessao Sessao
+@inject IConfiguration Cfg
+
+<PageTitle>Administração · Controle Técnico</PageTitle>
+<div class="page-head compacto"><div><h1>Administração</h1><p class="subtitle">Usuários e permissões, configurações, integrações e histórico de alterações.</p></div></div>
+
+<div class="tabs" role="tablist">
+    @if (_ator.Pode(Perm.Administrar))
+    {
+        <button class="tab @(_aba == "usr" ? "active" : "")" @onclick='() => _aba = "usr"'>Usuários e perfis</button>
+        <button class="tab @(_aba == "cfg" ? "active" : "")" @onclick='() => _aba = "cfg"'>Configurações e integrações</button>
+    }
+    <button class="tab @(_aba == "aud" ? "active" : "")" @onclick='() => _aba = "aud"'>Histórico de alterações</button>
+    @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "demo" ? "active" : "")" @onclick='() => _aba = "demo"'>Dados</button> }
+</div>
+
+@if (_aba == "usr" && _ator.Pode(Perm.Administrar))
+{
+    <div class="toolbar"><span class="grow"></span><button class="btn-primary" @onclick="NovoUsuario">@Icons.Svg("plus")Novo usuário</button></div>
+    <div class="table-wrap"><table class="grid-tbl">
+        <thead><tr><th>Login</th><th>Nome</th><th>Perfil</th><th>Técnico vinculado</th><th>Situação</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var u in _usuarios)
+        {
+            <tr><td><code>@u.Id</code></td><td>@u.Nome</td><td><span class="tag">@Roles.Label(u.Papel)</span></td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
+                <td><span class="badge @(u.Ativo ? "st-pos" : "st-neutral")">@(u.Ativo ? "Ativo" : "Inativo")</span></td>
+                <td class="right"><button class="row-act" @onclick="() => EditarUsuario(u)" title="Editar">@Icons.Svg("edit")</button></td></tr>
+        }
+        </tbody>
+    </table></div>
+    <div class="panel mt16">
+        <div class="panel-head"><div class="panel-title">O que cada perfil pode fazer</div></div>
+        <table class="grid-tbl matriz"><thead><tr><th>Permissão</th>@foreach (var r in Roles.All) { <th>@r.Label</th> }</tr></thead><tbody>
+            @foreach (var (p, nome) in Matriz)
+            {
+                <tr><td>@nome</td>@foreach (var r in Roles.All) { var a = new Ator { Papel = r.Role }; <td class="c">@(a.Pode(p) ? "●" : r.Role == Roles.Tecnico && new Ator { Papel = r.Role, TecnicoId = "x" }.Pode(p, "x") ? "só o próprio" : "—")</td> }</tr>
+            }
+        </tbody></table>
+        <p class="muted sm">As permissões são aplicadas no servidor em cada operação, não apenas na interface.</p>
+    </div>
+}
+else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
+{
+    <div class="g12 top">
+        <div class="c6"><div class="panel">
+            <div class="panel-head"><div class="panel-title">Parâmetros</div></div>
+            <div class="form-grid">
+                <label class="fld full">Alertas antecipados de vencimento (dias, separados por vírgula)<input @bind="_alertas" /></label>
+                <label class="fld">Fuso horário padrão da agenda<select @bind="_fuso">@foreach (var f in Vocab.Fusos.Concat(new[] { _fuso }).Distinct()) {<option>@f</option>}</select></label>
+                <label class="fld">Validade da localização confirmada (horas)<input type="number" min="1" @bind="_horas" /></label>
+            </div>
+            @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+            <div class="modal-actions"><button class="btn-primary" @onclick="SalvarCfg">@Icons.Svg("check")Salvar</button></div>
+        </div></div>
+        <div class="c6"><div class="panel">
+            <div class="panel-head"><div class="panel-title">Integrações externas</div></div>
+            <p class="muted sm">Configuradas por ambiente (appsettings ou variáveis de ambiente). Segredos nunca ficam no código.</p>
+            <table class="grid-tbl"><tbody>
+                <tr><td><strong>Geocodificação</strong><div class="muted sm">Geocoding__Contato · Geocoding__BaseUrl</div></td><td>@if (Geo.Configurado) { <span class="badge st-pos">Ativa</span> } else { <span class="badge st-warn">Configuração pendente</span> }</td></tr>
+                <tr><td><strong>Estimativa de rota (carro)</strong><div class="muted sm">Routing__BaseUrl (compatível com OSRM)</div></td><td>@if (Rt.Configurada) { <span class="badge st-pos">Ativa</span> } else { <span class="badge st-warn">Não configurada — informar manualmente</span> }</td></tr>
+                <tr><td><strong>Camada do mapa</strong><div class="muted sm">Mapa__TileUrl · @Cfg["Mapa:TileUrl"]</div></td><td><span class="badge st-info">OpenStreetMap (público)</span></td></tr>
+            </tbody></table>
+        </div></div>
+    </div>
+}
+else if (_aba == "aud")
+{
+    <div class="toolbar">
+        <input class="field busca" placeholder="Filtrar por usuário, ação ou texto…" @bind="_buscaAud" @bind:event="oninput" />
+        <select class="field w-auto" @bind="_fAcao"><option value="">Todas as ações</option>@foreach (var a in _aud.Select(x => x.Acao.Split('.')[0]).Distinct().OrderBy(x => x)) {<option>@a</option>}</select>
+    </div>
+    <div class="table-wrap"><table class="grid-tbl">
+        <thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Detalhe</th></tr></thead>
+        <tbody>
+        @foreach (var a in AudFiltrada.Take(300))
+        {
+            <tr><td class="nowrap">@Tempo.Hora(a.Quando, Db.FusoPadrao, null, true)</td><td>@a.Usuario <span class="muted sm">(@Roles.Label(a.Papel))</span></td><td><code>@a.Acao</code></td><td>@a.Resumo</td></tr>
+        }
+        </tbody></table></div>
+    <p class="muted sm">Exibindo as 300 mais recentes que atendem ao filtro (de @_aud.Count registros).</p>
+}
+else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
+{
+    <div class="panel">
+        <div class="panel-head"><div class="panel-title">Ambiente de demonstração</div></div>
+        <p>Situação: @if (Db.Demo) { <span class="badge st-warn">Demonstração (dados fictícios)</span> } else { <span class="badge st-pos">Dados reais</span> }</p>
+        <div class="imp-acoes">
+            <button class="btn-ghost" @onclick="@(() => _confirma = "recarregar")">@Icons.Svg("refresh")Recarregar dados fictícios</button>
+            <button class="btn-danger-ghost" @onclick="@(() => _confirma = "limpar")">@Icons.Svg("trash")Apagar todos os dados operacionais</button>
+        </div>
+        <p class="muted sm">Usuários e histórico de alterações são preservados. Apagar remove técnicos, clientes, plantas, viagens, documentos e anexos.</p>
+    </div>
+}
+
+@if (_u is not null)
+{
+    <Dialogo Titulo="@(_novoU ? "Novo usuário" : "Editar usuário")" OnFechar="@(() => _u = null)" Erros="_erros">
+        <div class="form-grid">
+            <label class="fld">Login<input @bind="_u.Id" disabled="@(!_novoU)" /></label>
+            <label class="fld">Nome<input @bind="_u.Nome" /></label>
+            <label class="fld">Perfil<select @bind="_u.Papel">@foreach (var r in Roles.All) {<option value="@r.Role">@r.Label</option>}</select></label>
+            <label class="fld">Técnico vinculado <span class="hint">obrigatório para o perfil Técnico</span><select @bind="_u.TecnicoId"><option value="">—</option>@foreach (var t in Db.Tecnicos.Todos().OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select></label>
+            <label class="fld full">@(_novoU ? "Senha (mín. 8 caracteres)" : "Nova senha (deixe vazio para manter)")<input type="password" @bind="_senha" autocomplete="new-password" /></label>
+            <label class="fld chk"><input type="checkbox" @bind="_u.Ativo" />Usuário ativo</label>
+        </div>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _u = null)">Cancelar</button><button class="btn-primary" @onclick="SalvarUsuario">@Icons.Svg("check")Salvar</button></div>
+    </Dialogo>
+}
+@if (_confirma != "")
+{
+    <Dialogo Titulo="Confirmar" OnFechar="@(() => _confirma = "")" Erros="_erros">
+        <p>@(_confirma == "recarregar" ? "Apagar os dados atuais e carregar novamente os dados fictícios?" : "Apagar TODOS os dados operacionais e anexos? Esta ação não pode ser desfeita.")</p>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _confirma = "")">Cancelar</button><button class="btn-danger" @onclick="ExecutarDados">Confirmar</button></div>
+    </Dialogo>
+}
+
+@code {
+    private Ator _ator = new(); private string _aba = "aud"; private List<Usuario> _usuarios = new(); private List<Auditoria> _aud = new();
+    private List<string>? _erros; private Usuario? _u; private bool _novoU; private string _senha = "", _alertas = "", _fuso = "", _buscaAud = "", _fAcao = "", _confirma = ""; private int _horas;
+
+    private static readonly (Perm, string)[] Matriz =
+    {
+        (Perm.VerEquipe, "Ver a equipe, mapa e agenda geral"), (Perm.VerContatos, "Ver telefone e e-mail dos técnicos"), (Perm.EditarTecnicos, "Cadastrar e editar técnicos"),
+        (Perm.EditarClientes, "Cadastrar clientes e plantas / importar planilhas"), (Perm.EditarViagens, "Criar, alterar e cancelar viagens"), (Perm.VerReservas, "Ver códigos de reserva e anexos de viagens"),
+        (Perm.EditarAgenda, "Lançar e reagendar compromissos e indisponibilidades"), (Perm.VerDocsStatus, "Ver situação e vencimento de documentos"), (Perm.VerDocsConteudo, "Ver / baixar arquivos de documentos"),
+        (Perm.EditarDocs, "Cadastrar e renovar documentos"), (Perm.EditarRequisitos, "Configurar requisitos por serviço/planta"), (Perm.ConfirmarLocal, "Confirmar localização"),
+        (Perm.VerAuditoria, "Ver histórico de alterações"), (Perm.Administrar, "Administrar usuários e configurações"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Sessao.AtorAsync();
+        _aba = _ator.Pode(Perm.Administrar) ? "usr" : "aud"; Carregar();
+        _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras;
+    }
+    private void Carregar() { _usuarios = Db.Usuarios.Todos().OrderBy(u => u.Id).ToList(); _aud = Db.Auditorias.Todos().OrderByDescending(a => a.Quando).ToList(); }
+    private IEnumerable<Auditoria> AudFiltrada => _aud.Where(a => (_fAcao == "" || a.Acao.StartsWith(_fAcao)) && (string.IsNullOrWhiteSpace(_buscaAud) || DocEngine.Norm($"{a.Usuario} {a.Acao} {a.Resumo}").Contains(DocEngine.Norm(_buscaAud))));
+
+    private void NovoUsuario() { _u = new Usuario { Papel = Roles.Consulta }; _novoU = true; _senha = ""; _erros = null; }
+    private void EditarUsuario(Usuario u) { _u = u.Copia<Usuario>(); _novoU = false; _senha = ""; _erros = null; }
+    private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar("Usuário salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void SalvarCfg() { _erros = null; try { Svc.SalvarConfig(_ator, _alertas, _fuso, _horas); Sessao.Avisar("Configurações salvas."); Carregar(); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void ExecutarDados()
+    {
+        try { if (_confirma == "recarregar") Svc.RecarregarDemo(_ator); else Svc.LimparDadosOperacionais(_ator); _confirma = ""; Carregar(); Sessao.Avisar("Concluído."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+}

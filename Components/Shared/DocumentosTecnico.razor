@@ -1,0 +1,219 @@
+@* Documentos, treinamentos e certificações de um técnico: cadastro, anexos, renovação e histórico. *@
+@implements IDisposable
+@inject Servicos Svc
+@inject Db Db
+@inject Sessao Sessao
+
+<div class="toolbar">
+    <h3 class="sec nm">@Icons.Svg(Modo == "docs" ? "file" : "shield")@(Modo == "docs" ? "Documentos" : "Treinamentos e certificações")</h3>
+    <span class="grow"></span>
+    @if (PodeEditar) { <button class="btn-primary" @onclick="Novo">@Icons.Svg("plus")Adicionar @(Modo == "docs" ? "documento" : "treinamento / certificação")</button> }
+</div>
+@if (Sessao.Apresentacao)
+{
+    <div class="alert-box alert-info">@Icons.Svg("eye-off")<div>Modo apresentação: o conteúdo dos arquivos fica oculto. Situação e vencimentos continuam visíveis.</div></div>
+}
+else if (!PodeConteudo)
+{
+    <div class="alert-box alert-info">@Icons.Svg("lock")<div>Seu perfil vê a situação e os vencimentos, mas não o conteúdo dos arquivos.</div></div>
+}
+
+@if (_atuais.Count == 0)
+{
+    <div class="empty-state sm"><div class="ico">@Icons.Svg(Modo == "docs" ? "file" : "shield")</div><h3>Nada cadastrado ainda</h3><p>@(PodeEditar ? "Use o botão acima para adicionar o primeiro registro." : "Nenhum registro para exibir.")</p></div>
+}
+else
+{
+    <div class="table-wrap"><table class="grid-tbl">
+        <thead><tr><th>Registro</th><th>Norma</th><th>Emissão</th><th>Vencimento</th><th>Situação</th><th>Anexos</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var d in _atuais)
+        {
+            var st = DocEngine.Status(d, _hoje, Db.DiasAlerta); var dias = DocEngine.DiasParaVencer(d, _hoje);
+            var anexos = _anexos.Where(a => a.DonoId == d.Id).ToList();
+            var versoes = _todos.Where(x => x.RaizId == d.RaizId && x.Id != d.Id).OrderByDescending(x => x.Versao).ToList();
+            <tr>
+                <td><strong>@d.Nome</strong><div class="muted sm">@d.Categoria · v@d.Versao@(string.IsNullOrEmpty(d.Emissor) ? "" : " · " + d.Emissor)</div></td>
+                <td>@d.Norma@if (!string.IsNullOrEmpty(d.NormaVersao)) { <span class="muted sm"> (@d.NormaVersao)</span> }</td>
+                <td>@Tempo.Dia(d.Emissao)</td>
+                <td>@(d.SemVencimento ? "Sem vencimento" : Tempo.Dia(d.Vencimento))@if (dias is not null) { <div class="muted sm">@(dias < 0 ? $"vencido há {-dias} dia(s)" : $"em {dias} dia(s)")</div> }</td>
+                <td><StatusBadge Item="@Ui.StDoc(st)" /></td>
+                <td>
+                    @foreach (var a in anexos) { <div class="anexo">@Icons.Svg("paperclip")@LinkAnexo(a)</div> }
+                    @if (anexos.Count == 0) { <span class="muted sm">sem anexo</span> }
+                </td>
+                <td class="right nowrap">
+                    @if (PodeEditar)
+                    {
+                        <button class="row-act" title="Editar dados" @onclick="() => Editar(d)">@Icons.Svg("edit")</button>
+                        <button class="row-act" title="Renovar (mantém a versão anterior no histórico)" @onclick="() => AbrirRenovar(d)">@Icons.Svg("refresh")</button>
+                        <label class="row-act" title="Adicionar anexo">@Icons.Svg("paperclip")<InputFile OnChange="e => AnexarDireto(d.Id, e)" multiple accept=".pdf,.jpg,.jpeg,.png" class="sr-only" /></label>
+                        <button class="row-act del" title="Excluir" @onclick="() => _excluir = d">@Icons.Svg("trash")</button>
+                    }
+                    @if (versoes.Count > 0) { <button class="row-act" title="Histórico de renovações (@versoes.Count)" @onclick="() => _hist = d">@Icons.Svg("history")</button> }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table></div>
+}
+@if (!string.IsNullOrEmpty(_msgAnexo)) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@_msgAnexo</div></div> }
+
+@if (_hist is not null)
+{
+    var vs = _todos.Where(x => x.RaizId == _hist.RaizId).OrderByDescending(x => x.Versao).ToList();
+    <Dialogo Titulo="@($"Histórico · {_hist.Nome}")" Largo="true" OnFechar="@(() => _hist = null)">
+        <p class="muted">Cada renovação cria uma nova versão; os certificados anteriores e seus arquivos são mantidos.</p>
+        <div class="table-wrap"><table class="grid-tbl">
+            <thead><tr><th>Versão</th><th>Emissão</th><th>Vencimento</th><th>Situação</th><th>Cadastrado por</th><th>Anexos</th></tr></thead>
+            <tbody>
+            @foreach (var v in vs)
+            {
+                var st = DocEngine.Status(v, _hoje, Db.DiasAlerta);
+                <tr>
+                    <td>v@v.Versao @if (v.Atual) { <span class="tag ok">atual</span> }</td>
+                    <td>@Tempo.Dia(v.Emissao)</td><td>@(v.SemVencimento ? "Sem vencimento" : Tempo.Dia(v.Vencimento))</td>
+                    <td><StatusBadge Item="@Ui.StDoc(st)" /></td><td>@v.CadastradoPor<div class="muted sm">@Tempo.Hora(v.CriadoEm, Db.FusoPadrao, null, true)</div></td>
+                    <td>@foreach (var a in _anexos.Where(a => a.DonoId == v.Id)) { <div class="anexo">@Icons.Svg("paperclip")@LinkAnexo(a)</div> }</td>
+                </tr>
+            }
+            </tbody>
+        </table></div>
+    </Dialogo>
+}
+
+@if (_excluir is not null)
+{
+    <Dialogo Titulo="Excluir registro" OnFechar="@(() => _excluir = null)" Erros="_erros">
+        <p>Excluir <strong>@_excluir.Nome</strong> e seus anexos? Esta ação não pode ser desfeita. Para trocar por um novo certificado use <em>Renovar</em>, que preserva o histórico.</p>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _excluir = null)">Cancelar</button><button class="btn-danger" @onclick="Excluir">@Icons.Svg("trash")Excluir</button></div>
+    </Dialogo>
+}
+
+@if (_f is not null)
+{
+    <Dialogo Titulo="@Titulo" Largo="true" OnFechar="@(() => _f = null)" Erros="_erros">
+        @if (_renovando is not null) { <div class="alert-box alert-info">@Icons.Svg("info")<div>Renovando <strong>@_renovando.Nome</strong> (v@_renovando.Versao, vencimento @Tempo.Dia(_renovando.Vencimento)). A versão atual passa para o histórico, com seus arquivos.</div></div> }
+        <div class="form-grid">
+            <label class="fld full">Nome do documento / treinamento / certificação *<input @bind="_f.Nome" /></label>
+            <label class="fld">Categoria *<select @bind="_f.Categoria">@foreach (var c in Categorias) {<option>@c</option>}</select></label>
+            <label class="fld">Norma relacionada <span class="hint">ex.: NR-10, ISO 18436-2</span><input @bind="_f.Norma" /></label>
+            <label class="fld">Identificação / versão da norma<input @bind="_f.NormaVersao" placeholder="ex.: 2014, Rev. 3" /></label>
+            <label class="fld">Instituição / responsável pela emissão<input @bind="_f.Emissor" /></label>
+            <label class="fld">Data de emissão / realização<input type="date" value="@Ui.DataInput(_f.Emissao)" @onchange="e => _f.Emissao = Ui.DoDataInput(e.Value?.ToString())" /></label>
+            <label class="fld">Data de vencimento<input type="date" disabled="@_f.SemVencimento" value="@Ui.DataInput(_f.Vencimento)" @onchange="e => _f.Vencimento = Ui.DoDataInput(e.Value?.ToString())" />
+                <span class="hint">A validade é a deste registro do técnico, definida por quem cadastra ou pela regra da empresa — não é presumida pela norma.</span></label>
+            <label class="fld chk"><input type="checkbox" @bind="_f.SemVencimento" />Sem vencimento</label>
+            <label class="fld full">Observações<textarea @bind="_f.Obs"></textarea></label>
+            <div class="fld full"><span>Anexos (PDF, JPG ou PNG, até 15 MB cada) — mais de um por registro</span>
+                <InputFile OnChange="AoEscolher" multiple accept=".pdf,.jpg,.jpeg,.png" />
+                @foreach (var a in _novosArquivos) { <div class="anexo">@Icons.Svg("paperclip")@a.Name <span class="muted sm">(@(a.Size / 1024) KB)</span></div> }
+            </div>
+            <div class="fld full muted sm">Responsável pelo cadastro: @(string.IsNullOrEmpty(_f.Id) || _renovando is not null ? Ator.Nome : _f.CadastradoPor)</div>
+        </div>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _f = null)">Cancelar</button><button class="btn-primary" @onclick="Salvar" disabled="@_salvando">@Icons.Svg("check")@(_renovando is not null ? "Renovar" : "Salvar")</button></div>
+    </Dialogo>
+}
+
+@code {
+    [Parameter, EditorRequired] public string TecnicoId { get; set; } = "";
+    [Parameter] public string Modo { get; set; } = "docs";
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    private static readonly string[] CatDocs = { "Documento pessoal", "Exame / saúde", "Outro" };
+    private static readonly string[] CatTrein = { "Treinamento", "Certificação", "Norma / comprovação" };
+    private string[] Categorias => Modo == "docs" ? CatDocs : CatTrein;
+
+    private List<Documento> _todos = new(), _atuais = new(); private List<Anexo> _anexos = new();
+    private DateTime _hoje;
+    private Documento? _f, _renovando, _excluir, _hist; private List<string>? _erros; private bool _salvando; private string? _msgAnexo;
+    private List<IBrowserFile> _novosArquivos = new();
+    private bool PodeEditar => Ator.Pode(Perm.EditarDocs, TecnicoId);
+    private bool PodeConteudo => Ator.Pode(Perm.VerDocsConteudo, TecnicoId) && !Sessao.Apresentacao;
+    private string Titulo => _renovando is not null ? "Renovar" : string.IsNullOrEmpty(_f?.Id) ? "Novo registro" : "Editar registro";
+
+    protected override void OnInitialized() => Sessao.Mudou += Ao;
+    private void Ao() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Sessao.Mudou -= Ao;
+    protected override void OnParametersSet() => Carregar();
+
+    private void Carregar()
+    {
+        _hoje = DocEngine.Hoje(Db.FusoPadrao);
+        _todos = Db.Documentos.Onde(d => d.TecnicoId == TecnicoId);
+        _atuais = _todos.Where(d => d.Atual && Categorias.Contains(d.Categoria)).OrderBy(d => d.Vencimento ?? DateTime.MaxValue).ToList();
+        var ids = _todos.Select(d => d.Id).ToHashSet();
+        _anexos = Db.Anexos.Onde(a => a.DonoTipo == "documento" && ids.Contains(a.DonoId)).OrderBy(a => a.CriadoEm).ToList();
+    }
+
+    private RenderFragment LinkAnexo(Anexo a) => __builder =>
+    {
+        if (PodeConteudo)
+        {
+            <a href="/arquivos/@a.Id" target="_blank" rel="noopener">@a.NomeOriginal</a>
+            <a class="btn-link" href="/arquivos/@a.Id?baixar=true" download="@a.NomeOriginal" title="Baixar">@Icons.Svg("download")</a>
+            @if (PodeEditar && _todos.FirstOrDefault(x => x.Id == a.DonoId)?.Atual == true)
+            { <button class="row-act del" title="Remover anexo" @onclick="() => RemoverAnexo(a)">@Icons.Svg("x")</button> }
+        }
+        else { <span class="muted">@(Sessao.Apresentacao ? "arquivo oculto" : a.NomeOriginal)</span> }
+    };
+
+    private void Novo()
+    {
+        _f = new Documento { TecnicoId = TecnicoId, Categoria = Categorias[0] }; _renovando = null; _erros = null; _novosArquivos = new();
+    }
+    private void Editar(Documento d) { _f = d; _renovando = null; _erros = null; _novosArquivos = new(); }
+    private void AbrirRenovar(Documento d)
+    {
+        _renovando = d; _erros = null; _novosArquivos = new();
+        _f = new Documento { TecnicoId = d.TecnicoId, Nome = d.Nome, Categoria = d.Categoria, Norma = d.Norma, NormaVersao = d.NormaVersao, Emissor = d.Emissor, SemVencimento = d.SemVencimento, Emissao = Tempo.SoData(DateTime.UtcNow) };
+    }
+
+    private void AoEscolher(InputFileChangeEventArgs e) => _novosArquivos = e.GetMultipleFiles(10).ToList();
+
+    private async Task Salvar()
+    {
+        if (_f is null) return;
+        _salvando = true; _erros = null; var falhas = new List<string>();
+        try
+        {
+            Documento salvo = _renovando is not null ? Svc.Renovar(Ator, _renovando.Id, _f) : Svc.SalvarDocumento(Ator, _f);
+            foreach (var arq in _novosArquivos)
+            {
+                try { await using var s = arq.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(Ator, "documento", salvo.Id, arq.Name, s); }
+                catch (Exception ex) { falhas.Add($"{arq.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+            }
+            _f = null; _renovando = null; Carregar();
+            if (falhas.Count > 0) { _msgAnexo = "O registro foi salvo, mas alguns anexos não: " + string.Join(" | ", falhas); Sessao.Avisar("Registro salvo; verifique os anexos recusados.", true); }
+            else { _msgAnexo = null; Sessao.Avisar("Registro salvo."); }
+            await OnMudou.InvokeAsync();
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _salvando = false;
+    }
+
+    private async Task AnexarDireto(string docId, InputFileChangeEventArgs e)
+    {
+        _msgAnexo = null; var falhas = new List<string>();
+        foreach (var arq in e.GetMultipleFiles(10))
+        {
+            try { await using var s = arq.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(Ator, "documento", docId, arq.Name, s); }
+            catch (Exception ex) { falhas.Add($"{arq.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+        }
+        Carregar();
+        if (falhas.Count > 0) _msgAnexo = string.Join(" | ", falhas); else Sessao.Avisar("Anexo adicionado.");
+    }
+
+    private void RemoverAnexo(Anexo a)
+    {
+        try { Svc.RemoverAnexo(Ator, a.Id); Carregar(); Sessao.Avisar("Anexo removido."); }
+        catch (Exception ex) { _msgAnexo = string.Join(" ", Ui.Erros(ex)); }
+    }
+
+    private async Task Excluir()
+    {
+        try { Svc.ExcluirDocumento(Ator, _excluir!.Id); _excluir = null; Carregar(); Sessao.Avisar("Registro excluído."); await OnMudou.InvokeAsync(); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+}

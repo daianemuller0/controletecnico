@@ -1,0 +1,16 @@
+@if (!P.TemCoord)
+{
+    <span class="badge st-warn" title="Sem coordenadas: não aparece no mapa">@Icons.Svg("pin", "bico")Localização pendente</span>
+}
+else if (P.GeoStatus == "manual")
+{
+    <span class="badge st-info" title="@P.GeoFonte">@Icons.Svg("pin", "bico")Ajustada manualmente</span>
+}
+else
+{
+    <span class="badge st-pos" title="@P.GeoFonte">@Icons.Svg("pin", "bico")Localizada</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public Planta P { get; set; } = default!;
+}

@@ -1,0 +1,24 @@
+@page "/senha"
+@attribute [Authorize]
+@inject Servicos Svc
+@inject Sessao Sessao
+<PageTitle>Alterar senha · Controle Técnico</PageTitle>
+<div class="page-head compacto"><div><h1>Alterar minha senha</h1></div></div>
+<div class="panel" style="max-width:480px">
+    @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+    @if (_ok) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Senha alterada.</div></div> }
+    <div class="form-grid">
+        <label class="fld full">Senha atual<input type="password" @bind="_atual" autocomplete="current-password" /></label>
+        <label class="fld full">Nova senha (mín. 8 caracteres)<input type="password" @bind="_nova" autocomplete="new-password" /></label>
+    </div>
+    <div class="modal-actions"><button class="btn-primary" @onclick="Salvar">@Icons.Svg("check")Alterar</button></div>
+</div>
+@code {
+    private string _atual = "", _nova = ""; private List<string>? _erros; private bool _ok;
+    private async Task Salvar()
+    {
+        _erros = null; _ok = false;
+        try { Svc.AlterarSenha(await Sessao.AtorAsync(), _atual, _nova); _ok = true; _atual = _nova = ""; }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+}

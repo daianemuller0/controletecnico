@@ -1,0 +1,26 @@
+@implements IDisposable
+@inject Sessao Sessao
+
+@if (_msg is not null)
+{
+    <div class="ctrl-toast @(_erro ? "toast-erro" : "")" role="status" aria-live="polite">
+        @Icons.Svg(_erro ? "alert" : "check")
+        <span>@_msg</span>
+        <button class="icon-btn" @onclick="Fechar" aria-label="Fechar">@Icons.Svg("x")</button>
+    </div>
+}
+
+@code {
+    private string? _msg; private bool _erro; private CancellationTokenSource? _cts;
+    protected override void OnInitialized() => Sessao.Aviso += Ao;
+    public void Dispose() { Sessao.Aviso -= Ao; _cts?.Cancel(); }
+
+    private void Ao(string texto, bool erro) => InvokeAsync(async () =>
+    {
+        _msg = texto; _erro = erro; StateHasChanged();
+        _cts?.Cancel(); _cts = new CancellationTokenSource();
+        try { await Task.Delay(erro ? 8000 : 4000, _cts.Token); _msg = null; StateHasChanged(); } catch (TaskCanceledException) { }
+    });
+
+    private void Fechar() => _msg = null;
+}

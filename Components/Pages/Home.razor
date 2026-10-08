@@ -1,0 +1,503 @@
+@page "/"
+@attribute [Authorize]
+@implements IDisposable
+@inject Servicos Svc
+@inject Db Db
+@inject Sessao Sessao
+@inject IJSRuntime JS
+@inject IConfiguration Cfg
+
+<PageTitle>Visão operacional · Controle Técnico</PageTitle>
+
+<div class="page-head compacto">
+    <div>
+        <h1>Visão operacional</h1>
+        <p class="subtitle">Onde cada técnico está, o que está fazendo e quando fica disponível.</p>
+    </div>
+    <div class="momento-ctl">
+        <span class="momento-chip @ClasseMomento" title="@TituloMomento">@TextoMomento</span>
+        <label class="flt-data">@Icons.Svg("calendar")
+            <input type="datetime-local" value="@_dataStr" @onchange="AoMudarData" aria-label="Data e hora da visualização" />
+        </label>
+        <button class="btn-ghost sm" @onclick="VoltarAgora" disabled="@_agora">@Icons.Svg("clock")Agora</button>
+        <button class="btn-ghost sm" @onclick="@(() => Recarregar(true))" title="Recarregar dados">@Icons.Svg("refresh")</button>
+    </div>
+</div>
+
+@if (_carregando)
+{
+    <div class="kpi-linha">@for (var i = 0; i < 8; i++) { <div class="kpi-tile skeleton" style="height:78px"></div> }</div>
+    <div class="state-box">@Icons.Svg("clock")<div>Carregando a situação da equipe…</div></div>
+}
+else if (_erro is not null)
+{
+    <div class="state-box state-err">@Icons.Svg("alert")<div><strong>Não foi possível carregar os dados.</strong><div class="muted">@_erro</div></div><button class="btn-ghost" @onclick="@(() => Recarregar(true))">Tentar de novo</button></div>
+}
+else
+{
+    <div class="kpi-linha" role="group" aria-label="Indicadores">
+        @Kpi("disponivel", "Disponíveis", _kDisp.Count, "check", "#1f9254", "Técnicos sem compromisso e com agenda mantida")
+        @Kpi("atendimento", "Em atendimento", _kAtend.Count, "customers", "#0369a1", "Na planta do cliente")
+        @Kpi("viagem", "Em viagem", _kViag.Count, "plane", "#d9822b", "Em deslocamento")
+        @Kpi("ferias", "Em férias", _kFer.Count, "sun", "#7b4fc0", "Férias vigentes")
+        @Kpi("viagens", "Viagens previstas", _kViagensPrev.Count, "route", "#004785", "Viagens ainda não iniciadas (rascunho, planejada ou confirmada)")
+        @Kpi("conflitos", "Conflitos", _kConf.Count, "alert", "#c0392b", "Técnicos com sobreposição ou deslocamento a verificar")
+        @Kpi("docs", "Docs a vencer", _kDocs.Count, "clock", "#b7791f", "Técnicos com documento próximo do vencimento ou vencido")
+        @Kpi("pend", "Pendências docs", _kPend.Count, "shield", "#c0392b", "Técnicos escalados sem todos os requisitos documentais")
+    </div>
+    <div class="kpi-aux muted">
+        <span>@Icons.Svg("ban")@_kInd.Count indisponível(is)</span>
+        <span>@Icons.Svg("help")@_kSem.Count sem programação</span>
+        <span class="sep">·</span>
+        <span>@_estados.Count técnico(s) ativos @(_estados.Count == 0 ? "" : "na visão")</span>
+    </div>
+
+    <div class="filterbar op-filtros" role="search">
+        <label class="flt"><span class="flt-label">Técnico</span>
+            <select @bind="FTec" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select></label>
+        <label class="flt"><span class="flt-label">Especialidade</span>
+            <select @bind="FEsp" @bind:after="Aplicar"><option value="">Todas</option>@foreach (var e in _snap.Especialidades.Values.OrderBy(e => e.Nome)) {<option value="@e.Id">@e.Nome</option>}</select></label>
+        <label class="flt"><span class="flt-label">Status</span>
+            <select @bind="FStatus" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var s in Vocab.StatusOp) {<option value="@s.Key">@s.Label</option>}</select></label>
+        <label class="flt"><span class="flt-label">Cliente</span>
+            <select @bind="FCli" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var c in _snap.Clientes.Values.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
+        <label class="flt"><span class="flt-label">Planta</span>
+            <select @bind="FPlanta" @bind:after="Aplicar"><option value="">Todas</option>@foreach (var p in _snap.Plantas.Values.Where(p => string.IsNullOrEmpty(FCli) || p.ClienteId == FCli).OrderBy(p => p.Nome)) {<option value="@p.Id">@p.Nome</option>}</select></label>
+        <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">País</span>
+            <select @bind="FPais" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var x in Paises) {<option>@x</option>}</select></label>
+        <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Estado</span>
+            <select @bind="FUf" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var x in Estados) {<option>@x</option>}</select></label>
+        <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Cidade</span>
+            <select @bind="FCidade" @bind:after="Aplicar"><option value="">Todas</option>@foreach (var x in Cidades) {<option>@x</option>}</select></label>
+        <label class="flt" title="Técnicos com compromisso no período"><span class="flt-label">Período de</span>
+            <input type="date" class="flt-date" value="@Ui.DataInput(FDe)" @onchange="e => { FDe = Ui.DoDataInput(e.Value?.ToString()); Aplicar(); }" /></label>
+        <label class="flt"><span class="flt-label">até</span>
+            <input type="date" class="flt-date" value="@Ui.DataInput(FAte)" @onchange="e => { FAte = Ui.DoDataInput(e.Value?.ToString()); Aplicar(); }" /></label>
+        @if (TemFiltro) { <button class="btn-link" @onclick="Limpar">@Icons.Svg("x")Limpar filtros</button> }
+    </div>
+    @if (!string.IsNullOrEmpty(_kpi))
+    {
+        <div class="chips-ativos">Indicador: <span class="chip active">@NomeKpi(_kpi) <button class="chip-x" @onclick="@(() => { _kpi = ""; Aplicar(); })" aria-label="Remover filtro do indicador">×</button></span></div>
+    }
+
+    <div class="op-grid">
+        <section class="op-lista panel" aria-label="Técnicos">
+            <div class="panel-head"><div class="panel-title">Equipe <span class="hint">@_visiveis.Count de @_estados.Count</span></div></div>
+            @if (_visiveis.Count == 0)
+            {
+                <div class="empty-state sm"><div class="ico">@Icons.Svg("search")</div><h3>Nenhum técnico encontrado</h3><p>Ajuste ou limpe os filtros.</p></div>
+            }
+            <div class="cards-tec">
+                @foreach (var e in _visiveis)
+                {
+                    var it = Ui.Op(e.Status);
+                    <button class="card-tec @(_sel == e.Tecnico.Id ? "sel" : "")" @onclick="() => AbrirTecnico(e.Tecnico.Id)">
+                        <Avatar Nome="@e.Tecnico.Nome" FotoId="@e.Tecnico.FotoAnexoId" Cor="@it.Color" />
+                        <div class="ct-corpo">
+                            <div class="ct-nome">@e.Tecnico.Nome</div>
+                            <StatusBadge Item="@it" />
+                            <div class="ct-linha">@Icons.Svg("pin")<span>@LinhaLocal(e)</span></div>
+                            @if (e.Atual is { } at && e.Status == Vocab.OpAtendimento)
+                            {
+                                <div class="ct-linha muted">@Icons.Svg("wrench")<span>@at.Titulo · até @Ui.Hora(at.Fim, at.Fuso, _snap)</span></div>
+                            }
+                            else if (e.Proximo is { } nx)
+                            {
+                                <div class="ct-linha muted">@Icons.Svg("calendar")<span>Próx.: @Ui.Corte(nx.Titulo, 34) · @Ui.Hora(nx.Ini, nx.Fuso, _snap)</span></div>
+                            }
+                        </div>
+                    </button>
+                }
+            </div>
+        </section>
+
+        <section class="op-mapa panel" aria-label="Mapa">
+            <div class="mapa-leg">
+                <span class="leg"><i class="mk-amostra conf"></i>Localização confirmada</span>
+                <span class="leg"><i class="mk-amostra prev"></i>Localização prevista (agenda)</span>
+                <span class="leg"><i class="mk-amostra rota"></i>Deslocamento (origem → destino; sem rastreamento)</span>
+                @foreach (var s in Vocab.StatusOp) { <span class="leg"><i class="cor" style="background:@s.Color"></i>@s.Label</span> }
+            </div>
+            <div id="mapa-op" class="mapa" role="application" aria-label="Mapa de localização da equipe" tabindex="0"></div>
+            @if (_semMapa.Count > 0)
+            {
+                <div class="sem-mapa">
+                    @Icons.Svg("help")<strong>@_semMapa.Count sem localização no mapa:</strong>
+                    @foreach (var e in _semMapa) { <button class="chip" @onclick="() => AbrirTecnico(e.Tecnico.Id)">@e.Tecnico.Nome</button> }
+                </div>
+            }
+            <div class="mapa-nota muted">
+                Posições <strong>previstas</strong> vêm da agenda e não são rastreamento por GPS. Durante a viagem só se mostram origem, destino e período.
+                @if (!Geo.Configurado) { <span class="cfg-pend"> Geocodificação não configurada: plantas sem coordenadas ficam "localização pendente".</span> }
+            </div>
+        </section>
+    </div>
+}
+
+@if (_grupo is not null)
+{
+    <div class="modal-backdrop" @onclick="@(() => _grupo = null)">
+        <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-label="Técnicos no local">
+            <div class="modal-topo"><h2>@_grupo.Titulo</h2><button class="icon-btn" @onclick="@(() => _grupo = null)" aria-label="Fechar">@Icons.Svg("x")</button></div>
+            <p class="muted">@_grupo.Estados.Count técnico(s) neste local — escolha um para ver os detalhes.</p>
+            <div class="cards-tec">
+                @foreach (var e in _grupo.Estados)
+                {
+                    var it = Ui.Op(e.Status);
+                    <button class="card-tec" @onclick="() => { _grupo = null; AbrirTecnico(e.Tecnico.Id); }">
+                        <Avatar Nome="@e.Tecnico.Nome" FotoId="@e.Tecnico.FotoAnexoId" Cor="@it.Color" />
+                        <div class="ct-corpo"><div class="ct-nome">@e.Tecnico.Nome</div><StatusBadge Item="@it" />
+                            <div class="ct-linha muted">@(e.ConfirmacaoVigente ? "Localização confirmada" : "Localização prevista")</div></div>
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (_painel is not null)
+{
+    <PainelTecnico E="@_painel" Snap="@_snap" Eventos="@_eventos" Ator="@_ator" Instante="@_instante" OnFechar="FecharPainel" OnConfirmar="AbrirConfirmar" />
+}
+
+@if (_confirmando is not null)
+{
+    <Dialogo Titulo="@($"Confirmar localização · {_confirmando.Nome}")" OnFechar="@(() => _confirmando = null)" Erros="_errosConf">
+        <p class="muted">Registra onde o técnico <strong>está agora</strong>. Fica separado da localização prevista pela agenda e mostra data, hora e quem informou.</p>
+        <div class="form-grid">
+            <label class="fld full">Planta
+                <select @bind="_confPlanta"><option value="">— outro local (descrever abaixo) —</option>
+                    @foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
+            <label class="fld full">Descrição do local (opcional se escolheu uma planta)
+                <input class="field" @bind="_confTexto" placeholder="Ex.: Hotel Central, Calama" /></label>
+            <label class="fld full">Observação
+                <input class="field" @bind="_confObs" /></label>
+        </div>
+        <p class="muted sm">Sem planta, a confirmação fica registrada em texto e não aparece no mapa (não há coordenadas).</p>
+        <div class="modal-actions">
+            <button class="btn-ghost" @onclick="@(() => _confirmando = null)">Cancelar</button>
+            <button class="btn-primary" @onclick="SalvarConfirmacao">@Icons.Svg("check")Confirmar</button>
+        </div>
+    </Dialogo>
+}
+
+@code {
+    [Inject] private Geocoder Geo { get; set; } = default!;
+
+    private Ator _ator = new();
+    private Snapshot _snap = new();
+    private List<Evento> _eventos = new();
+    private List<Conflito> _conflitos = new();
+    private List<Estado> _estados = new();
+    private List<Estado> _visiveis = new();
+    private List<Estado> _semMapa = new();
+    private bool _carregando = true; private string? _erro;
+    private DateTime _instante = DateTime.UtcNow; private bool _agora = true; private string _dataStr = "";
+
+    public string FTec { get; set; } = ""; public string FEsp { get; set; } = ""; public string FStatus { get; set; } = "";
+    public string FCli { get; set; } = ""; public string FPlanta { get; set; } = ""; public string FPais { get; set; } = "";
+    public string FUf { get; set; } = ""; public string FCidade { get; set; } = "";
+    public DateTime? FDe { get; set; } public DateTime? FAte { get; set; }
+    private string _kpi = "";
+
+    private HashSet<string> _kDisp = new(), _kAtend = new(), _kViag = new(), _kFer = new(), _kInd = new(), _kSem = new(),
+        _kViagensPrev = new(), _kConf = new(), _kDocs = new(), _kPend = new();
+    private Dictionary<string, HashSet<string>> _viagensPrevPorTec = new();
+
+    private string? _sel; private Estado? _painel;
+    private sealed record GrupoMapa(string Chave, string Titulo, List<Estado> Estados);
+    private Dictionary<string, GrupoMapa> _grupos = new();
+    private GrupoMapa? _grupo;
+    private Tecnico? _confirmando; private string _confPlanta = "", _confTexto = "", _confObs = ""; private List<string>? _errosConf;
+    private DotNetObjectReference<Home>? _ref; private bool _mapaPronto; private bool _redesenhar;
+
+    private IEnumerable<string> Paises => PaisesLista();
+    private IEnumerable<string> Estados => _snap.Plantas.Values.Select(p => p.Estado).Concat(_snap.Tecnicos.Values.Select(t => t.Estado)).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
+    private IEnumerable<string> Cidades => _snap.Plantas.Values.Select(p => p.Cidade).Concat(_snap.Tecnicos.Values.Select(t => t.Cidade)).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
+    private IEnumerable<string> PaisesLista() => _snap.Plantas.Values.Select(p => p.Pais).Concat(_snap.Tecnicos.Values.Select(t => t.Pais)).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
+
+    private bool TemFiltro => new[] { FTec, FEsp, FStatus, FCli, FPlanta, FPais, FUf, FCidade }.Any(x => !string.IsNullOrEmpty(x)) || FDe.HasValue || FAte.HasValue || !string.IsNullOrEmpty(_kpi);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Sessao.AtorAsync();
+        Sessao.Mudou += AoMudarSessao;
+        _ref = DotNetObjectReference.Create(this);
+        await Recarregar(false);
+    }
+
+    private void AoMudarSessao() => InvokeAsync(StateHasChanged);
+
+    private async Task Recarregar(bool aviso)
+    {
+        _carregando = _estados.Count == 0; _erro = null;
+        try
+        {
+            _snap = Svc.Foto();
+            _eventos = AgendaEngine.Eventos(_snap);
+            _conflitos = AgendaEngine.Conflitos(_snap, _eventos);
+            if (_agora) _instante = DateTime.UtcNow;
+            _dataStr = Ui.ParaInput(_instante, _snap.FusoPadrao);
+            Calcular();
+            if (_painel is not null) _painel = _estados.FirstOrDefault(x => x.Tecnico.Id == _painel.Tecnico.Id);
+            if (aviso) Sessao.Avisar("Dados atualizados.");
+        }
+        catch (Exception ex) { _erro = ex.Message; }
+        _carregando = false; _redesenhar = true;
+    }
+
+    private void Calcular()
+    {
+        var agora = DateTime.UtcNow;
+        _estados = _snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id))
+            .Select(t => AgendaEngine.EstadoEm(_snap, _eventos, t, _instante, agora)).ToList();
+        var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet();
+        HashSet<string> De(string st) => _estados.Where(e => e.Status == st).Select(e => e.Tecnico.Id).ToHashSet();
+        _kDisp = De(Vocab.OpDisponivel); _kAtend = De(Vocab.OpAtendimento); _kViag = De(Vocab.OpViagem);
+        _kFer = De(Vocab.OpFerias); _kInd = De(Vocab.OpIndisponivel); _kSem = De(Vocab.OpSemProg);
+
+        // viagens previstas: ainda não iniciadas
+        _viagensPrevPorTec = new();
+        var prev = new HashSet<string>();
+        foreach (var v in _snap.Viagens.Values.Where(v => v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada or Vocab.ViagemConfirmada))
+        {
+            var ini = _eventos.Where(e => e.ViagemId == v.Id).Select(e => (DateTime?)e.Ini).Min();
+            if (ini is null || ini < _instante) continue;
+            prev.Add(v.Id);
+            foreach (var t in Ui.Ids(v.TecnicoIds).Where(ids.Contains))
+            { if (!_viagensPrevPorTec.TryGetValue(t, out var l)) _viagensPrevPorTec[t] = l = new(); l.Add(v.Id); }
+        }
+        _kViagensPrev = prev;
+
+        // conflitos
+        _kConf = _conflitos.Where(c => c.B.Fim >= _instante && ids.Contains(c.TecnicoId)).Select(c => c.TecnicoId).ToHashSet();
+
+        // documentos a vencer / vencidos
+        var hoje = DocEngine.Hoje(_snap.FusoPadrao);
+        _kDocs = DocEngine.Vencimentos(_snap, hoje).Where(l => l.Status is Vocab.DocProximo or Vocab.DocVencido && ids.Contains(l.Doc.TecnicoId))
+            .Select(l => l.Doc.TecnicoId).ToHashSet();
+
+        // pendências documentais p/ atendimentos programados
+        _kPend = new();
+        foreach (var a in _snap.Atendimentos.Where(a => a.FimPrev >= _instante))
+        {
+            var v = _snap.Viagem(a.ViagemId);
+            if (v?.Status == Vocab.ViagemCancelada || (v is null && a.Status == Vocab.ViagemCancelada)) continue;
+            var tecs = Ui.Ids(a.TecnicoIds); if (tecs.Length == 0 && v is not null) tecs = Ui.Ids(v.TecnicoIds);
+            var serv = string.IsNullOrEmpty(a.ServicoId) ? v?.ServicoId : a.ServicoId;
+            var reqs = DocEngine.RequisitosDe(_snap, new[] { serv }, new[] { a.PlantaId });
+            foreach (var tid in tecs.Where(ids.Contains))
+                if (DocEngine.Avaliar(_snap, _snap.Tecnicos[tid], reqs, a.IniPrev, a.FimPrev, hoje, _snap.Planta(a.PlantaId)?.FusoHorario).Pendencias.Count > 0)
+                    _kPend.Add(tid);
+        }
+        Aplicar();
+    }
+
+    private (string cid, string uf, string pais) LocalGeo(Estado e)
+    {
+        var p = e.Planta;
+        return p is not null ? (p.Cidade, p.Estado, p.Pais) : (e.Tecnico.Cidade, e.Tecnico.Estado, e.Tecnico.Pais);
+    }
+
+    private void Aplicar()
+    {
+        IEnumerable<Estado> q = _estados;
+        if (!string.IsNullOrEmpty(FTec)) q = q.Where(e => e.Tecnico.Id == FTec);
+        if (!string.IsNullOrEmpty(FEsp)) q = q.Where(e => Ui.Ids(e.Tecnico.EspecialidadeIds).Contains(FEsp));
+        if (!string.IsNullOrEmpty(FStatus)) q = q.Where(e => e.Status == FStatus);
+        if (!string.IsNullOrEmpty(FCli)) q = q.Where(e => Assoc(e)?.ClienteId == FCli || EventosDe(e).Any(x => x.ClienteId == FCli && x.Fim >= _instante));
+        if (!string.IsNullOrEmpty(FPlanta)) q = q.Where(e => Assoc(e)?.PlantaId == FPlanta || EventosDe(e).Any(x => x.PlantaId == FPlanta && x.Fim >= _instante));
+        if (!string.IsNullOrEmpty(FPais)) q = q.Where(e => LocalGeo(e).pais == FPais);
+        if (!string.IsNullOrEmpty(FUf)) q = q.Where(e => LocalGeo(e).uf == FUf);
+        if (!string.IsNullOrEmpty(FCidade)) q = q.Where(e => LocalGeo(e).cid == FCidade);
+        if (FDe.HasValue || FAte.HasValue)
+        {
+            var de = FDe.HasValue ? Tempo.ParaUtc(FDe.Value, _snap.FusoPadrao) : DateTime.MinValue;
+            var ate = FAte.HasValue ? Tempo.ParaUtc(FAte.Value.AddDays(1), _snap.FusoPadrao) : DateTime.MaxValue;
+            q = q.Where(e => EventosDe(e).Any(x => x.Bloqueia && x.Cruza(de, ate)));
+        }
+        q = _kpi switch
+        {
+            "disponivel" => q.Where(e => _kDisp.Contains(e.Tecnico.Id)),
+            "atendimento" => q.Where(e => _kAtend.Contains(e.Tecnico.Id)),
+            "viagem" => q.Where(e => _kViag.Contains(e.Tecnico.Id)),
+            "ferias" => q.Where(e => _kFer.Contains(e.Tecnico.Id)),
+            "viagens" => q.Where(e => _viagensPrevPorTec.ContainsKey(e.Tecnico.Id)),
+            "conflitos" => q.Where(e => _kConf.Contains(e.Tecnico.Id)),
+            "docs" => q.Where(e => _kDocs.Contains(e.Tecnico.Id)),
+            "pend" => q.Where(e => _kPend.Contains(e.Tecnico.Id)),
+            _ => q,
+        };
+        _visiveis = q.OrderBy(e => Ui.PesoOp(e.Status)).ThenBy(e => e.Tecnico.Nome).ToList();
+        MontarGrupos();
+        _redesenhar = true;
+    }
+
+    private Evento? Assoc(Estado e) => e.Atual ?? e.Proximo;
+    private IEnumerable<Evento> EventosDe(Estado e) => _eventos.Where(x => x.TecnicoId == e.Tecnico.Id && x.Status != "cancelado");
+
+    // posição de cada técnico no mapa: confirmada vigente > prevista
+    private (double lat, double lon, bool conf, string texto)? Posicao(Estado e)
+    {
+        if (e.ConfirmacaoVigente && e.Confirmacao is { Lat: { } la, Lon: { } lo } c) return (la, lo, true, c.Texto);
+        if (e.TemLocalMapa) return (e.Lat!.Value, e.Lon!.Value, false, e.LocalTexto);
+        return null;
+    }
+
+    private void MontarGrupos()
+    {
+        _grupos = new(); _semMapa = new();
+        foreach (var g in _visiveis.Select(e => (e, p: Posicao(e))).GroupBy(x => x.p is null ? "" : $"{Math.Round(x.p.Value.lat, 3):0.000}|{Math.Round(x.p.Value.lon, 3):0.000}"))
+        {
+            if (g.Key == "") { _semMapa.AddRange(g.Select(x => x.e)); continue; }
+            var primeiro = g.First();
+            var titulo = primeiro.e.Planta is not null ? _snap.NomePlanta(primeiro.e.Planta.Id) : (string.IsNullOrWhiteSpace(primeiro.p!.Value.texto) ? "Local" : primeiro.p.Value.texto);
+            if (primeiro.e.Status == Vocab.OpViagem && primeiro.e.Atual is { } at) titulo = $"A caminho: {at.LocalFim}";
+            _grupos[g.Key] = new GrupoMapa(g.Key, titulo, g.Select(x => x.e).ToList());
+        }
+    }
+
+    private object DadosMapa()
+    {
+        var grupos = new List<object>(); var rotas = new List<object>();
+        foreach (var g in _grupos.Values)
+        {
+            var pos = Posicao(g.Estados[0])!.Value;
+            var cores = g.Estados.Select(e => Ui.Op(e.Status).Color).Distinct().ToList();
+            var todosConf = g.Estados.All(e => Posicao(e)!.Value.conf);
+            var viagem = g.Estados.All(e => e.Status == Vocab.OpViagem);
+            grupos.Add(new
+            {
+                chave = g.Chave, lat = pos.lat, lon = pos.lon, titulo = g.Titulo,
+                cor = cores.Count == 1 ? cores[0] : "#004785", tracejado = !todosConf, viagem,
+                iniciais = Avatar.Iniciais(g.Estados[0].Tecnico.Nome),
+                rotulo = viagem ? "Em deslocamento (posição no trajeto não rastreada)" : todosConf ? "Localização confirmada" : "Localização prevista pela agenda",
+                tecnicos = g.Estados.Select(e => new { nome = $"{e.Tecnico.Nome} — {Ui.Op(e.Status).Label} ({(Posicao(e)!.Value.conf ? "confirmada" : "prevista")})", cor = Ui.Op(e.Status).Color }),
+            });
+        }
+        foreach (var e in _visiveis.Where(e => e.Status == Vocab.OpViagem && e.Atual is { LatIni: not null, LonIni: not null, LatFim: not null, LonFim: not null }))
+        {
+            var a = e.Atual!;
+            rotas.Add(new { de = new[] { a.LatIni!.Value, a.LonIni!.Value }, para = new[] { a.LatFim!.Value, a.LonFim!.Value }, cor = Ui.Op(e.Status).Color,
+                titulo = $"{e.Tecnico.Nome}: {a.LocalIni} → {a.LocalFim} · {Ui.Periodo(a.Ini, a.Fim, a.Fuso, _snap)}" });
+        }
+        return new { grupos, rotas, ajustar = true };
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_carregando || _erro is not null) return;
+        try
+        {
+            if (!_mapaPronto)
+            {
+                _mapaPronto = await JS.InvokeAsync<bool>("app.mapa.iniciar", "mapa-op", _ref, new
+                {
+                    centro = new[] { -15.0, -52.0 }, zoom = 4,
+                    tileUrl = Cfg["Mapa:TileUrl"], atribuicao = Cfg["Mapa:Atribuicao"],
+                });
+                _redesenhar = true;
+            }
+            if (_mapaPronto && _redesenhar)
+            {
+                _redesenhar = false;
+                await JS.InvokeVoidAsync("app.mapa.desenhar", "mapa-op", DadosMapa());
+            }
+        }
+        catch (JSDisconnectedException) { }
+        catch (Exception) { /* mapa indisponível: a lista continua funcionando */ }
+    }
+
+    [JSInvokable]
+    public async Task AoClicarGrupo(string chave)
+    {
+        if (!_grupos.TryGetValue(chave, out var g)) return;
+        if (g.Estados.Count == 1) AbrirTecnico(g.Estados[0].Tecnico.Id); else _grupo = g;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void AbrirTecnico(string id)
+    {
+        _sel = id; _painel = _estados.FirstOrDefault(e => e.Tecnico.Id == id);
+        if (_painel is not null && Posicao(_painel) is { } p) _ = JS.InvokeVoidAsync("app.mapa.foco", "mapa-op", p.lat, p.lon, 9);
+    }
+    private void FecharPainel() { _painel = null; _sel = null; }
+
+    private string LinhaLocal(Estado e)
+    {
+        if (e.LocalFonte == "nenhum") return "Sem localização definida";
+        var tipo = e.ConfirmacaoVigente ? "confirmada" : "prevista";
+        return $"{Ui.Corte(e.ConfirmacaoVigente && e.Confirmacao is { } c ? c.Texto : e.LocalTexto, 40)} ({tipo})";
+    }
+
+    // ---- data/hora ----
+    private void AoMudarData(ChangeEventArgs e)
+    {
+        var d = Ui.DoInput(e.Value?.ToString(), _snap.FusoPadrao);
+        if (d is null) return;
+        _instante = d.Value; _agora = false; _dataStr = e.Value!.ToString()!;
+        Calcular();
+    }
+    private void VoltarAgora() { _agora = true; _instante = DateTime.UtcNow; _dataStr = Ui.ParaInput(_instante, _snap.FusoPadrao); Calcular(); }
+
+    private bool Futuro => _instante > DateTime.UtcNow.AddMinutes(5);
+    private bool Passado => _instante < DateTime.UtcNow.AddMinutes(-5);
+    private string ClasseMomento => Futuro ? "m-fut" : Passado ? "m-pas" : "m-now";
+    private string TextoMomento => Futuro ? "Previsão futura" : Passado ? "Período passado" : "Momento atual";
+    private string TituloMomento => Futuro ? "Distribuição prevista a partir da agenda, não é situação real"
+        : Passado ? "Reconstituído a partir dos registros atuais da agenda" : "Situação neste instante";
+
+    // ---- indicadores ----
+    private RenderFragment Kpi(string chave, string rotulo, int n, string icone, string cor, string dica) => __b =>
+    {
+        var ativo = _kpi == chave;
+        __b.OpenElement(0, "button");
+        __b.AddAttribute(1, "class", "kpi-tile" + (ativo ? " ativo" : ""));
+        __b.AddAttribute(2, "style", $"--c:{cor}");
+        __b.AddAttribute(3, "title", dica + " · clique para filtrar");
+        __b.AddAttribute(4, "aria-pressed", ativo ? "true" : "false");
+        __b.AddAttribute(5, "onclick", EventCallback.Factory.Create(this, () => { _kpi = ativo ? "" : chave; Aplicar(); }));
+        __b.AddMarkupContent(6, $"<span class=\"kpi-ico\">{Icons.Svg(icone)}</span><span class=\"kpi-v\">{n}</span><span class=\"kpi-r\">{rotulo}</span>");
+        __b.CloseElement();
+    };
+
+    private static string NomeKpi(string k) => k switch
+    {
+        "disponivel" => "Disponíveis", "atendimento" => "Em atendimento", "viagem" => "Em viagem", "ferias" => "Em férias",
+        "viagens" => "Viagens previstas", "conflitos" => "Conflitos de agenda", "docs" => "Documentos a vencer / vencidos",
+        "pend" => "Pendências para atendimentos programados", _ => k,
+    };
+
+    private void Limpar()
+    {
+        FTec = FEsp = FStatus = FCli = FPlanta = FPais = FUf = FCidade = ""; FDe = FAte = null; _kpi = "";
+        Aplicar();
+    }
+
+    // ---- confirmar localização ----
+    private void AbrirConfirmar()
+    {
+        if (_painel is null) return;
+        _confirmando = _painel.Tecnico; _confPlanta = ""; _confTexto = ""; _confObs = ""; _errosConf = null;
+    }
+
+    private async Task SalvarConfirmacao()
+    {
+        if (_confirmando is null) return;
+        try
+        {
+            Svc.ConfirmarLocal(_ator, _confirmando.Id, _confPlanta, _confTexto, null, null, _confObs);
+            _confirmando = null;
+            Sessao.Avisar("Localização confirmada.");
+            await Recarregar(false);
+        }
+        catch (Exception ex) { _errosConf = Ui.Erros(ex); }
+    }
+
+    public void Dispose()
+    {
+        Sessao.Mudou -= AoMudarSessao;
+        try { _ = JS.InvokeVoidAsync("app.mapa.destruir", "mapa-op"); } catch { }
+        _ref?.Dispose();
+    }
+}

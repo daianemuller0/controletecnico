@@ -1,0 +1,234 @@
+@page "/tecnicos"
+@attribute [Authorize]
+@implements IDisposable
+@inject Servicos Svc
+@inject Db Db
+@inject Sessao Sessao
+
+<PageTitle>Técnicos · Controle Técnico</PageTitle>
+
+<div class="page-head compacto">
+    <div>
+        <h1>Técnicos</h1>
+        <p class="subtitle">Equipe, vencimentos de documentos e treinamentos, e quem está livre e apto para cada planta ou serviço.</p>
+    </div>
+    <div class="momento-ctl">
+        @if (_ator.Pode(Perm.EditarTecnicos)) { <a class="btn-primary" href="/tecnicos/novo">@Icons.Svg("plus")Novo técnico</a> }
+    </div>
+</div>
+
+<div class="tabs" role="tablist">
+    <button role="tab" class="tab @(_aba == "equipe" ? "active" : "")" @onclick='() => _aba = "equipe"'>Equipe <span class="tab-badge">@_tecs.Count</span></button>
+    @if (_ator.Pode(Perm.VerDocsStatus))
+    {
+        <button role="tab" class="tab @(_aba == "venc" ? "active" : "")" @onclick='() => _aba = "venc"'>Vencimentos <span class="tab-badge">@_venc.Count(v => v.Status is Vocab.DocProximo or Vocab.DocVencido)</span></button>
+    }
+    @if (_ator.VeTodaEquipe)
+    {
+        <button role="tab" class="tab @(_aba == "apt" ? "active" : "")" @onclick='() => _aba = "apt"'>Requisitos e aptidão</button>
+    }
+</div>
+
+@if (_aba == "equipe")
+{
+    <div class="toolbar">
+        <input class="field busca" placeholder="Buscar técnico, cidade…" @bind="_busca" @bind:event="oninput" aria-label="Buscar técnico" />
+        <select class="field w-auto" @bind="_fEsp"><option value="">Todas as especialidades</option>@foreach (var e in _snap.Especialidades.Values.OrderBy(e => e.Nome)) {<option value="@e.Id">@e.Nome</option>}</select>
+        <label class="chk-inline"><input type="checkbox" @bind="_soAtivos" />Somente ativos</label>
+    </div>
+    <div class="table-wrap"><table class="grid-tbl">
+        <thead><tr><th>Técnico</th><th>Status agora</th><th>Onde mora</th><th>Especialidades</th><th>Próximo período disponível</th><th>Documentos</th></tr></thead>
+        <tbody>
+        @foreach (var t in Filtrados)
+        {
+            var e = _estados.GetValueOrDefault(t.Id); var it = Ui.Op(e?.Status ?? Vocab.OpSemProg);
+            var venc = _venc.Where(v => v.Doc.TecnicoId == t.Id).ToList();
+            var nv = venc.Count(v => v.Status == Vocab.DocVencido); var np = venc.Count(v => v.Status == Vocab.DocProximo);
+            var livre = e is null ? null : AgendaEngine.ProximoLivre(_snap, _eventos, t, DateTime.UtcNow);
+            <tr>
+                <td><a class="lnk-tec" href="/tecnicos/@t.Id"><Avatar Nome="@t.Nome" FotoId="@t.FotoAnexoId" Cor="@it.Color" Tam="sm" /><strong>@t.Nome</strong></a>@if (!t.Ativo) { <span class="tag neg">inativo</span> }</td>
+                <td><StatusBadge Item="@it" /></td>
+                <td>@t.Cidade@(string.IsNullOrEmpty(t.Estado) ? "" : "/" + t.Estado)</td>
+                <td>@string.Join(", ", Ui.Ids(t.EspecialidadeIds).Select(i => _snap.Especialidades.GetValueOrDefault(i)?.Nome).Where(n => n != null))</td>
+                <td>@(livre is { } l ? (l.fim is null ? $"a partir de {l.ini:dd/MM}" : $"{l.ini:dd/MM} a {l.fim:dd/MM}") : "—")</td>
+                <td>@if (nv > 0) { <span class="badge st-neg">@Icons.Svg("alert", "bico")@nv vencido(s)</span> } @if (np > 0) { <span class="badge st-warn">@Icons.Svg("clock", "bico")@np a vencer</span> } @if (nv + np == 0) { <span class="badge st-pos">@Icons.Svg("check", "bico")Em dia</span> }</td>
+            </tr>
+        }
+        </tbody>
+    </table></div>
+    @if (!Filtrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("users")</div><h3>Nenhum técnico encontrado</h3></div> }
+}
+else if (_aba == "venc")
+{
+    <div class="imp-resumo">
+        <div class="imp-n neg"><b>@_venc.Count(v => v.Status == Vocab.DocVencido)</b>vencidos</div>
+        @foreach (var a in Db.DiasAlerta)
+        {
+            var n = _venc.Count(v => v.Dias is >= 0 && v.Dias <= a && (a == Db.DiasAlerta.Min() || v.Dias > Db.DiasAlerta.Where(x => x < a).DefaultIfEmpty(-1).Max()));
+            <div class="imp-n warn"><b>@n</b>vencem em até @a dias</div>
+        }
+        <div class="imp-n pos"><b>@_venc.Count(v => v.Status is Vocab.DocValido or Vocab.DocSemVenc)</b>válidos</div>
+    </div>
+    <div class="toolbar">
+        <select class="field w-auto" @bind="_vTec"><option value="">Todos os técnicos</option>@foreach (var t in _tecs.OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select>
+        <select class="field w-auto" @bind="_vCat"><option value="">Todas as categorias</option>@foreach (var c in Vocab.CategoriasDoc) {<option>@c</option>}</select>
+        <select class="field w-auto" @bind="_vNorma"><option value="">Todas as normas</option>@foreach (var n in _venc.Select(v => v.Doc.Norma).Where(n => n != "").Distinct().OrderBy(n => n)) {<option>@n</option>}</select>
+        <select class="field w-auto" @bind="_vSt"><option value="">Todas as situações</option>@foreach (var s in Vocab.StatusDoc.Where(s => s.Key != Vocab.DocAusente)) {<option value="@s.Key">@s.Label</option>}</select>
+        <label class="fld-i">Vence de <input type="date" class="field" value="@Ui.DataInput(_vDe)" @onchange="e => _vDe = Ui.DoDataInput(e.Value?.ToString())" /></label>
+        <label class="fld-i">até <input type="date" class="field" value="@Ui.DataInput(_vAte)" @onchange="e => _vAte = Ui.DoDataInput(e.Value?.ToString())" /></label>
+        <span class="grow"></span>
+        <a class="btn-ghost" href="/export/vencimentos.csv" download>@Icons.Svg("download")Exportar CSV</a>
+    </div>
+    <div class="table-wrap"><table class="grid-tbl">
+        <thead><tr><th>Técnico</th><th>Registro</th><th>Categoria</th><th>Norma</th><th>Vencimento</th><th>Dias</th><th>Situação</th></tr></thead>
+        <tbody>
+        @foreach (var v in VencFiltrados)
+        {
+            <tr><td><a href="/tecnicos/@v.Doc.TecnicoId">@v.Tecnico?.Nome</a></td><td>@v.Doc.Nome</td><td>@v.Doc.Categoria</td><td>@v.Doc.Norma</td>
+                <td>@(v.Doc.SemVencimento ? "—" : Tempo.Dia(v.Doc.Vencimento))</td><td>@(v.Dias?.ToString() ?? "—")</td>
+                <td><StatusBadge Item="@Ui.StDoc(v.Status)" Extra="@(v.Alerta is { } a ? $"≤{a}d" : null)" /></td></tr>
+        }
+        </tbody>
+    </table></div>
+    @if (!VencFiltrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("shield")</div><h3>Nenhum registro para os filtros</h3></div> }
+}
+else if (_aba == "apt")
+{
+    <div class="g12 top">
+        <div class="c5">
+            <div class="panel">
+                <div class="panel-head"><div class="panel-title">Requisitos por serviço ou planta</div></div>
+                <p class="muted sm">Defina quais documentos e treinamentos são exigidos e se a falta <strong>bloqueia a confirmação</strong> ou apenas gera alerta. A validade vem do registro de cada técnico.</p>
+                @if (_ator.Pode(Perm.EditarRequisitos)) { <button class="btn-primary" @onclick="NovoReq">@Icons.Svg("plus")Novo requisito</button> }
+                <div class="table-wrap mt8"><table class="grid-tbl">
+                    <thead><tr><th>Onde</th><th>Exigido</th><th>Efeito</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var r in _snap.Requisitos.OrderBy(r => r.Escopo).ThenBy(r => EscopoNome(r)))
+                    {
+                        <tr><td><span class="tag">@(r.Escopo == "servico" ? "Serviço" : "Planta")</span> @EscopoNome(r)</td><td>@r.Nome@if (!string.IsNullOrEmpty(r.Norma)) { <div class="muted sm">norma @r.Norma</div> }</td>
+                            <td><span class="badge @(r.Bloqueia ? "st-neg" : "st-warn")">@(r.Bloqueia ? "Bloqueia" : "Só alerta")</span></td>
+                            <td class="right nowrap">@if (_ator.Pode(Perm.EditarRequisitos)) { <button class="row-act" @onclick="() => EditarReq(r)" title="Editar">@Icons.Svg("edit")</button><button class="row-act del" @onclick="() => ExcluirReq(r)" title="Excluir">@Icons.Svg("trash")</button> }</td></tr>
+                    }
+                    </tbody></table></div>
+                @if (_snap.Requisitos.Count == 0) { <div class="empty-state sm"><h3>Nenhum requisito configurado</h3></div> }
+            </div>
+        </div>
+        <div class="c7">
+            <div class="panel">
+                <div class="panel-head"><div class="panel-title">Quem pode atender?</div></div>
+                <p class="muted sm">Mostra, separadamente, a <strong>disponibilidade de agenda</strong> e a <strong>aptidão documental</strong> no período, considerando a validade durante todo o atendimento.</p>
+                <div class="form-grid g3">
+                    <label class="fld">Planta<select @bind="_aPlanta"><option value="">— qualquer —</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
+                    <label class="fld">Serviço<select @bind="_aServ"><option value="">— qualquer —</option>@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
+                    <label class="fld chk"><input type="checkbox" @bind="_aSo" />Só livres e aptos</label>
+                    <label class="fld">Início<input type="date" value="@Ui.DataInput(_aDe)" @onchange="e => _aDe = Ui.DoDataInput(e.Value?.ToString()) ?? _aDe" /></label>
+                    <label class="fld">Término<input type="date" value="@Ui.DataInput(_aAte)" @onchange="e => _aAte = Ui.DoDataInput(e.Value?.ToString()) ?? _aAte" /></label>
+                </div>
+                @{ var linhas = Aptidoes(); }
+                <div class="table-wrap mt8"><table class="grid-tbl">
+                    <thead><tr><th>Técnico</th><th>Agenda no período</th><th>Aptidão documental</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var l in linhas)
+                    {
+                        <tr class="@(l.livre && l.ap.Apto ? "lin-ok" : "")">
+                            <td><a href="/tecnicos/@l.t.Id">@l.t.Nome</a></td>
+                            <td><span class="badge @(l.livre ? "st-pos" : "st-warn")">@(l.livre ? "Livre" : "Com compromissos")</span><div class="muted sm">@l.agenda</div></td>
+                            <td>@if (l.ap.Apto) { <span class="badge st-pos">@Icons.Svg("check", "bico")Apto</span> }
+                                else if (l.ap.Bloqueado) { <span class="badge st-neg">@Icons.Svg("x", "bico")Precisa renovar / pendente</span> }
+                                else { <span class="badge st-warn">@Icons.Svg("alert", "bico")Apto com alertas</span> }
+                                @foreach (var p in l.ap.Pendencias) { <div class="sm @(p.Bloqueia ? "neg" : "warn")">@p.Motivo</div> }</td>
+                            <td>@if (l.livre && l.ap.Apto) { <span class="tag ok">Livre e apto</span> }</td>
+                        </tr>
+                    }
+                    </tbody></table></div>
+                @if (linhas.Count == 0) { <div class="empty-state sm"><h3>Nenhum técnico atende aos filtros</h3></div> }
+            </div>
+        </div>
+    </div>
+}
+
+@if (_req is not null)
+{
+    <Dialogo Titulo="@(string.IsNullOrEmpty(_req.Id) ? "Novo requisito" : "Editar requisito")" OnFechar="@(() => _req = null)" Erros="_erros">
+        <div class="form-grid">
+            <label class="fld">Vale para<select @bind="_req.Escopo" @bind:after="@(() => _req.EscopoId = "")"><option value="servico">Serviço</option><option value="planta">Planta</option></select></label>
+            <label class="fld">@(_req.Escopo == "servico" ? "Serviço" : "Planta")
+                <select @bind="_req.EscopoId"><option value="">— selecione —</option>
+                    @if (_req.Escopo == "servico") { @foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>} }
+                    else { @foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>} }</select></label>
+            <label class="fld full">Documento / treinamento exigido *<input @bind="_req.Nome" /><span class="hint">O técnico atende se tiver um registro atual com este nome ou com a norma abaixo.</span></label>
+            <label class="fld">Norma <span class="hint">opcional</span><input @bind="_req.Norma" /></label>
+            <label class="fld">Categoria<select @bind="_req.Categoria"><option value=""></option>@foreach (var c in Vocab.CategoriasDoc) {<option>@c</option>}</select></label>
+            <label class="fld chk full"><input type="checkbox" @bind="_req.Bloqueia" />Bloqueia a confirmação quando ausente, vencido ou vencendo antes do fim do atendimento (desmarcado: só alerta)</label>
+            <label class="fld full">Observações<input @bind="_req.Obs" /></label>
+        </div>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _req = null)">Cancelar</button><button class="btn-primary" @onclick="SalvarReq">@Icons.Svg("check")Salvar</button></div>
+    </Dialogo>
+}
+
+@code {
+    private Ator _ator = new(); private Snapshot _snap = new(); private List<Tecnico> _tecs = new(); private List<Evento> _eventos = new();
+    private Dictionary<string, Estado> _estados = new(); private List<DocEngine.Linha> _venc = new();
+    private string _aba = "equipe", _busca = "", _fEsp = ""; private bool _soAtivos;
+    private string _vTec = "", _vCat = "", _vNorma = "", _vSt = ""; private DateTime? _vDe, _vAte;
+    private string _aPlanta = "", _aServ = ""; private bool _aSo; private DateTime _aDe, _aAte;
+    private Requisito? _req; private List<string>? _erros;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Sessao.AtorAsync(); Sessao.Mudou += Ao;
+        Carregar();
+        var h = Tempo.ParaLocal(DateTime.UtcNow, _snap.FusoPadrao).Date; _aDe = h.AddDays(1); _aAte = h.AddDays(5);
+    }
+    private void Ao() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Sessao.Mudou -= Ao;
+
+    private void Carregar()
+    {
+        _snap = Svc.Foto();
+        _tecs = _snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).ToList();
+        _eventos = AgendaEngine.Eventos(_snap);
+        var agora = DateTime.UtcNow;
+        _estados = _tecs.Where(t => t.Ativo).ToDictionary(t => t.Id, t => AgendaEngine.EstadoEm(_snap, _eventos, t, agora, agora));
+        var ids = _tecs.Select(t => t.Id).ToHashSet();
+        _venc = DocEngine.Vencimentos(_snap, DocEngine.Hoje(_snap.FusoPadrao)).Where(v => ids.Contains(v.Doc.TecnicoId)).ToList();
+    }
+
+    private IEnumerable<Tecnico> Filtrados => _tecs.Where(t => (!_soAtivos || t.Ativo)
+        && (string.IsNullOrEmpty(_fEsp) || Ui.Ids(t.EspecialidadeIds).Contains(_fEsp))
+        && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{t.Nome} {t.Cidade} {t.Estado} {t.Matricula}").Contains(DocEngine.Norm(_busca)))).OrderBy(t => t.Nome);
+
+    private IEnumerable<DocEngine.Linha> VencFiltrados => _venc.Where(v =>
+        (_vTec == "" || v.Doc.TecnicoId == _vTec) && (_vCat == "" || v.Doc.Categoria == _vCat) && (_vNorma == "" || v.Doc.Norma == _vNorma)
+        && (_vSt == "" || v.Status == _vSt) && (_vDe is null || (v.Doc.Vencimento is { } d && d >= _vDe)) && (_vAte is null || (v.Doc.Vencimento is { } d2 && d2 <= _vAte)))
+        .OrderBy(v => v.Dias ?? int.MaxValue);
+
+    private string EscopoNome(Requisito r) => r.Escopo == "servico" ? _snap.Servico(r.EscopoId)?.Nome ?? "?" : _snap.NomePlanta(r.EscopoId);
+
+    private List<(Tecnico t, bool livre, string agenda, Aptidao ap)> Aptidoes()
+    {
+        var res = new List<(Tecnico, bool, string, Aptidao)>();
+        var fusoP = _snap.Planta(_aPlanta)?.FusoHorario ?? _snap.FusoPadrao;
+        var ini = Tempo.ParaUtc(_aDe.Date.AddHours(8), fusoP); var fim = Tempo.ParaUtc(_aAte.Date.AddHours(17), fusoP);
+        if (fim <= ini) return new();
+        var reqs = DocEngine.RequisitosDe(_snap, new[] { _aServ }, new[] { _aPlanta });
+        var hoje = DocEngine.Hoje(_snap.FusoPadrao);
+        foreach (var t in _tecs.Where(t => t.Ativo))
+        {
+            if (!string.IsNullOrEmpty(_aServ) && Ui.Ids(t.ServicoIds).Length > 0 && !Ui.Ids(t.ServicoIds).Contains(_aServ)) continue;
+            var dias = AgendaEngine.Dias(_snap, _eventos, t, Tempo.ParaLocal(ini, t.FusoHorario).Date, Tempo.ParaLocal(fim, t.FusoHorario).Date);
+            var util = dias.Where(d => d.Situacao != "naoutil").ToList();
+            var livre = util.Count > 0 && util.All(d => d.Situacao is "livre" or "provisorio");
+            var agenda = livre ? "Livre em todos os dias úteis do período" : string.Join(", ", util.Where(d => d.Situacao is not ("livre" or "provisorio")).Select(d => $"{d.Dia:dd/MM} {d.Situacao switch { "ocupado" => "ocupado", "parcial" => "parcial", "indisponivel" => "indisponível", _ => d.Situacao }}").Take(4));
+            var ap = DocEngine.Avaliar(_snap, t, reqs, ini, fim, hoje, fusoP);
+            if (_aSo && !(livre && ap.Apto)) continue;
+            res.Add((t, livre, agenda, ap));
+        }
+        return res.OrderByDescending(x => x.Item2 && x.Item4.Apto).ThenBy(x => x.Item4.Bloqueado).ThenBy(x => x.Item1.Nome).ToList();
+    }
+
+    private void NovoReq() { _req = new Requisito(); _erros = null; }
+    private void EditarReq(Requisito r) { _req = r.Copia<Requisito>(); _erros = null; }
+    private void SalvarReq() { try { Svc.SalvarRequisito(_ator, _req!); _req = null; Carregar(); Sessao.Avisar("Requisito salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void ExcluirReq(Requisito r) { try { Svc.ExcluirRequisito(_ator, r.Id); Carregar(); Sessao.Avisar("Requisito removido."); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); } }
+}

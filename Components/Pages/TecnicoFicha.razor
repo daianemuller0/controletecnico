@@ -1,0 +1,328 @@
+@page "/tecnicos/{Id}"
+@attribute [Authorize]
+@implements IDisposable
+@inject Servicos Svc
+@inject Db Db
+@inject Sessao Sessao
+@inject NavigationManager Nav
+
+<PageTitle>@(_novo ? "Novo técnico" : _t?.Nome ?? "Técnico") · Controle Técnico</PageTitle>
+
+<div class="breadcrumbs"><a href="/tecnicos">Técnicos</a><span class="sep">/</span><span class="strong" style="color:var(--text-2)">@(_novo ? "Novo técnico" : _t?.Nome)</span></div>
+
+@if (!_ok)
+{
+    <div class="state-box state-err">@Icons.Svg("lock")<div><strong>Técnico não encontrado ou sem permissão de acesso.</strong></div><a class="btn-ghost" href="/tecnicos">Voltar</a></div>
+}
+else
+{
+    @if (!_novo && _est is not null)
+    {
+        var it = Ui.Op(_est.Status);
+        <div class="ficha-topo panel">
+            <Avatar Nome="@_t.Nome" FotoId="@_t.FotoAnexoId" Cor="@it.Color" Tam="lg" />
+            <div class="ficha-ident">
+                <h1>@_t.Nome @if (!_t.Ativo) { <span class="tag neg">inativo</span> }</h1>
+                <div class="muted">@_t.Matricula @(string.IsNullOrEmpty(_t.Matricula) ? "" : "·") @_t.Cidade@(string.IsNullOrEmpty(_t.Estado) ? "" : "/" + _t.Estado), @_t.Pais</div>
+                <div class="ficha-chips"><StatusBadge Item="@it" />
+                    @foreach (var e in _t.EspecialidadeIds.Split(',', StringSplitOptions.RemoveEmptyEntries)) { if (_snap.Especialidades.TryGetValue(e, out var esp)) { <span class="tag">@esp.Nome</span> } }</div>
+            </div>
+            <div class="ficha-resumo">
+                <div><span class="muted sm">Atendimento em andamento</span><div>@(_est.Status == Vocab.OpAtendimento && _est.Atual is { } a ? $"{a.Titulo} · {Ui.Corte(_snap.NomePlanta(a.PlantaId), 40)}" : "—")</div></div>
+                <div><span class="muted sm">Próximo período disponível</span><div>@(_livre is { } l ? (l.fim is null ? $"a partir de {l.ini:dd/MM/yyyy}" : $"{l.ini:dd/MM/yyyy} a {l.fim:dd/MM/yyyy}") : "sem janela no horizonte")</div></div>
+                <div><span class="muted sm">Alertas de validade</span><div>@(_alertas == 0 ? "nenhum" : $"{_alertas} documento(s) a vencer/vencido(s)")</div></div>
+            </div>
+        </div>
+    }
+
+    <div class="tabs" role="tablist">
+        @foreach (var (k, r) in Abas.Where(a => !_novo || a.Item1 == "geral"))
+        {
+            <button role="tab" class="tab @(_aba == k ? "active" : "")" @onclick="() => _aba = k">@r</button>
+        }
+    </div>
+
+    @switch (_aba)
+    {
+        case "geral":
+            <div class="panel">
+                <fieldset class="semborda" disabled="@(!_pode)">
+                <div class="form-grid g3">
+                    <label class="fld">Nome *<input @bind="_f.Nome" /></label>
+                    <label class="fld">Identificador interno<input @bind="_f.Matricula" /></label>
+                    <label class="fld chk"><input type="checkbox" @bind="_f.Ativo" />Técnico ativo</label>
+                    @if (_verContato)
+                    {
+                        <label class="fld">Telefone<input @bind="_f.Telefone" /></label>
+                        <label class="fld">E-mail<input type="email" @bind="_f.Email" /></label>
+                    }
+                    else { <div class="fld full muted sm">@Icons.Svg("lock")Contatos pessoais ocultos @(Sessao.Apresentacao ? "no modo apresentação" : "para o seu perfil").</div> }
+                    <label class="fld">Cidade onde mora *<input @bind="_f.Cidade" /></label>
+                    <label class="fld">Estado<input @bind="_f.Estado" /></label>
+                    <label class="fld">País<input list="paises-t" @bind="_f.Pais" /></label>
+                    <label class="fld">Origem habitual para viagens <span class="hint">vazio = cidade/UF</span><input @bind="_f.OrigemHabitual" /></label>
+                    <label class="fld">Fuso horário<select @bind="_f.FusoHorario">@foreach (var z in Vocab.Fusos.Concat(new[] { _f.FusoHorario }).Distinct()) {<option>@z</option>}</select></label>
+                    <div class="fld"></div>
+                    <label class="fld">Jornada — início<input type="time" value="@_f.JornadaInicio" @onchange="e => _f.JornadaInicio = e.Value?.ToString() ?? string.Empty" /></label>
+                    <label class="fld">Jornada — fim<input type="time" value="@_f.JornadaFim" @onchange="e => _f.JornadaFim = e.Value?.ToString() ?? string.Empty" /></label>
+                    <div class="fld"><span>Dias úteis</span>
+                        <div class="dias-sem">@foreach (var (n, r) in DiasSem) { <label class="chk-inline"><input type="checkbox" checked="@_diasSel.Contains(n)" @onchange="e => AlternarDia(n, (bool)e.Value!)" />@r</label> }</div></div>
+                    <label class="fld full">Observações<textarea @bind="_f.Obs"></textarea></label>
+                </div>
+                </fieldset>
+                <datalist id="paises-t">@foreach (var p in Vocab.Paises) {<option value="@p"></option>}</datalist>
+                @if (!_novo && _pode)
+                {
+                    <div class="fld mt8"><span>Foto (JPG ou PNG)</span><InputFile OnChange="AoFoto" accept=".jpg,.jpeg,.png" /></div>
+                }
+                @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+                @if (_pode)
+                {
+                    <div class="modal-actions"><a class="btn-ghost" href="/tecnicos">Cancelar</a><button class="btn-primary" @onclick="SalvarGeral">@Icons.Svg("check")Salvar</button></div>
+                }
+            </div>
+            break;
+
+        case "esp":
+            <div class="panel">
+                <div class="g12 top">
+                    <div class="c6">
+                        <h3 class="sec nm">Especialidades</h3>
+                        <div class="chk-grid">@foreach (var e in _snap.Especialidades.Values.OrderBy(e => e.Nome)) {
+                            <label class="chk-inline"><input type="checkbox" disabled="@(!_pode)" checked="@Ui.Ids(_t.EspecialidadeIds).Contains(e.Id)" @onchange="x => Alternar(true, e.Id, (bool)x.Value!)" />@e.Nome</label> }</div>
+                        @if (_pode) { <div class="add-row"><input class="field" placeholder="Nova especialidade…" @bind="_novaEsp" /><button class="btn-ghost" @onclick="AddEsp">Adicionar</button></div> }
+                    </div>
+                    <div class="c6">
+                        <h3 class="sec nm">Serviços que pode executar</h3>
+                        <div class="chk-grid">@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {
+                            <label class="chk-inline"><input type="checkbox" disabled="@(!_pode)" checked="@Ui.Ids(_t.ServicoIds).Contains(s.Id)" @onchange="x => Alternar(false, s.Id, (bool)x.Value!)" />@s.Nome</label> }</div>
+                        @if (_pode) { <div class="add-row"><input class="field" placeholder="Novo serviço…" @bind="_novoServ" /><button class="btn-ghost" @onclick="AddServ">Adicionar</button></div> }
+                    </div>
+                </div>
+                @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+            </div>
+            break;
+
+        case "agenda":
+            <div class="panel">
+                <div class="panel-head"><div class="panel-title">Próximos 30 dias</div><a class="btn-ghost sm" href="/agenda?tec=@Id">Abrir na agenda geral @Icons.Svg("arrow-right")</a></div>
+                <div class="faixa-livre">
+                    @foreach (var d in _dias)
+                    {
+                        <span class="fx @("fx-" + d.Situacao)" title="@d.Dia.ToString("dddd dd/MM", Tempo.Pt): @RotuloDia(d.Situacao)">@d.Dia.Day</span>
+                    }
+                </div>
+                <div class="ag-legenda"><span class="leg"><i class="amostra cel-livre"></i>Livre</span><span class="leg"><i class="amostra fx-parcial"></i>Parcial</span><span class="leg"><i class="amostra fx-ocupado"></i>Ocupado</span><span class="leg"><i class="amostra fx-indisponivel"></i>Indisponível</span><span class="leg"><i class="amostra fx-naoutil"></i>Fora da jornada</span></div>
+                @if (_proximos.Count == 0) { <div class="empty-state sm"><h3>Sem compromissos nos próximos 30 dias</h3></div> }
+                <ul class="mini-agenda lista-larga">
+                    @foreach (var ev in _proximos)
+                    {
+                        <li><span class="dot" style="background:@Ui.TipoEv(ev.Tipo).Color"></span>
+                            <div><div class="mini-t">@ev.Titulo @if (ev.Provisorio) { <span class="tag prov">provisório</span> } @if (!string.IsNullOrEmpty(ev.ViagemId)) { <a href="/viagens/@ev.ViagemId">@_snap.Viagem(ev.ViagemId)?.Codigo</a> }</div>
+                                <div class="muted sm">@Ui.Periodo(ev.Ini, ev.Fim, ev.Fuso, _snap) · @Ui.TipoEv(ev.Tipo).Label</div></div></li>
+                    }
+                </ul>
+            </div>
+            break;
+
+        case "viagens":
+            <div class="table-wrap"><table class="grid-tbl">
+                <thead><tr><th>Viagem</th><th>Destino</th><th>Período</th><th>Transporte</th><th>Status</th></tr></thead>
+                <tbody>
+                @foreach (var v in _viagens)
+                {
+                    var evs = _eventos.Where(e => e.ViagemId == v.Id && e.TecnicoId == Id).ToList();
+                    <tr><td><a href="/viagens/@v.Id"><strong>@v.Codigo</strong></a></td><td>@v.Destino</td>
+                        <td>@(evs.Count == 0 ? "—" : Ui.Periodo(evs.Min(e => e.Ini), evs.Max(e => e.Fim), null, _snap))</td>
+                        <td>@string.Join(", ", _trechos.Where(t => t.ViagemId == v.Id).Select(t => t.Modal == Vocab.ModalAviao ? "Avião" : t.Modal == Vocab.ModalCarro ? "Carro" : "Outro").Distinct())</td>
+                        <td><StatusBadge Item="@Ui.StViagem(v.Status)" /></td></tr>
+                }
+                </tbody></table></div>
+            @if (_viagens.Count == 0) { <div class="empty-state sm"><div class="ico">@Icons.Svg("plane")</div><h3>Sem viagens registradas</h3></div> }
+            break;
+
+        case "hist":
+            <div class="table-wrap"><table class="grid-tbl">
+                <thead><tr><th>Cliente / planta</th><th>Serviço</th><th>Previsto</th><th>Realizado</th><th>Horas prev.</th><th>Horas real.</th><th>Viagem</th></tr></thead>
+                <tbody>
+                @foreach (var a in _hist)
+                {
+                    var v = _snap.Viagem(a.ViagemId);
+                    <tr><td>@_snap.NomePlanta(a.PlantaId)</td><td>@_snap.Servico(string.IsNullOrEmpty(a.ServicoId) ? v?.ServicoId : a.ServicoId)?.Nome</td>
+                        <td>@Ui.Periodo(a.IniPrev, a.FimPrev, _snap.Planta(a.PlantaId)?.FusoHorario, _snap)</td>
+                        <td>@(a.IniReal is null ? "—" : Ui.Periodo(a.IniReal.Value, a.FimReal ?? a.FimPrev, _snap.Planta(a.PlantaId)?.FusoHorario, _snap))</td>
+                        <td>@(a.HorasPrev?.ToString("0.#") ?? "—")</td><td>@(a.HorasReal?.ToString("0.#") ?? "—")</td>
+                        <td>@if (v is not null) { <a href="/viagens/@v.Id">@v.Codigo</a> } else { <span class="muted">avulso</span> }</td></tr>
+                }
+                </tbody></table></div>
+            @if (_hist.Count == 0) { <div class="empty-state sm"><div class="ico">@Icons.Svg("history")</div><h3>Nenhum atendimento concluído ainda</h3></div> }
+            break;
+
+        case "ind":
+            <div class="toolbar"><span class="grow"></span>@if (_podeAgenda) { <button class="btn-primary" @onclick="NovaInd">@Icons.Svg("plus")Cadastrar férias, folga, afastamento ou bloqueio</button> }</div>
+            <div class="table-wrap"><table class="grid-tbl">
+                <thead><tr><th>Tipo</th><th>Início</th><th>Término</th><th>Motivo</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var i in _ind)
+                {
+                    var tp = Ui.TipoEv(i.Tipo == Vocab.IndFerias ? Vocab.EvFerias : i.Tipo == Vocab.IndFolga ? Vocab.EvFolga : i.Tipo == Vocab.IndAfastamento ? Vocab.EvAfastamento : Vocab.EvBloqueio);
+                    <tr><td><StatusBadge Item="@tp" />@if (i.Provisoria) { <span class="tag prov">provisório</span> }</td>
+                        <td>@Tempo.Hora(i.Ini, _t.FusoHorario, null, true)</td><td>@Tempo.Hora(i.Fim, _t.FusoHorario, null, true)</td><td>@i.Motivo</td>
+                        <td class="right">@if (_podeAgenda) { <button class="row-act" @onclick="() => EditarInd(i)" title="Editar">@Icons.Svg("edit")</button><button class="row-act del" @onclick="() => ExcluirInd(i)" title="Excluir">@Icons.Svg("trash")</button> }</td></tr>
+                }
+                </tbody></table></div>
+            @if (_ind.Count == 0) { <div class="empty-state sm"><div class="ico">@Icons.Svg("sun")</div><h3>Nenhuma indisponibilidade cadastrada</h3></div> }
+            break;
+
+        case "docs":
+            <div class="panel"><DocumentosTecnico TecnicoId="@Id" Modo="docs" Ator="@_ator" OnMudou="Recarregar" /></div>
+            break;
+        case "trein":
+            <div class="panel"><DocumentosTecnico TecnicoId="@Id" Modo="trein" Ator="@_ator" OnMudou="Recarregar" /></div>
+            break;
+    }
+}
+
+@if (_ind1 is not null)
+{
+    <Dialogo Titulo="@(string.IsNullOrEmpty(_ind1.Id) ? "Nova indisponibilidade" : "Editar indisponibilidade")" OnFechar="@(() => _ind1 = null)" Erros="_erros">
+        <div class="form-grid">
+            <label class="fld">Tipo<select @bind="_ind1.Tipo" @bind:after="PreviaInd">@foreach (var tp in Vocab.TiposInd) {<option value="@tp.Key">@tp.Label</option>}</select></label>
+            <label class="fld chk"><input type="checkbox" @bind="_indInteiro" @bind:after="PreviaInd" />Dia(s) inteiro(s)</label>
+            @if (_indInteiro)
+            {
+                <label class="fld">De<input type="date" @bind="_indDe" @bind:after="PreviaInd" /></label>
+                <label class="fld">Até (inclusive)<input type="date" @bind="_indAte" @bind:after="PreviaInd" /></label>
+            }
+            else
+            {
+                <label class="fld">Início<input type="datetime-local" @bind="_indIni" @bind:after="PreviaInd" /></label>
+                <label class="fld">Término<input type="datetime-local" @bind="_indFim" @bind:after="PreviaInd" /></label>
+            }
+            <label class="fld full">Motivo<input @bind="_ind1.Motivo" /></label>
+            <label class="fld chk"><input type="checkbox" @bind="_ind1.Provisoria" />Provisório (a confirmar)</label>
+        </div>
+        @foreach (var c in _prevInd) { <div class="alert-box @(c.Erro ? "alert-erro" : "alert-aviso")">@Icons.Svg("alert")<div>@c.Motivo</div></div> }
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _ind1 = null)">Cancelar</button><button class="btn-primary" @onclick="SalvarInd">@Icons.Svg("check")Salvar</button></div>
+    </Dialogo>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    private static readonly (string, string)[] Abas =
+    {
+        ("geral", "Dados gerais"), ("esp", "Especialidades e serviços"), ("agenda", "Agenda"), ("viagens", "Viagens"),
+        ("hist", "Histórico de atendimentos"), ("ind", "Férias e indisponibilidades"), ("docs", "Documentos"), ("trein", "Treinamentos e certificações"),
+    };
+    private static readonly (int, string)[] DiasSem = { (1, "Seg"), (2, "Ter"), (3, "Qua"), (4, "Qui"), (5, "Sex"), (6, "Sáb"), (0, "Dom") };
+
+    private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _podeAgenda, _verContato;
+    private Tecnico _t = new(), _f = new(); private Estado? _est; private (DateTime ini, DateTime? fim)? _livre; private int _alertas;
+    private string _aba = "geral"; private List<string>? _erros;
+    private List<Evento> _eventos = new(), _proximos = new(); private List<Livre> _dias = new();
+    private List<Viagem> _viagens = new(); private List<Trecho> _trechos = new(); private List<Atendimento> _hist = new(); private List<Indisponibilidade> _ind = new();
+    private HashSet<int> _diasSel = new(); private string _novaEsp = "", _novoServ = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _ator = await Sessao.AtorAsync();
+        Sessao.Mudou -= Ao; Sessao.Mudou += Ao;
+        Carregar();
+    }
+    private void Ao() => InvokeAsync(() => { _verContato = _ator.Pode(Perm.VerContatos, Id) && !Sessao.Apresentacao; StateHasChanged(); });
+
+    private void Carregar()
+    {
+        _snap = Svc.Foto();
+        _novo = Id == "novo";
+        if (_novo)
+        {
+            _ok = _ator.Pode(Perm.EditarTecnicos); _pode = _ok; _t = new Tecnico(); _f = new Tecnico(); _diasSel = new() { 1, 2, 3, 4, 5 }; _aba = "geral"; _verContato = true; return;
+        }
+        if (!_snap.Tecnicos.TryGetValue(Id, out var t) || !_ator.VeTecnico(Id)) { _ok = false; return; }
+        _ok = true; _t = t; _f = t.Copia<Tecnico>();
+        _pode = _ator.Pode(Perm.EditarTecnicos); _podeAgenda = _ator.Pode(Perm.EditarAgenda);
+        _verContato = _ator.Pode(Perm.VerContatos, Id) && !Sessao.Apresentacao;
+        _diasSel = Ui.Ids(t.DiasUteis).Select(int.Parse).ToHashSet();
+        var agora = DateTime.UtcNow;
+        _eventos = AgendaEngine.Eventos(_snap, tecnicoId: Id);
+        _est = AgendaEngine.EstadoEm(_snap, _eventos, t, agora, agora);
+        _livre = AgendaEngine.ProximoLivre(_snap, _eventos, t, agora);
+        var hoje = DocEngine.Hoje(_snap.FusoPadrao);
+        _alertas = DocEngine.Vencimentos(_snap, hoje).Count(l => l.Doc.TecnicoId == Id && l.Status is Vocab.DocProximo or Vocab.DocVencido);
+        var loc = Tempo.ParaLocal(agora, _snap.FusoPadrao).Date;
+        _dias = AgendaEngine.Dias(_snap, _eventos, t, loc, loc.AddDays(29));
+        _proximos = _eventos.Where(e => e.Fim > agora && e.Ini < agora.AddDays(30)).OrderBy(e => e.Ini).ToList();
+        _viagens = _snap.Viagens.Values.Where(v => Ui.Ids(v.TecnicoIds).Contains(Id)).OrderByDescending(v => v.Codigo).ToList();
+        _trechos = _snap.Trechos;
+        _hist = _snap.Atendimentos.Where(a => (Ui.Ids(a.TecnicoIds).Contains(Id) || (string.IsNullOrEmpty(a.TecnicoIds) && _snap.Viagem(a.ViagemId) is { } vv && Ui.Ids(vv.TecnicoIds).Contains(Id)))
+            && (_snap.Viagem(a.ViagemId)?.Status ?? a.Status) != Vocab.ViagemCancelada && (a.FimReal ?? a.FimPrev) < agora).OrderByDescending(a => a.IniPrev).ToList();
+        _ind = _snap.Indisp.Where(i => i.TecnicoId == Id).OrderByDescending(i => i.Ini).ToList();
+    }
+
+    private Task Recarregar() { Carregar(); StateHasChanged(); return Task.CompletedTask; }
+
+    private static string RotuloDia(string s) => s switch { "livre" => "livre", "parcial" => "parcialmente ocupado", "ocupado" => "ocupado", "indisponivel" => "indisponível", "naoutil" => "fora da jornada", "provisorio" => "alocação provisória", _ => s };
+    private void AlternarDia(int n, bool on) { if (on) _diasSel.Add(n); else _diasSel.Remove(n); }
+
+    private void SalvarGeral()
+    {
+        _erros = null;
+        try
+        {
+            _f.DiasUteis = string.Join(",", _diasSel.OrderBy(x => x));
+            var salvo = Svc.SalvarTecnico(_ator, _f);
+            Sessao.Avisar("Técnico salvo.");
+            if (_novo) Nav.NavigateTo($"/tecnicos/{salvo.Id}"); else Carregar();
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+
+    private async Task AoFoto(InputFileChangeEventArgs e)
+    {
+        _erros = null;
+        try { await using var s = e.File.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.DefinirFotoAsync(_ator, Id, e.File.Name, s); Carregar(); Sessao.Avisar("Foto atualizada."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+
+    private void Alternar(bool esp, string id, bool on)
+    {
+        var lista = Ui.Ids(esp ? _t.EspecialidadeIds : _t.ServicoIds).ToHashSet();
+        if (on) lista.Add(id); else lista.Remove(id);
+        var t = _t.Copia<Tecnico>();
+        if (esp) t.EspecialidadeIds = Servicos.Csv(lista); else t.ServicoIds = Servicos.Csv(lista);
+        try { Svc.SalvarTecnico(_ator, t); Carregar(); Sessao.Avisar("Salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+    private void AddEsp() { try { Svc.SalvarEspecialidade(_ator, new Especialidade { Nome = _novaEsp }); _novaEsp = ""; Carregar(); Sessao.Avisar("Especialidade adicionada."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void AddServ() { try { Svc.SalvarServico(_ator, new Servico { Nome = _novoServ }); _novoServ = ""; Carregar(); Sessao.Avisar("Serviço adicionado."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+
+    // ---- indisponibilidades ----
+    private Indisponibilidade? _ind1; private bool _indInteiro = true; private DateTime _indDe, _indAte, _indIni, _indFim; private List<Conflito> _prevInd = new();
+    private void NovaInd()
+    {
+        var d = Tempo.ParaLocal(DateTime.UtcNow, _t.FusoHorario).Date.AddDays(1);
+        _ind1 = new Indisponibilidade { TecnicoId = Id }; _indInteiro = true; _indDe = d; _indAte = d; _indIni = d.AddHours(8); _indFim = d.AddHours(17); _erros = null; PreviaInd();
+    }
+    private void EditarInd(Indisponibilidade i)
+    {
+        _ind1 = i; var li = Tempo.ParaLocal(i.Ini, _t.FusoHorario); var lf = Tempo.ParaLocal(i.Fim, _t.FusoHorario);
+        _indInteiro = li.TimeOfDay == TimeSpan.Zero && lf.TimeOfDay == TimeSpan.Zero; _indDe = li.Date; _indAte = _indInteiro ? lf.Date.AddDays(-1) : lf.Date; _indIni = li; _indFim = lf; _erros = null; PreviaInd();
+    }
+    private void Montar()
+    {
+        var ini = _indInteiro ? _indDe.Date : _indIni; var fim = _indInteiro ? _indAte.Date.AddDays(1) : _indFim;
+        _ind1!.Ini = Tempo.ParaUtc(ini, _t.FusoHorario); _ind1.Fim = Tempo.ParaUtc(fim, _t.FusoHorario);
+    }
+    private void PreviaInd() { if (_ind1 is null) return; Montar(); try { _prevInd = Svc.PreviaIndisp(_ind1); } catch { _prevInd = new(); } }
+    private void SalvarInd()
+    {
+        try { Montar(); Svc.SalvarIndisponibilidade(_ator, _ind1!); _ind1 = null; Carregar(); Sessao.Avisar("Indisponibilidade salva."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+    private void ExcluirInd(Indisponibilidade i)
+    {
+        try { Svc.ExcluirIndisponibilidade(_ator, i.Id); Carregar(); Sessao.Avisar("Removida."); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
+
+    public void Dispose() => Sessao.Mudou -= Ao;
+}

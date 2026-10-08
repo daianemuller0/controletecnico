@@ -1,0 +1,18 @@
+@if (!string.IsNullOrEmpty(FotoId) && !Oculto)
+{
+    <img class="av av-@Tam" src="/arquivos/@FotoId" alt="@Nome" style="--ring:@Cor" />
+}
+else
+{
+    <span class="av av-@Tam av-ini" style="--ring:@Cor" aria-label="@Nome">@Iniciais(Nome)</span>
+}
+
+@code {
+    [Parameter] public string Nome { get; set; } = "";
+    [Parameter] public string? FotoId { get; set; }
+    [Parameter] public string Cor { get; set; } = "#8793a6";
+    [Parameter] public string Tam { get; set; } = "md";
+    [Parameter] public bool Oculto { get; set; }
+    public static string Iniciais(string? n) =>
+        string.IsNullOrWhiteSpace(n) ? "?" : string.Concat(n.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => p.Length > 2 || true).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+}

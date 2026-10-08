@@ -1,0 +1,7 @@
+<span class="badge @Item.Css" title="@(Titulo ?? Item.Label)">@Icons.Svg(Item.Icon, "bico")@Item.Label@if (!string.IsNullOrEmpty(Extra)) { <span class="badge-extra">@Extra</span> }</span>
+
+@code {
+    [Parameter, EditorRequired] public Item Item { get; set; } = default!;
+    [Parameter] public string? Extra { get; set; }
+    [Parameter] public string? Titulo { get; set; }
+}

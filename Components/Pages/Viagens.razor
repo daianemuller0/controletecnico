@@ -1,0 +1,94 @@
+@page "/viagens"
+@attribute [Authorize]
+@implements IDisposable
+@inject Servicos Svc
+@inject Sessao Sessao
+
+<PageTitle>Controladoria e viagens · Controle Técnico</PageTitle>
+
+<div class="page-head compacto">
+    <div>
+        <h1>Controladoria e viagens</h1>
+        <p class="subtitle">Planeje, confirme e acompanhe os deslocamentos e atendimentos. Planejado e realizado ficam lado a lado.</p>
+    </div>
+    <div class="momento-ctl">@if (_ator.Pode(Perm.EditarViagens)) { <a class="btn-primary" href="/viagens/novo">@Icons.Svg("plus")Nova viagem</a> }</div>
+</div>
+
+<div class="kpi-linha kpi-6">
+    @foreach (var s in Vocab.StatusViagem)
+    {
+        var n = _lista.Count(v => v.v.Status == s.Key);
+        <button class="kpi-tile @(_fSt == s.Key ? "ativo" : "")" style="--c:@s.Color" @onclick="() => _fSt = _fSt == s.Key ? string.Empty : s.Key" aria-pressed="@(_fSt == s.Key)">
+            <span class="kpi-ico">@Icons.Svg(s.Icon)</span><span class="kpi-v">@n</span><span class="kpi-r">@s.Label</span>
+        </button>
+    }
+</div>
+
+<div class="toolbar">
+    <input class="field busca" placeholder="Buscar código, cliente, destino…" @bind="_busca" @bind:event="oninput" aria-label="Buscar viagem" />
+    <select class="field w-auto" @bind="_fTec"><option value="">Todos os técnicos</option>@foreach (var t in _snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select>
+    <select class="field w-auto" @bind="_fCli"><option value="">Todos os clientes</option>@foreach (var c in _snap.Clientes.Values.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select>
+    <select class="field w-auto" @bind="_fModal"><option value="">Carro e avião</option><option value="carro">Com trecho de carro</option><option value="aviao">Com trecho de avião</option></select>
+    <label class="chk-inline"><input type="checkbox" @bind="_futuras" />Só a partir de hoje</label>
+</div>
+
+<div class="table-wrap"><table class="grid-tbl">
+    <thead><tr><th>Viagem</th><th>Cliente / destino</th><th>Técnicos</th><th>Período</th><th>Transporte</th><th>Horas prev./real.</th><th>Status</th><th>Pendências</th></tr></thead>
+    <tbody>
+    @foreach (var l in Filtradas)
+    {
+        <tr>
+            <td><a href="/viagens/@l.v.Id"><strong>@l.v.Codigo</strong></a><div class="muted sm">@l.v.Responsavel</div></td>
+            <td>@_snap.Cliente(l.v.ClienteId)?.Nome<div class="muted sm">@l.v.Destino</div></td>
+            <td>@string.Join(", ", Ui.Ids(l.v.TecnicoIds).Select(i => _snap.Tecnico(i)?.Nome?.Split(' ')[0]))</td>
+            <td>@(l.ini is null ? "—" : Ui.Periodo(l.ini.Value, l.fim!.Value, null, _snap))</td>
+            <td>@foreach (var m in l.modais) { <span class="tag">@(m == "aviao" ? "Avião" : m == "carro" ? "Carro" : "Outro")</span> }</td>
+            <td>@(l.hp?.ToString("0.#") ?? "—") / @(l.hr?.ToString("0.#") ?? "—")</td>
+            <td><StatusBadge Item="@Ui.StViagem(l.v.Status)" /></td>
+            <td>@if (l.conf > 0) { <span class="badge st-neg" title="Conflitos de agenda">@Icons.Svg("alert", "bico")@l.conf</span> } @if (l.pend > 0) { <span class="badge st-warn" title="Pendências documentais">@Icons.Svg("shield", "bico")@l.pend</span> } @if (l.conf + l.pend == 0) { <span class="muted">—</span> }</td>
+        </tr>
+    }
+    </tbody>
+</table></div>
+@if (!Filtradas.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("plane")</div><h3>Nenhuma viagem encontrada</h3><p>Crie uma viagem ou ajuste os filtros.</p></div> }
+
+@code {
+    private Ator _ator = new(); private Snapshot _snap = new();
+    private List<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> _lista = new();
+    private string _busca = "", _fSt = "", _fTec = "", _fCli = "", _fModal = ""; private bool _futuras;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Sessao.AtorAsync(); Sessao.Mudou += Ao;
+        _snap = Svc.Foto();
+        var ev = AgendaEngine.Eventos(_snap, incluirCanceladas: true);
+        var conf = AgendaEngine.Conflitos(_snap, ev.Where(e => e.Status != "cancelado").ToList());
+        var hoje = DocEngine.Hoje(_snap.FusoPadrao);
+        foreach (var v in _snap.Viagens.Values.Where(v => _ator.VeTodaEquipe || Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId)))
+        {
+            var es = ev.Where(e => e.ViagemId == v.Id).ToList();
+            var ats = _snap.Atendimentos.Where(a => a.ViagemId == v.Id).ToList();
+            var nConf = conf.Count(c => c.A.ViagemId == v.Id || c.B.ViagemId == v.Id);
+            var nPend = 0;
+            if (v.Status != Vocab.ViagemCancelada && v.Status != Vocab.ViagemConcluida)
+                foreach (var a in ats)
+                {
+                    var tecs = Ui.Ids(a.TecnicoIds); if (tecs.Length == 0) tecs = Ui.Ids(v.TecnicoIds);
+                    var reqs = DocEngine.RequisitosDe(_snap, new[] { string.IsNullOrEmpty(a.ServicoId) ? v.ServicoId : a.ServicoId }, new[] { a.PlantaId });
+                    foreach (var t in tecs.Select(_snap.Tecnico).Where(t => t is not null))
+                        nPend += DocEngine.Avaliar(_snap, t!, reqs, a.IniPrev, a.FimPrev, hoje, _snap.Planta(a.PlantaId)?.FusoHorario).Pendencias.Count;
+                }
+            _lista.Add((v, es.Count == 0 ? null : es.Min(e => e.Ini), es.Count == 0 ? null : es.Max(e => e.Fim),
+                _snap.Trechos.Where(t => t.ViagemId == v.Id).Select(t => t.Modal).Distinct().ToList(),
+                ats.Any(a => a.HorasPrev.HasValue) ? ats.Sum(a => a.HorasPrev ?? 0) : null, ats.Any(a => a.HorasReal.HasValue) ? ats.Sum(a => a.HorasReal ?? 0) : null, nConf, nPend));
+        }
+    }
+    private void Ao() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Sessao.Mudou -= Ao;
+
+    private IEnumerable<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> Filtradas => _lista
+        .Where(l => (_fSt == "" || l.v.Status == _fSt) && (_fTec == "" || Ui.Ids(l.v.TecnicoIds).Contains(_fTec)) && (_fCli == "" || l.v.ClienteId == _fCli)
+            && (_fModal == "" || l.modais.Contains(_fModal)) && (!_futuras || (l.fim ?? DateTime.MaxValue) >= DateTime.UtcNow)
+            && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{l.v.Codigo} {_snap.Cliente(l.v.ClienteId)?.Nome} {l.v.Destino} {l.v.Origem}").Contains(DocEngine.Norm(_busca))))
+        .OrderByDescending(l => l.ini ?? DateTime.MaxValue);
+}

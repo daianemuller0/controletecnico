@@ -1,0 +1,166 @@
+@* Painel lateral com o resumo operacional de um técnico (usado no mapa e na agenda). *@
+@inject Sessao Sessao
+
+<div class="drawer-backdrop" @onclick="Fechar"></div>
+<aside class="drawer painel-tec" role="dialog" aria-label="Detalhes de @E.Tecnico.Nome">
+    <div class="painel-topo">
+        <Avatar Nome="@E.Tecnico.Nome" FotoId="@E.Tecnico.FotoAnexoId" Cor="@Ui.Op(E.Status).Color" Tam="lg" />
+        <div class="painel-id">
+            <h2>@E.Tecnico.Nome</h2>
+            <StatusBadge Item="@Ui.Op(E.Status)" />
+            @if (E.Provisorio is not null) { <span class="tag prov" title="Alocação em rascunho: não bloqueia a agenda">Alocação provisória</span> }
+        </div>
+        <button class="icon-btn" @onclick="Fechar" aria-label="Fechar painel">@Icons.Svg("x")</button>
+    </div>
+
+    <div class="momento-chip @ClasseMomento">@TextoMomento</div>
+
+    <dl class="ficha-dl">
+        <dt>Especialidades</dt>
+        <dd>@Especs()</dd>
+        <dt>Mora em</dt>
+        <dd>@E.Tecnico.Cidade@(string.IsNullOrEmpty(E.Tecnico.Estado) ? "" : "/" + E.Tecnico.Estado) · @E.Tecnico.Pais</dd>
+    </dl>
+
+    <h3 class="sec">@Icons.Svg("pin")Localização</h3>
+    <div class="loc-bloco loc-prev">
+        <div class="loc-tit"><span class="tag">Prevista · pela agenda</span></div>
+        @if (E.LocalFonte == "nenhum")
+        {
+            <div class="muted">Sem localização definida: não há compromissos suficientes para derivá-la.</div>
+        }
+        else
+        {
+            <div class="loc-txt">@E.LocalTexto</div>
+            <div class="muted sm">@(E.LocalFonte switch {
+                "atendimento" => "Em atendimento na planta (pela agenda).",
+                "viagem" => "Em deslocamento: a posição ao longo do trajeto não é rastreada.",
+                _ => "Último ponto conhecido pela agenda." })</div>
+        }
+    </div>
+    <div class="loc-bloco loc-conf">
+        <div class="loc-tit"><span class="tag ok">Confirmada · informada</span></div>
+        @if (E.Confirmacao is { } c)
+        {
+            <div class="loc-txt">@c.Texto</div>
+            <div class="muted sm">
+                Confirmada em @Ui.Hora(c.Quando, null, Snap, true) por @c.Por (@(c.Origem == "tecnico" ? "técnico" : "gestão")).
+                @if (E.ConfirmacaoVigente) { <strong class="pos"> Vigente.</strong> }
+                else { <span> Sem validade para o momento atual (antiga ou anterior ao último compromisso).</span> }
+            </div>
+        }
+        else { <div class="muted">Nenhuma confirmação registrada.</div> }
+        @if (PodeConfirmar)
+        {
+            <button class="btn-ghost sm mt8" @onclick="OnConfirmar">@Icons.Svg("check")Confirmar localização</button>
+        }
+    </div>
+
+    <h3 class="sec">@Icons.Svg("wrench")Atendimento</h3>
+    @if (E.Status == Vocab.OpAtendimento && E.Atual is { } at)
+    {
+        <dl class="ficha-dl">
+            <dt>Cliente / planta</dt><dd>@Snap.NomePlanta(at.PlantaId)</dd>
+            <dt>Serviço</dt><dd>@at.Titulo</dd>
+            <dt>Início</dt><dd>@Ui.Hora(at.Ini, at.Fuso, Snap, true)</dd>
+            <dt>Término previsto</dt><dd>@Ui.Hora(at.Fim, at.Fuso, Snap, true)</dd>
+            @if (!string.IsNullOrEmpty(at.ViagemId)) { <dt>Viagem</dt><dd><a href="/viagens/@at.ViagemId">@Snap.Viagem(at.ViagemId)?.Codigo</a></dd> }
+        </dl>
+    }
+    else if (E.Atual is { } outro)
+    {
+        <dl class="ficha-dl">
+            <dt>Agora</dt><dd>@outro.Titulo</dd>
+            <dt>Período</dt><dd>@Ui.Periodo(outro.Ini, outro.Fim, outro.Fuso, Snap)</dd>
+            @if (!string.IsNullOrEmpty(outro.ViagemId)) { <dt>Viagem</dt><dd><a href="/viagens/@outro.ViagemId">@Snap.Viagem(outro.ViagemId)?.Codigo</a></dd> }
+        </dl>
+    }
+    else { <div class="muted">Sem atendimento em execução.</div> }
+
+    <dl class="ficha-dl">
+        <dt>Próximo compromisso</dt>
+        <dd>@if (E.Proximo is { } prox) { <span>@prox.Titulo · @Ui.Periodo(prox.Ini, prox.Fim, prox.Fuso, Snap)</span> } else { <span class="muted">Nenhum agendado</span> }</dd>
+        <dt>Próximo período disponível</dt>
+        <dd>@if (Livre is { } l) { <span>@(l.fim is null ? $"a partir de {l.ini:dd/MM/yyyy}" : $"{l.ini:dd/MM/yyyy} a {l.fim:dd/MM/yyyy}")</span> } else { <span class="muted">Sem janela livre no horizonte</span> }</dd>
+        @if (E.Status == Vocab.OpSemProg) { <dt>Observação</dt><dd class="muted">@E.Motivo</dd> }
+    </dl>
+
+    <h3 class="sec">@Icons.Svg("shield")Documentos e treinamentos</h3>
+    @if (!Sessao.Apresentacao || true)
+    {
+        @if (Alertas.Count == 0 && Pend.Count == 0) { <div class="muted">Nenhum alerta de validade.</div> }
+        @foreach (var a in Alertas)
+        {
+            <div class="alerta-doc @Ui.StDoc(a.Status).Css"><StatusBadge Item="@Ui.StDoc(a.Status)" />
+                <span>@a.Doc.Nome — @(a.Dias < 0 ? $"vencido há {-a.Dias} dia(s)" : $"vence em {a.Dias} dia(s) ({Tempo.Dia(a.Doc.Vencimento)})")</span></div>
+        }
+        @foreach (var pt in Pend)
+        {
+            <div class="alerta-doc st-neg">@Icons.Svg("alert")<span>@pt</span></div>
+        }
+    }
+
+    <h3 class="sec">@Icons.Svg("calendar")Resumo da agenda</h3>
+    @if (Proximos.Count == 0) { <div class="muted">Sem compromissos futuros.</div> }
+    <ul class="mini-agenda">
+        @foreach (var ev in Proximos)
+        {
+            <li><span class="dot" style="background:@Ui.TipoEv(ev.Tipo).Color"></span>
+                <div><div class="mini-t">@ev.Titulo @if (ev.Provisorio) { <span class="tag prov">provisório</span> }</div>
+                    <div class="muted sm">@Ui.Periodo(ev.Ini, ev.Fim, ev.Fuso, Snap)</div></div></li>
+        }
+    </ul>
+
+    <div class="painel-rodape">
+        <a class="btn-primary" href="/tecnicos/@E.Tecnico.Id">Abrir ficha completa @Icons.Svg("arrow-right")</a>
+    </div>
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public Estado E { get; set; } = default!;
+    [Parameter, EditorRequired] public Snapshot Snap { get; set; } = default!;
+    [Parameter, EditorRequired] public List<Evento> Eventos { get; set; } = new();
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter] public DateTime Instante { get; set; }
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public EventCallback OnConfirmar { get; set; }
+
+    private Task Fechar() => OnFechar.InvokeAsync();
+    private bool PodeConfirmar => Ator.Pode(Perm.ConfirmarLocal, E.Tecnico.Id);
+
+    private (DateTime ini, DateTime? fim)? Livre => AgendaEngine.ProximoLivre(Snap, Eventos, E.Tecnico, Instante);
+    private List<DocEngine.Linha> Alertas => DocEngine.Vencimentos(Snap, DocEngine.Hoje(Snap.FusoPadrao))
+        .Where(l => l.Doc.TecnicoId == E.Tecnico.Id && l.Status is Vocab.DocProximo or Vocab.DocVencido)
+        .OrderBy(l => l.Dias).ToList();
+    private List<Evento> Proximos => Eventos.Where(e => e.TecnicoId == E.Tecnico.Id && e.Status != "cancelado" && e.Fim > Instante).OrderBy(e => e.Ini).Take(6).ToList();
+
+    private List<string> Pend
+    {
+        get
+        {
+            var res = new List<string>();
+            var hoje = DocEngine.Hoje(Snap.FusoPadrao);
+            foreach (var a in Snap.Atendimentos.Where(a => a.FimPrev > Instante && Ui.Ids(a.TecnicoIds).Contains(E.Tecnico.Id)
+                         || (a.FimPrev > Instante && !string.IsNullOrEmpty(a.ViagemId) && Snap.Viagem(a.ViagemId) is { } vv && Ui.Ids(vv.TecnicoIds).Contains(E.Tecnico.Id) && string.IsNullOrEmpty(a.TecnicoIds))))
+            {
+                var v = Snap.Viagem(a.ViagemId);
+                if (v?.Status == Vocab.ViagemCancelada) continue;
+                if (v is null && a.Status == Vocab.ViagemCancelada) continue;
+                var serv = string.IsNullOrEmpty(a.ServicoId) ? v?.ServicoId : a.ServicoId;
+                var reqs = DocEngine.RequisitosDe(Snap, new[] { serv }, new[] { a.PlantaId });
+                var ap = DocEngine.Avaliar(Snap, E.Tecnico, reqs, a.IniPrev, a.FimPrev, hoje, Snap.Planta(a.PlantaId)?.FusoHorario);
+                foreach (var p in ap.Pendencias)
+                    res.Add($"{Snap.NomePlanta(a.PlantaId)} ({a.IniPrev:dd/MM}): {p.Motivo}{(p.Bloqueia ? " Bloqueia a confirmação." : " Apenas alerta.")}");
+            }
+            return res.Distinct().ToList();
+        }
+    }
+
+    private string Especs() => string.Join(", ", Ui.Ids(E.Tecnico.EspecialidadeIds).Select(i => Snap.Especialidades.GetValueOrDefault(i)?.Nome).Where(n => n != null)) is { Length: > 0 } s ? s : "—";
+
+    private bool Futuro => Instante > DateTime.UtcNow.AddMinutes(5);
+    private bool Passado => Instante < DateTime.UtcNow.AddMinutes(-5);
+    private string ClasseMomento => Futuro ? "m-fut" : Passado ? "m-pas" : "m-now";
+    private string TextoMomento => Futuro ? $"Previsão para {Ui.Hora(Instante, null, Snap, true)} (futuro)"
+        : Passado ? $"Período passado: {Ui.Hora(Instante, null, Snap, true)}" : "Momento atual";
+}

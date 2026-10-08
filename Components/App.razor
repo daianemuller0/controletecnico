@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="app.css?v=@Ver" />
+    <link rel="stylesheet" href="tecnico.css?v=@Ver" />
+    <title>Controle Técnico</title>
+    <HeadOutlet @rendermode="PageRenderMode" />
+</head>
+
+<body>
+    <Routes @rendermode="PageRenderMode" />
+    <script src="_framework/blazor.web.js"></script>
+    <script src="lib/leaflet/leaflet.js"></script>
+    <script src="app.js?v=@Ver"></script>
+</body>
+
+</html>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    // Login é página estática (formulário comum); o resto roda interativo no servidor.
+    private IComponentRenderMode? PageRenderMode =>
+        !HttpContext.Request.Path.StartsWithSegments("/login") ? new InteractiveServerRenderMode(prerender: false) : null;
+
+    private static readonly string Ver = Guid.NewGuid().ToString("N")[..8];
+}
