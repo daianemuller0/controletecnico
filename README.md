@@ -62,7 +62,7 @@ Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSen
 
 ## Plantas: planilha e localização em cascata
 
-* **Planilha de plantas (5 colunas):** `Planta` (nome que será selecionado ao enviar o técnico) · `Country` · `City` · `State` · `Address 1`. Cliente é opcional. Só o nome da planta é obrigatório. Sem títulos reconhecíveis, vale a ordem das colunas.
+* **Planilha de plantas (somente 5 colunas):** `Account` (nome da planta, o que se seleciona ao enviar o técnico) · `Country` · `City` · `State` · `Address1`. Nada além disso. Só o nome é obrigatório. Sem títulos reconhecíveis, vale a ordem das colunas.
 * **Localização em cascata** (Nominatim, consultas estruturadas): tenta **endereço** (rua + cidade + estado + país); se não achar, para na **cidade**; se não achar a cidade, no **estado**; se não achar o estado, no **país**. O nível alcançado fica gravado (`GeoNivel`) e aparece como *Aproximada: cidade/estado/país*. Níveis sem dado são pulados; se o serviço de mapas estiver fora do ar, não conclui "não existe".
 * **Planta sem cidade:** pode ser importada; ao selecionar a planta numa viagem ou compromisso, o sistema **pede a cidade** (e estado/país/endereço) e já grava no cadastro, localizando em seguida. Viagem com planta sem cidade não pode ser confirmada.
 * O e-mail de contato da geocodificação pode ser definido em *Administração → Configurações e integrações*.

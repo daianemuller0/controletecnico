@@ -54,33 +54,21 @@ public sealed class Importador
 
     public Importador(Db db, Servicos svc) { _db = db; _svc = svc; }
 
-    /// <summary>Layout principal da planilha de plantas (5 colunas): 1) nome da planta, 2) Country, 3) City, 4) State, 5) Address 1.
-    /// Todas as demais colunas são opcionais. Só o nome da planta é obrigatório; sem cidade a planta entra e a cidade
-    /// é pedida quando ela for selecionada para enviar um técnico.</summary>
+    /// <summary>Planilha de plantas: SOMENTE 5 colunas — Account (nome da planta, o que se seleciona ao enviar o técnico),
+    /// Country, City, State e Address1. Só o nome é obrigatório; sem cidade a planta entra e a cidade é pedida quando
+    /// ela for selecionada numa viagem. Cliente, CEP, fuso etc. não fazem parte da importação (ficam em branco/padrão).</summary>
     public static readonly CampoImport[] Campos =
     {
-        new("planta", "Planta", true, new[] { "planta", "nome da planta", "planta/unidade", "unidade", "plant", "plant name", "site", "name", "nome", "filial" }, "Planta Campinas"),
+        new("planta", "Account", true, new[] { "account", "planta", "nome da planta", "planta/unidade", "unidade", "plant", "plant name", "site", "name", "nome", "filial" }, "Planta Campinas"),
         new("pais", "Country", false, new[] { "country", "pais", "país" }, "Brasil"),
         new("cidade", "City", false, new[] { "city", "cidade", "municipio" }, "Campinas"),
         new("estado", "State", false, new[] { "state", "estado", "uf", "provincia", "region", "regiao" }, "SP"),
-        new("rua", "Address 1", false, new[] { "address 1", "address1", "address", "endereco", "endereço", "rua", "logradouro", "street" }, "Av. das Indústrias, 1500"),
-        new("cliente", "Cliente (opcional)", false, new[] { "cliente", "customer", "client", "empresa", "nome do cliente" }, ""),
-        new("numero", "Número (opcional)", false, new[] { "numero", "nº", "n°", "num", "number" }, ""),
-        new("complemento", "Complemento (opcional)", false, new[] { "complemento", "compl", "address 2" }, ""),
-        new("cep", "CEP / código postal (opcional)", false, new[] { "cep", "codigo postal", "postal code", "zip", "zipcode" }, ""),
-        new("endereco", "Endereço completo (opcional)", false, new[] { "endereco completo", "full address" }, ""),
-        new("fuso", "Fuso horário (opcional)", false, new[] { "fuso", "fuso horario", "timezone", "time zone", "tz" }, ""),
-        new("lat", "Latitude (opcional)", false, new[] { "latitude", "lat" }, ""),
-        new("lon", "Longitude (opcional)", false, new[] { "longitude", "lon", "lng", "long" }, ""),
-        new("razao", "Razão social (opcional)", false, new[] { "razao social", "razao" }, ""),
-        new("documento", "Documento do cliente (opcional)", false, new[] { "documento", "cnpj", "tax id" }, ""),
-        new("contato", "Contato responsável (opcional)", false, new[] { "contato", "responsavel", "contato responsavel" }, ""),
-        new("telefone", "Telefone (opcional)", false, new[] { "telefone", "fone", "phone" }, ""),
-        new("email", "E-mail (opcional)", false, new[] { "email", "e-mail" }, ""),
-        new("contato_local", "Contato local da planta (opcional)", false, new[] { "contato local" }, ""),
-        new("acesso", "Informações de acesso (opcional)", false, new[] { "acesso", "informacoes de acesso" }, ""),
-        new("obs", "Observações (opcional)", false, new[] { "observacoes", "obs", "notes" }, ""),
+        new("rua", "Address1", false, new[] { "address1", "address 1", "address", "endereco", "endereço", "rua", "logradouro", "street" }, "Av. das Indústrias, 1500"),
     };
+
+    /// <summary>Chaves internas que não vêm da planilha (sempre vazias) mas são usadas pelas regras de importação.</summary>
+    private static readonly string[] Ocultos =
+        { "cliente", "numero", "complemento", "cep", "endereco", "fuso", "lat", "lon", "razao", "documento", "contato", "telefone", "email", "contato_local", "acesso", "obs" };
 
     private static readonly Dictionary<string, string> FusoPorPais = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -95,7 +83,7 @@ public sealed class Importador
     {
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Plantas");
-        string[] cab = { "Planta", "Country", "City", "State", "Address 1" };
+        string[] cab = { "Account", "Country", "City", "State", "Address1" };
         string[][] ex =
         {
             new[] { "Planta Campinas", "Brasil", "Campinas", "SP", "Av. das Indústrias, 1500" },
@@ -112,11 +100,11 @@ public sealed class Importador
         var info = wb.AddWorksheet("Instruções");
         var linhas = new[]
         {
-            "Uma linha por planta. Colunas, nesta ordem: 1) Planta (nome que será selecionado ao enviar o técnico), 2) Country, 3) City, 4) State, 5) Address 1.",
+            "Uma linha por planta. Colunas, nesta ordem: 1) Account (nome da planta, que será selecionado ao enviar o técnico), 2) Country, 3) City, 4) State, 5) Address1.",
             "Só o nome da planta é obrigatório. A localização no mapa é buscada em cascata: país → estado → cidade → endereço.",
             "Se o endereço não for encontrado, a planta fica marcada na cidade; se a cidade não for encontrada, no estado; se o estado não for encontrado, no país.",
             "Planta sem cidade pode ser importada: quando for selecionada numa viagem, o sistema pede a cidade e já grava no cadastro.",
-            "Apague as linhas de exemplo (2 a 4) antes de importar. Colunas extras opcionais (cliente, CEP, fuso, coordenadas…) são aceitas se você mapeá-las.",
+            "Apague as linhas de exemplo (2 a 4) antes de importar. Não há outras colunas: o restante (contatos, acesso, ajuste manual da posição) é preenchido no sistema.",
         };
         for (var i = 0; i < linhas.Length; i++) info.Cell(i + 1, 1).Value = linhas[i];
         info.Column(1).Width = 130;
@@ -253,6 +241,7 @@ public sealed class Importador
         for (var i = 0; i < a.Linhas.Count; i++)
         {
             var l = new LinhaImport { Numero = a.Numeros[i] };
+            foreach (var k in Ocultos) l.V[k] = "";
             foreach (var c in Campos)
                 l.V[c.Key] = map.TryGetValue(c.Key, out var col) && col < a.Linhas[i].Length ? a.Linhas[i][col].Trim() : "";
 

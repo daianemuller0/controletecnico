@@ -111,7 +111,7 @@ else if (_aba == "importar" && _pode)
     {
         <div class="panel">
             <div class="panel-head"><div class="panel-title">1. Escolha o arquivo</div></div>
-            <p>Aceita <strong>.xlsx</strong> e <strong>.csv</strong> (até 10 MB e 5.000 linhas). Colunas principais: cliente, planta/unidade, rua, número, complemento, CEP, cidade, estado e país.</p>
+            <p>Aceita <strong>.xlsx</strong> e <strong>.csv</strong> (até 10 MB e 5.000 linhas). Colunas: <strong>Account</strong> (nome da planta), <strong>Country</strong>, <strong>City</strong>, <strong>State</strong> e <strong>Address1</strong>. Só o nome da planta é obrigatório.</p>
             <div class="imp-acoes">
                 <a class="btn-ghost" href="/modelo/plantas.xlsx" download>@Icons.Svg("download")Baixar planilha modelo</a>
                 <label class="btn-primary file-btn">@Icons.Svg("upload")Selecionar arquivo<InputFile OnChange="AoArquivo" accept=".xlsx,.csv" class="sr-only" /></label>

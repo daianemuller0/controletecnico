@@ -255,34 +255,34 @@ public class ImportacaoTests
     public void Importacao_invalida_explica_cada_linha_rejeitada()
     {
         using var a = new Amb(); var imp = new Importador(a.Db, a.Svc);
-        var arq = Csv("Cliente;Planta;Rua;Numero;Cidade;Estado;Pais;Latitude;Longitude\n" +
-                      "Alfa;P1;Rua A;10;Campinas;SP;Brasil;;\n" +
-                      ";P2;Rua B;11;Campinas;SP;Brasil;;\n" +           // sem cliente
-                      "Alfa;P3;Rua C;12;;SP;Brasil;;\n" +               // sem cidade
-                      "Beta;P4;Rua D;13;Lima;;Peru;abc;-77\n" +          // coordenada inválida
-                      "Beta;P5;Rua E;1;Lima;;Peru;-12;-77\n" +
-                      "Alfa;P1;Rua A;10;Campinas;SP;Brasil;;\n");        // duplicada no arquivo
+        var arq = Csv("Account;Country;City;State;Address1\n" +
+                      "P1;Brasil;Campinas;SP;Rua A, 10\n" +
+                      ";Brasil;Campinas;SP;Rua B, 11\n" +               // sem nome da planta
+                      "P3;Brasil;;SP;Rua C, 12\n" +                     // sem cidade: entra com aviso
+                      "P4;Peru;Lima;;\n" +
+                      "P5;;Lima;;\n" +                                  // sem país: considera Brasil, com aviso
+                      "P1;Brasil;Campinas;SP;Rua A, 10\n");             // duplicada no arquivo
         var map = Importador.SugerirMapeamento(arq.Cabecalhos);
         var linhas = imp.Analisar(arq, map);
         Assert.Equal(6, linhas.Count);
-        Assert.Equal(new[] { false, false, false, true, false, true }, linhas.Select(l => l.Rejeitada).ToArray());   // coordenada inválida e duplicada
+        Assert.Equal(new[] { false, true, false, false, false, true }, linhas.Select(l => l.Rejeitada).ToArray());   // sem nome e duplicada
         Assert.Contains(linhas[2].Avisos, w => w.Contains("Sem cidade"));                                          // cidade ausente NÃO rejeita
+        Assert.Contains(linhas[4].Avisos, w => w.Contains("País não informado"));
         Assert.Contains(linhas[5].Erros, e => e.Contains("Duplicada"));
         var res = imp.Aplicar(a.Admin, linhas);
-        Assert.Equal(4, res.Importadas); Assert.Equal(2, res.Rejeitadas.Count); Assert.Equal(2, res.ClientesCriados);
+        Assert.Equal(4, res.Importadas); Assert.Equal(2, res.Rejeitadas.Count); Assert.Equal(0, res.ClientesCriados);
         Assert.All(res.Rejeitadas, r => Assert.False(string.IsNullOrWhiteSpace(r.motivo)));
-        var p5 = a.Db.Plantas.Onde(p => p.Nome == "P5").Single(); Assert.True(p5.TemCoord);
         var p1 = a.Db.Plantas.Onde(p => p.Nome == "P1").Single();
         Assert.False(p1.TemCoord); Assert.Equal("pendente", p1.GeoStatus);       // sem coordenadas inventadas
-        Assert.Contains("Brasil", p1.EnderecoCompleto);
+        Assert.Contains("Brasil", p1.EnderecoCompleto); Assert.Equal("Rua A, 10", p1.Rua); Assert.Equal("", p1.ClienteId);
     }
 
     [Fact]
     public void Existente_mostra_diferencas_e_so_atualiza_quando_escolhido()
     {
         using var a = new Amb(); var imp = new Importador(a.Db, a.Svc);
-        imp.Aplicar(a.Admin, imp.Analisar(Csv("Cliente;Planta;Cidade;Pais\nAlfa;P1;Campinas;Brasil\n"), Importador.SugerirMapeamento(new() { "Cliente", "Planta", "Cidade", "Pais" })));
-        var arq = Csv("Cliente;Planta;Cidade;Pais\nAlfa;P1;Sorocaba;Brasil\n");
+        imp.Aplicar(a.Admin, imp.Analisar(Csv("Account;Country;City\nP1;Brasil;Campinas\n"), Importador.SugerirMapeamento(new() { "Account", "Country", "City" })));
+        var arq = Csv("Account;Country;City\nP1;Brasil;Sorocaba\n");
         var linhas = imp.Analisar(arq, Importador.SugerirMapeamento(arq.Cabecalhos));
         Assert.True(linhas[0].Existente); Assert.Contains(linhas[0].Diferencas, d => d.Contains("Campinas") && d.Contains("Sorocaba"));
         linhas[0].Acao = AcaoImport.Ignorar;
@@ -301,7 +301,7 @@ public class ImportacaoTests
         Assert.True(arq.Linhas.Count >= 2);
         var map = Importador.SugerirMapeamento(arq.Cabecalhos);
         Assert.True(map.ContainsKey("planta") && map.ContainsKey("pais") && map.ContainsKey("cidade") && map.ContainsKey("estado") && map.ContainsKey("rua"));
-        Assert.Equal(new[] { "Planta", "Country", "City", "State", "Address 1" }, arq.Cabecalhos.ToArray());
+        Assert.Equal(new[] { "Account", "Country", "City", "State", "Address1" }, arq.Cabecalhos.ToArray());
         using var a = new Amb(); var imp = new Importador(a.Db, a.Svc);
         var l = imp.Analisar(arq, map);
         var mex = l.Single(x => x.V["pais"] == "México"); Assert.Equal("Monterrey", mex.V["cidade"]); Assert.False(mex.Rejeitada); Assert.Equal("America/Mexico_City", mex.V["fuso"]);
@@ -564,7 +564,7 @@ public class PlantasPlanilhaSimplesTests
     public void Planilha_de_5_colunas_sem_cliente_e_sem_cidade_e_aceita()
     {
         using var a = new Amb(); var imp = new Importador(a.Db, a.Svc);
-        var arq = Csv("Planta;Country;City;State;Address 1\nPlanta A;Brasil;Campinas;SP;Av. X, 10\nPlanta B;Chile;;Antofagasta;\nPlanta C;Peru;;;\n");
+        var arq = Csv("Account;Country;City;State;Address1\nPlanta A;Brasil;Campinas;SP;Av. X, 10\nPlanta B;Chile;;Antofagasta;\nPlanta C;Peru;;;\n");
         var map = Importador.SugerirMapeamento(arq.Cabecalhos);
         var l = imp.Analisar(arq, map);
         Assert.All(l, x => Assert.False(x.Rejeitada));
