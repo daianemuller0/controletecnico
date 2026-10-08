@@ -1,0 +1,7 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "build", "command": "dotnet", "type": "process", "args": ["build", "${workspaceFolder}/ControleTecnico.csproj"], "problemMatcher": "$msCompile", "group": { "kind": "build", "isDefault": true } },
+    { "label": "test", "command": "dotnet", "type": "process", "args": ["test", "${workspaceFolder}/Tests"], "problemMatcher": "$msCompile", "group": "test" }
+  ]
+}

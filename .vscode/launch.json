@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Controle Técnico (base da rede)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/bin/Debug/net8.0/ControleTecnico.dll",
+      "cwd": "${workspaceFolder}",
+      "env": { "ASPNETCORE_ENVIRONMENT": "Development" },
+      "serverReadyAction": { "action": "openExternally", "pattern": "Now listening on: (https?://\\S+)" },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Controle Técnico (demo local, dados fictícios)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/bin/Debug/net8.0/ControleTecnico.dll",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Data__Folder": "${workspaceFolder}/data_demo",
+        "Seed__Demo": "true",
+        "Seed__SenhaPadrao": "demo2026"
+      },
+      "serverReadyAction": { "action": "openExternally", "pattern": "Now listening on: (https?://\\S+)" },
+      "console": "integratedTerminal"
+    }
+  ]
+}

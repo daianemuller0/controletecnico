@@ -5,3 +5,4 @@ data/
 .vs/
 Tests/**/bin/
 Tests/**/obj/
+data_demo/
