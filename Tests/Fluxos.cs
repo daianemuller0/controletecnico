@@ -504,3 +504,68 @@ public class BaseCompartilhadaTests
         finally { Repo<Tecnico>.SegundosEntreChecagens = 3; try { Directory.Delete(share, true); } catch { } }
     }
 }
+
+public class ImportacaoTecnicosTests
+{
+    private static ArquivoLido Csv(string t) => Importador.Ler("t.csv", new MemoryStream(System.Text.Encoding.UTF8.GetBytes(t)));
+
+    [Fact]
+    public void Importa_em_massa_valida_linhas_cria_especialidades_e_explica_rejeicoes()
+    {
+        using var a = new Amb(); var imp = new ImportadorTecnicos(a.Db, a.Svc);
+        var arq = Csv("Nome;Cidade onde mora;Identificador interno;Estado;País;E-mail;Especialidades;Serviços;Dias úteis;Jornada — início;Jornada — fim;Ativo\n" +
+                      "Ana Souza;Campinas;T-1;SP;Brasil;ana@x.com;\"Vibração; Mecânica\";Preventiva;seg-sex;07:30;16:30;sim\n" +
+                      ";Recife;T-2;PE;Brasil;;;;;;;\n" +                                   // sem nome
+                      "Bia Lima;;T-3;;;;;;;;;\n" +                                         // sem cidade
+                      "Caio Reis;Lima;T-4;;Peru;caio-sem-arroba;;;;;;\n" +                  // e-mail inválido
+                      "Dora Paz;Salvador;T-5;BA;Brasil;;;;seg,qua,xyz;;;\n" +               // dia inválido
+                      "Edu Nunes;Curitiba;T-6;PR;Brasil;;;;;18:00;08:00;\n" +               // jornada inválida
+                      "Fabi Rocha;Natal;T-1;RN;Brasil;;;;;;;\n" +                           // matrícula repetida
+                      "Gil Tavares;Santiago;T-7;;Chile;;;;sex-seg;;;não\n");
+        var linhas = imp.Analisar(arq, ImportadorTecnicos.SugerirMapeamento(arq.Cabecalhos));
+        Assert.Equal(8, linhas.Count);
+        Assert.Equal(new[] { false, true, true, true, true, true, true, false }, linhas.Select(l => l.Rejeitada).ToArray());
+        Assert.Contains(linhas[0].Avisos, x => x.Contains("Especialidade nova"));
+        Assert.Contains(linhas[6].Erros, e => e.Contains("repetido"));
+        Assert.Equal("America/Santiago", linhas[7].V["fuso"]);
+        var r = imp.Aplicar(a.Admin, linhas);
+        Assert.Equal(2, r.Importadas); Assert.Equal(6, r.Rejeitadas.Count);
+        Assert.All(r.Rejeitadas, x => Assert.False(string.IsNullOrWhiteSpace(x.motivo)));
+        var ana = a.Db.Tecnicos.Onde(t => t.Nome == "Ana Souza").Single();
+        Assert.Equal("07:30", ana.JornadaInicio); Assert.Equal("1,2,3,4,5", ana.DiasUteis); Assert.Equal(2, Snapshot.Ids(ana.EspecialidadeIds).Length);
+        Assert.Equal(2, a.Db.Especialidades.Contar()); Assert.Equal(1, a.Db.Servicos.Contar());
+        var gil = a.Db.Tecnicos.Onde(t => t.Nome == "Gil Tavares").Single();
+        Assert.False(gil.Ativo); Assert.Equal("0,1,5,6", gil.DiasUteis);       // sex-seg atravessa o fim de semana
+        Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "importacao.tecnicos");
+    }
+
+    [Fact]
+    public void Existente_por_matricula_mostra_diferencas_e_so_atualiza_se_escolhido()
+    {
+        using var a = new Amb(); var imp = new ImportadorTecnicos(a.Db, a.Svc);
+        var c1 = Csv("Nome;Cidade;Identificador interno\nAna;Campinas;T-1\n");
+        imp.Aplicar(a.Admin, imp.Analisar(c1, ImportadorTecnicos.SugerirMapeamento(c1.Cabecalhos)));
+        var c2 = Csv("Nome;Cidade;Identificador interno;Telefone\nAna Maria;Sorocaba;T-1;123\n");
+        var l = imp.Analisar(c2, ImportadorTecnicos.SugerirMapeamento(c2.Cabecalhos));
+        Assert.True(l[0].Existente); Assert.Contains(l[0].Diferencas, d => d.Contains("Campinas") && d.Contains("Sorocaba"));
+        l[0].Acao = AcaoImport.Ignorar; imp.Aplicar(a.Admin, l);
+        Assert.Equal("Campinas", a.Db.Tecnicos.Todos().Single().Cidade);
+        l[0].Acao = AcaoImport.Atualizar; var r = imp.Aplicar(a.Admin, l);
+        Assert.Equal(1, r.Atualizadas); var t = a.Db.Tecnicos.Todos().Single(); Assert.Equal("Ana Maria", t.Nome); Assert.Equal("123", t.Telefone);
+        // reimportar o mesmo arquivo: idêntico, nada a atualizar
+        Assert.Equal(AcaoImport.Ignorar, imp.Analisar(c2, ImportadorTecnicos.SugerirMapeamento(c2.Cabecalhos))[0].Acao);
+    }
+
+    [Fact]
+    public void Modelo_xlsx_e_permissao()
+    {
+        var arq = Importador.Ler("m.xlsx", new MemoryStream(ImportadorTecnicos.Modelo()));
+        var map = ImportadorTecnicos.SugerirMapeamento(arq.Cabecalhos);
+        Assert.True(map.ContainsKey("nome") && map.ContainsKey("cidade") && map.ContainsKey("especialidades") && map.ContainsKey("dias"));
+        using var a = new Amb(); var imp = new ImportadorTecnicos(a.Db, a.Svc);
+        Assert.False(imp.Analisar(arq, map).Single().Rejeitada);
+        Assert.Throws<UnauthorizedAccessException>(() => imp.Aplicar(a.Contr, imp.Analisar(arq, map)));
+        Assert.Equal(new HashSet<int> { 1, 2, 3, 4, 5 }, ImportadorTecnicos.ParseDias("seg-sex"));
+        Assert.Null(ImportadorTecnicos.ParseDias("abc"));
+    }
+}

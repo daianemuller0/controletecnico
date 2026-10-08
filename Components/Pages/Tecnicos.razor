@@ -4,6 +4,8 @@
 @inject Servicos Svc
 @inject Db Db
 @inject Sessao Sessao
+@inject ImportadorTecnicos Imp
+@inject IJSRuntime JS
 
 <PageTitle>Técnicos · Controle Técnico</PageTitle>
 
@@ -19,6 +21,10 @@
 
 <div class="tabs" role="tablist">
     <button role="tab" class="tab @(_aba == "equipe" ? "active" : "")" @onclick='() => _aba = "equipe"'>Equipe <span class="tab-badge">@_tecs.Count</span></button>
+    @if (_ator.Pode(Perm.EditarTecnicos))
+    {
+        <button role="tab" class="tab @(_aba == "imp" ? "active" : "")" @onclick='() => _aba = "imp"'>Importar planilha</button>
+    }
     @if (_ator.Pode(Perm.VerDocsStatus))
     {
         <button role="tab" class="tab @(_aba == "venc" ? "active" : "")" @onclick='() => _aba = "venc"'>Vencimentos <span class="tab-badge">@_venc.Count(v => v.Status is Vocab.DocProximo or Vocab.DocVencido)</span></button>
@@ -57,6 +63,93 @@
         </tbody>
     </table></div>
     @if (!Filtrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("users")</div><h3>Nenhum técnico encontrado</h3></div> }
+}
+else if (_aba == "imp" && _ator.Pode(Perm.EditarTecnicos))
+{
+    <div class="steps">
+        @foreach (var (n, r) in new[] { (1, "Arquivo"), (2, "Colunas"), (3, "Prévia e validação"), (4, "Resultado") })
+        { <span class="step @(_passo == n ? "on" : _passo > n ? "ok" : "")"><b>@n</b>@r</span> }
+    </div>
+    @if (_passo == 1)
+    {
+        <div class="panel">
+            <div class="panel-head"><div class="panel-title">1. Escolha o arquivo</div></div>
+            <p>Aceita <strong>.xlsx</strong> e <strong>.csv</strong> (até 10 MB e 5.000 linhas). Obrigatórios: <strong>Nome</strong> e <strong>Cidade onde mora</strong>. Especialidades e serviços novos são criados e avisados na prévia.</p>
+            <div class="imp-acoes">
+                <a class="btn-ghost" href="/modelo/tecnicos.xlsx" download>@Icons.Svg("download")Baixar planilha modelo</a>
+                <label class="btn-primary file-btn">@Icons.Svg("upload")Selecionar arquivo<InputFile OnChange="AoArquivo" accept=".xlsx,.csv" class="sr-only" /></label>
+            </div>
+            @if (_lendo) { <p class="muted">Lendo o arquivo…</p> }
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
+        </div>
+    }
+    else if (_passo == 2 && _arq is not null)
+    {
+        <div class="panel">
+            <div class="panel-head"><div class="panel-title">2. Mapeie as colunas</div><span class="tag">@_arq.Nome · @_arq.Linhas.Count linha(s)</span></div>
+            <div class="map-cols">
+                @foreach (var c in ImportadorTecnicos.Campos)
+                {
+                    <label class="fld">@c.Label @if (c.Obrigatorio) { <span class="neg">*</span> }
+                        <select value="@(_map.TryGetValue(c.Key, out var ix) ? ix : -1)" @onchange="e => Mapear(c.Key, e.Value?.ToString())">
+                            <option value="-1">— não importar —</option>
+                            @for (var i = 0; i < _arq.Cabecalhos.Count; i++) { <option value="@i">@(string.IsNullOrWhiteSpace(_arq.Cabecalhos[i]) ? $"(coluna {i + 1})" : _arq.Cabecalhos[i])</option> }
+                        </select></label>
+                }
+            </div>
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
+            <div class="modal-actions"><button class="btn-ghost" @onclick="ReiniciarImport">Voltar</button><button class="btn-primary" @onclick="AnalisarImp">Validar e ver prévia @Icons.Svg("arrow-right")</button></div>
+        </div>
+    }
+    else if (_passo == 3)
+    {
+        var rej = _linhas.Count(l => l.Rejeitada); var exist = _linhas.Count(l => l.Existente && !l.Rejeitada); var novas = _linhas.Count(l => !l.Existente && !l.Rejeitada);
+        <div class="panel">
+            <div class="panel-head"><div class="panel-title">3. Prévia e validação</div><span class="tag">@_linhas.Count linha(s)</span></div>
+            <div class="imp-resumo"><div class="imp-n pos"><b>@novas</b>novos</div><div class="imp-n warn"><b>@exist</b>já cadastrados</div><div class="imp-n neg"><b>@rej</b>com erro (rejeitados)</div></div>
+            @if (exist > 0)
+            {
+                <div class="toolbar"><strong>Técnicos já cadastrados:</strong>
+                    <select class="field w-auto" @onchange="e => AplicarPadrao(e.Value?.ToString())"><option value="Atualizar">Atualizar o cadastro (somente campos preenchidos)</option><option value="Ignorar">Ignorar</option><option value="Criar">Criar novo técnico</option></select>
+                    <span class="muted sm">Ajuste linha a linha abaixo. Nada é alterado sem aparecer aqui.</span></div>
+            }
+            <div class="toolbar"><label class="chk-inline"><input type="checkbox" @bind="_soProblemas" />Mostrar só linhas com erro, aviso ou já cadastradas</label></div>
+            <div class="table-wrap prev-wrap"><table class="grid-tbl">
+                <thead><tr><th>Linha</th><th>Nome</th><th>Cidade</th><th>Situação</th><th>Ação</th></tr></thead>
+                <tbody>
+                @foreach (var l in _linhas.Where(l => !_soProblemas || l.Rejeitada || l.Existente || l.Avisos.Count > 0))
+                {
+                    <tr class="@(l.Rejeitada ? "lin-erro" : "")">
+                        <td>@l.Numero</td><td>@l.V["nome"]<div class="muted sm">@l.V["matricula"]</div></td><td>@l.V["cidade"]@(string.IsNullOrEmpty(l.V["estado"]) ? "" : "/" + l.V["estado"])</td>
+                        <td>@if (l.Rejeitada) { <span class="badge st-neg">@Icons.Svg("x", "bico")Erro</span> @foreach (var e in l.Erros) { <div class="sm neg">@e</div> } }
+                            else if (l.Existente) { <span class="badge st-warn">@Icons.Svg("copy", "bico")Já cadastrado</span> @if (l.Diferencas.Count > 0) { <ul class="difs">@foreach (var d in l.Diferencas) { <li>@d</li> }</ul> } }
+                            else { <span class="badge st-pos">@Icons.Svg("plus", "bico")Novo</span> }
+                            @foreach (var a in l.Avisos) { <div class="sm warn">@a</div> }</td>
+                        <td>@if (l.Rejeitada) { <span class="muted">Rejeitado</span> } else if (l.Existente) { <select class="field w-auto" @bind="l.Acao"><option value="@AcaoImport.Atualizar">Atualizar</option><option value="@AcaoImport.Ignorar">Ignorar</option><option value="@AcaoImport.Criar">Criar novo</option></select> } else { <span class="muted">Criar</span> }</td>
+                    </tr>
+                }
+                </tbody></table></div>
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
+            <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _passo = 2)">Voltar</button><button class="btn-primary" @onclick="ConfirmarImp" disabled="@(_linhas.All(l => l.Rejeitada || l.Acao == AcaoImport.Ignorar))">@Icons.Svg("check")Confirmar importação</button></div>
+        </div>
+    }
+    else if (_passo == 4 && _res is not null)
+    {
+        <div class="panel">
+            <div class="panel-head"><div class="panel-title">4. Resultado da importação</div></div>
+            <div class="imp-resumo"><div class="imp-n pos"><b>@_res.Importadas</b>importados</div><div class="imp-n info"><b>@_res.Atualizadas</b>atualizados</div><div class="imp-n"><b>@_res.Ignoradas</b>ignorados</div><div class="imp-n neg"><b>@_res.Rejeitadas.Count</b>rejeitados</div></div>
+            @if (_res.Rejeitadas.Count > 0)
+            {
+                <h3 class="sec">@Icons.Svg("alert")Linhas rejeitadas e motivos</h3>
+                <div class="table-wrap"><table class="grid-tbl"><thead><tr><th>Linha</th><th>Nome</th><th>Motivo</th></tr></thead><tbody>
+                    @foreach (var e in _res.Rejeitadas) { <tr><td>@e.linha</td><td>@e.cliente</td><td class="neg">@e.motivo</td></tr> }</tbody></table></div>
+                <button class="btn-ghost mt8" @onclick="BaixarErros">@Icons.Svg("download")Baixar lista de erros (CSV)</button>
+            }
+            @if (_res.Avisos.Count > 0) { <h3 class="sec">@Icons.Svg("info")Avisos</h3><ul class="difs">@foreach (var a in _res.Avisos) { <li>@(a.linha > 0 ? $"Linha {a.linha}: " : "")@a.detalhe</li> }</ul> }
+            <p class="muted mt16">Próximos passos: cadastre os documentos e treinamentos de cada técnico em sua ficha e, se precisar, ajuste jornada e origem habitual.</p>
+            <div class="modal-actions"><button class="btn-ghost" @onclick="ReiniciarImport">Nova importação</button><button class="btn-primary" @onclick="@(() => { _aba = "equipe"; ReiniciarImport(); })">Ver equipe</button></div>
+        </div>
+    }
 }
 else if (_aba == "venc")
 {
@@ -231,4 +324,39 @@ else if (_aba == "apt")
     private void EditarReq(Requisito r) { _req = r.Copia<Requisito>(); _erros = null; }
     private void SalvarReq() { try { Svc.SalvarRequisito(_ator, _req!); _req = null; Carregar(); Sessao.Avisar("Requisito salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
     private void ExcluirReq(Requisito r) { try { Svc.ExcluirRequisito(_ator, r.Id); Carregar(); Sessao.Avisar("Requisito removido."); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); } }
+
+    // ---- importação de técnicos ----
+    private int _passo = 1; private ArquivoLido? _arq; private Dictionary<string, int> _map = new(); private List<LinhaImport> _linhas = new();
+    private ResultadoImport? _res; private bool _lendo, _soProblemas; private List<string>? _errosImp;
+
+    private async Task AoArquivo(InputFileChangeEventArgs e)
+    {
+        _errosImp = null; _lendo = true; StateHasChanged();
+        try
+        {
+            await using var st = e.File.OpenReadStream(Importador.MaxBytes);
+            using var ms = new MemoryStream(); await st.CopyToAsync(ms); ms.Position = 0;
+            _arq = Importador.Ler(e.File.Name, ms); _map = ImportadorTecnicos.SugerirMapeamento(_arq.Cabecalhos); _passo = 2;
+        }
+        catch (Exception ex) { _errosImp = Ui.Erros(ex); }
+        _lendo = false;
+    }
+    private void Mapear(string key, string? v) { if (int.TryParse(v, out var i) && i >= 0) _map[key] = i; else _map.Remove(key); }
+    private void AnalisarImp() { _errosImp = null; try { _linhas = Imp.Analisar(_arq!, _map); _passo = 3; } catch (Exception ex) { _errosImp = Ui.Erros(ex); } }
+    private void AplicarPadrao(string? a)
+    {
+        var ac = a switch { "Ignorar" => AcaoImport.Ignorar, "Criar" => AcaoImport.Criar, _ => AcaoImport.Atualizar };
+        foreach (var l in _linhas.Where(l => l.Existente && !l.Rejeitada)) l.Acao = ac;
+    }
+    private void ConfirmarImp()
+    {
+        _errosImp = null;
+        try { _res = Imp.Aplicar(_ator, _linhas); _passo = 4; Carregar(); Sessao.Avisar("Importação concluída."); } catch (Exception ex) { _errosImp = Ui.Erros(ex); }
+    }
+    private void ReiniciarImport() { _passo = 1; _arq = null; _linhas = new(); _res = null; _errosImp = null; _map = new(); }
+    private async Task BaixarErros()
+    {
+        if (_res is null) return;
+        await JS.InvokeVoidAsync("app.baixarTexto", "erros_importacao_tecnicos.csv", "text/csv;charset=utf-8", Importador.ErrosCsvTexto(_res), true);
+    }
 }

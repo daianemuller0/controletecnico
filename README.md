@@ -32,7 +32,7 @@ Como foi pensado para pasta de rede com várias pessoas usando ao mesmo tempo:
 
 ```bash
 dotnet run                  # Windows com acesso ao compartilhamento; abre em http://localhost:5090
-dotnet test Tests           # 29 testes (regras de negócio, persistência e base compartilhada)
+dotnet test Tests           # 32 testes (regras de negócio, persistência e base compartilhada)
 ```
 
 Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSenha` (ou uma senha aleatória impressa no console).
@@ -49,7 +49,7 @@ Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSen
 | `/agenda` | **Agenda**: linha do tempo por técnico, mês, semana, dia; criar/editar; arrastar e soltar com validação; conflitos; períodos livres |
 | `/clientes` | **Clientes e plantas**: cadastros, localização no mapa (corrigível), importação `.xlsx/.csv` em 4 passos |
 | `/viagens`, `/viagens/{id}` | **Controladoria e viagens**: lista, editor com trechos (carro/avião), atendimentos, tempos, verificação, anexos |
-| `/tecnicos`, `/tecnicos/{id}` | **Técnicos**: equipe, vencimentos, requisitos e aptidão, ficha com 8 seções (docs/treinamentos com anexos e renovação) |
+| `/tecnicos`, `/tecnicos/{id}` | **Técnicos**: equipe, importação em massa (.xlsx/.csv), vencimentos, requisitos e aptidão, ficha com 8 seções (docs/treinamentos com anexos e renovação) |
 | `/admin` | Usuários/perfis, parâmetros, integrações, histórico de alterações, dados de demonstração |
 
 ## Decisões de modelagem
@@ -85,4 +85,4 @@ Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSen
 * O cálculo de viabilidade de deslocamento entre compromissos sem trecho **sinaliza "verificar"** (com distância em linha reta como referência); não calcula tempo de percurso sem integração configurada.
 * Gravações simultâneas de máquinas diferentes no *mesmo registro* resolvem por "a última vence" (pelo relógio das máquinas); não há bloqueio otimista. Mantenha os relógios sincronizados.
 * Notificações por e-mail de vencimento não foram implementadas (os alertas aparecem na ficha, na visão operacional e em *Técnicos → Vencimentos*, com exportação CSV).
-* Sem renderização automática de testes de interface em CI; os testes automatizados cobrem regras de negócio e persistência (29 testes).
+* Sem renderização automática de testes de interface em CI; os testes automatizados cobrem regras de negócio e persistência (32 testes).

@@ -59,6 +59,7 @@ builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton<Armazenamento>();
 builder.Services.AddSingleton<Servicos>();
 builder.Services.AddSingleton<Importador>();
+builder.Services.AddSingleton<ImportadorTecnicos>();
 builder.Services.AddHttpClient("geo", c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddSingleton<Geocoder>();
 builder.Services.AddSingleton<Rota>();
@@ -160,6 +161,9 @@ app.MapGet("/arquivos/{id}", (string id, bool? baixar, HttpContext http, Db db, 
 
 app.MapGet("/modelo/plantas.xlsx", () => Results.File(Importador.Modelo(),
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "modelo_clientes_plantas.xlsx")).RequireAuthorization();
+
+app.MapGet("/modelo/tecnicos.xlsx", () => Results.File(ImportadorTecnicos.Modelo(),
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "modelo_tecnicos.xlsx")).RequireAuthorization();
 
 app.MapPost("/export/erros-importacao", async (HttpContext http, IServiceProvider sp) =>
 {
