@@ -367,6 +367,7 @@ public sealed partial class Servicos
     public void RecarregarDemo(Ator ator)
     {
         ator.Exigir(Perm.Administrar);
+        if (!Db.Demo) throw new ValidacaoException("Só é possível recarregar os dados fictícios em um ambiente de demonstração. Esta base contém dados reais.");
         Seed.LimparTudo(Db, Arquivos);
         Seed.Demo(Db, Arquivos);
         Auditar(ator, "demo.recarregar", "sistema", "", "Dados de demonstração recarregados");
@@ -376,8 +377,28 @@ public sealed partial class Servicos
     public void LimparDadosOperacionais(Ator ator)
     {
         ator.Exigir(Perm.Administrar);
+        if (!Db.Demo) throw new ValidacaoException("Esta base contém dados reais e não pode ser apagada por esta tela. Use as cópias em _historico ou peça a restauração à TI.");
         Seed.LimparTudo(Db, Arquivos);
         Db.SetCfg(Db.CfgDemo, "0", ator.Login);
         Auditar(ator, "dados.limpar", "sistema", "", "Todos os dados operacionais foram removidos");
+    }
+}
+
+public sealed partial class Servicos
+{
+    public ParquetStore.Diagnostico DiagnosticoArmazenamento(Ator ator)
+    {
+        ator.Exigir(Perm.Administrar);
+        return Db.Store.Diagnosticar();
+    }
+
+    /// <summary>Compacta agora as entidades com mais de um arquivo (seguro entre máquinas).</summary>
+    public int CompactarAgora(Ator ator)
+    {
+        ator.Exigir(Perm.Administrar);
+        var n = 0;
+        foreach (var e in Db.Store.Entities().ToList()) if (Db.Store.FileCount(e) > 1) { Db.Store.Compact(e); n++; }
+        Auditar(ator, "armazenamento.compactar", "sistema", "", $"{n} entidade(s) compactada(s)");
+        return n;
     }
 }

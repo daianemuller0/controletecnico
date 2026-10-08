@@ -5,21 +5,41 @@ Sistema web de controle de **viagens, agenda, disponibilidade e documentação d
 persistência em **Parquet consolidado por DuckDB** (sem servidor de banco), ClosedXML para Excel, login por cookie com perfis e o
 mesmo design system CSS (`wwwroot/app.css` herdado + `wwwroot/tecnico.css`).
 
+## Base de dados compartilhada
+
+**Toda a base (registros e anexos) fica em `\\BZVCPFIL003\proj_ramires$\DB\tec`** (`Data:Folder` no `appsettings.json`).
+
+```
+\\BZVCPFIL003\proj_ramires$\DB\tec
+├── <entidade>/*.parquet     tecnicos, viagens, trechos, documentos, usuarios, auditoria… (um arquivo por gravação)
+├── arquivos/yyyyMM/*.bin    anexos (nome opaco; só o servidor entrega, com checagem de perfil)
+├── _historico/              arquivos retirados por compactação/limpeza/remoção (recuperáveis por 30 dias)
+└── _locks/                  trava da compactação entre máquinas
+```
+
+Como foi pensado para pasta de rede com várias pessoas usando ao mesmo tempo:
+
+* **Sem arquivo de banco compartilhado**: cada gravação cria um Parquet novo e imutável (copiado como `.tmp` e renomeado → ninguém lê arquivo pela metade; com retentativa para quedas breves de rede).
+* **Leitura por espelho local** (`%LOCALAPPDATA%\ControleTecnico\espelho`): só os arquivos novos são copiados; as consultas rodam sobre a cópia local.
+* **Várias instâncias/usuários**: o cache em memória confere a "assinatura" da pasta a cada poucos segundos (`Data:AtualizarCacheSegundos`) e recarrega quando outra máquina gravou. Códigos de viagem são numerados sobre a base já atualizada.
+* **Compactação automática** (a cada 6 h, acima de 40 arquivos por entidade) com trava na pasta; os arquivos antigos vão para `_historico`.
+* **Falha segura**: se a pasta estiver inacessível, **o programa não inicia** (não grava em outro lugar). Em Linux/macOS, caminho UNC não é suportado — monte o compartilhamento e use o ponto de montagem.
+* As chaves dos cookies de login ficam **na máquina** (`%LOCALAPPDATA%\ControleTecnico\chaves`), nunca na pasta compartilhada.
+* A conta que executa o programa precisa de **leitura e escrita** na pasta. Em *Administração → Armazenamento* há o teste real de leitura/escrita, latência e contagem de arquivos.
+* Base real (`Seed:Demo=false`, padrão): as telas de "apagar/recarregar dados fictícios" ficam bloqueadas.
+
 ## Como executar
 
 ```bash
-dotnet run                  # requer .NET 8 SDK; abre em http://localhost:5090
-dotnet test Tests           # 22 testes de regras de negócio
+dotnet run                  # Windows com acesso ao compartilhamento; abre em http://localhost:5090
+dotnet test Tests           # 29 testes (regras de negócio, persistência e base compartilhada)
 ```
 
-Na primeira execução com a base vazia, `Seed:Demo=true` (padrão do `appsettings.json`) carrega **dados fictícios** e exibe a faixa
-**AMBIENTE DE DEMONSTRAÇÃO**. Usuários de demonstração (senha `demo2026`): `admin`, `gestao`, `controladoria`, `carlos` (técnico), `consulta`.
+Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSenha` (ou uma senha aleatória impressa no console).
 
-Para uso real: `Seed__Demo=false` e defina `Seed__AdminSenha` (ou uma senha aleatória é gerada e impressa no console).
-Em *Administração → Dados* é possível apagar os dados fictícios.
-
-Dados e anexos ficam em `Data:Folder` (padrão `./data`; pode ser caminho de rede/volume persistente):
-`<entidade>/*.parquet` e `arquivos/` (anexos com nome opaco, acessados só por `/arquivos/{id}` autenticado).
+**Demonstração / desenvolvimento** (nunca na pasta de rede): 
+`Data__Folder=./data_demo Seed__Demo=true dotnet run` → carrega dados fictícios, exibe a faixa
+**AMBIENTE DE DEMONSTRAÇÃO**; usuários `admin`, `gestao`, `controladoria`, `carlos` (técnico), `consulta`, senha `demo2026`.
 
 ## Telas
 
@@ -63,6 +83,6 @@ Dados e anexos ficam em `Data:Folder` (padrão `./data`; pode ser caminho de red
 * Arrastar e soltar altera a **data** (dias); mudar o horário ou o técnico é feito no formulário/viagem.
 * Reagendar um bloco de viagem permite mover só o bloco ou a viagem inteira (padrão: inteira, para manter a viagem coerente).
 * O cálculo de viabilidade de deslocamento entre compromissos sem trecho **sinaliza "verificar"** (com distância em linha reta como referência); não calcula tempo de percurso sem integração configurada.
-* Persistência em Parquet é pensada para equipe pequena/média e uma instância do servidor (cache em memória por processo). Não há controle de edição concorrente entre instâncias.
+* Gravações simultâneas de máquinas diferentes no *mesmo registro* resolvem por "a última vence" (pelo relógio das máquinas); não há bloqueio otimista. Mantenha os relógios sincronizados.
 * Notificações por e-mail de vencimento não foram implementadas (os alertas aparecem na ficha, na visão operacional e em *Técnicos → Vencimentos*, com exportação CSV).
-* Sem renderização automática de testes de interface em CI; os testes automatizados cobrem regras de negócio e persistência (22 testes).
+* Sem renderização automática de testes de interface em CI; os testes automatizados cobrem regras de negócio e persistência (29 testes).

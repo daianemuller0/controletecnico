@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using System.Security.Claims;
 using System.Text;
 using ControleTecnico;
@@ -30,7 +31,30 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 
 // Dados: DuckDB sobre Parquet (mesmo padrão do Previsão). Anexos em disco ao lado.
-builder.Services.AddSingleton(new ParquetStore(builder.Configuration["Data:Folder"] ?? "data"));
+// A base inteira vive na pasta de rede compartilhada. Leitura por espelho local; gravação atômica na rede.
+var pastaDados = builder.Configuration["Data:Folder"] ?? @"\\BZVCPFIL003\proj_ramires$\DB\tec";
+ParquetStore store;
+try
+{
+    store = new ParquetStore(pastaDados, builder.Configuration["Data:EspelhoLocal"], builder.Configuration.GetValue("Data:UsarEspelho", false));
+    var diag = store.Diagnosticar();
+    if (!diag.Ok) throw new InvalidOperationException($"A pasta de dados '{diag.Pasta}' está acessível, mas sem leitura e escrita: {diag.Mensagem}");
+    Console.WriteLine($"[controletecnico] Base de dados: {diag.Pasta} (rede: {(diag.Rede ? "sim" : "não")}; espelho local: {diag.Espelho ?? "não usado"}; {diag.LatenciaMs} ms)");
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine("[controletecnico] ERRO: " + ex.Message);
+    Console.Error.WriteLine("O programa não inicia sem acesso à base compartilhada, para nunca gravar dados num lugar diferente do combinado. " +
+                            "Para desenvolvimento use a variável Data__Folder apontando para uma pasta local.");
+    return 1;
+}
+Repo<Tecnico>.SegundosEntreChecagens = builder.Configuration.GetValue("Data:AtualizarCacheSegundos", 3);
+builder.Services.AddSingleton(store);
+builder.Services.AddHostedService<CompactacaoService>();
+// chaves dos cookies ficam NO COMPUTADOR (nunca na pasta compartilhada, onde ficariam legíveis para outros)
+builder.Services.AddDataProtection().SetApplicationName("ControleTecnico")
+    .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["Data:ChavesLocal"] ??
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ControleTecnico", "chaves")));
 builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton<Armazenamento>();
 builder.Services.AddSingleton<Servicos>();
@@ -50,7 +74,7 @@ using (var scope = app.Services.CreateScope())
     var arq = scope.ServiceProvider.GetRequiredService<Armazenamento>();
     if (Seed.BaseVazia(db))
     {
-        var demo = app.Configuration.GetValue("Seed:Demo", true);
+        var demo = app.Configuration.GetValue("Seed:Demo", false);
         var senha = app.Configuration["Seed:SenhaPadrao"];
         if (demo && string.IsNullOrEmpty(senha)) senha = "demo2026";
         if (string.IsNullOrEmpty(senha))
@@ -161,5 +185,6 @@ app.MapGet("/export/vencimentos.csv", (HttpContext http, Db db) =>
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();
+return 0;
 
 public partial class Program { }

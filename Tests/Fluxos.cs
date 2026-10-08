@@ -371,3 +371,136 @@ public class DemoTests
         Assert.NotEqual("indisponivel", dias[0].Situacao);                  // agenda livre/provisória, mas sem aptidão documental
     }
 }
+
+public class BaseCompartilhadaTests
+{
+    private static string Nova() => Path.Combine(Path.GetTempPath(), "ct_share_" + Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public void Duas_instancias_na_mesma_pasta_enxergam_as_gravacoes_uma_da_outra()
+    {
+        var share = Nova(); Repo<Tecnico>.SegundosEntreChecagens = 0;
+        try
+        {
+            // dois "computadores": mesma pasta compartilhada, espelhos locais distintos
+            var dbA = new Db(new ParquetStore(share, Nova(), forcarEspelho: true));
+            var dbB = new Db(new ParquetStore(share, Nova(), forcarEspelho: true));
+            Assert.Empty(dbB.Tecnicos.Todos());
+            dbA.Tecnicos.Salvar(new Tecnico { Id = "t1", Nome = "Ana", Cidade = "X" });
+            Assert.Equal("Ana", dbB.Tecnicos.Obter("t1")!.Nome);           // B vê o que A gravou
+            var t = dbB.Tecnicos.Obter("t1")!; t.Nome = "Ana Maria"; dbB.Tecnicos.Salvar(t);
+            Assert.Equal("Ana Maria", dbA.Tecnicos.Obter("t1")!.Nome);     // e vice-versa
+            dbA.Tecnicos.Apagar("t1");
+            Assert.Null(dbB.Tecnicos.Obter("t1"));
+            // reabrir em uma terceira máquina
+            Assert.Empty(new Db(new ParquetStore(share, Nova(), true)).Tecnicos.Todos());
+        }
+        finally { Repo<Tecnico>.SegundosEntreChecagens = 3; try { Directory.Delete(share, true); } catch { } }
+    }
+
+    [Fact]
+    public void Compactacao_preserva_dados_move_antigos_para_historico_e_nao_deixa_tmp()
+    {
+        var share = Nova(); Repo<Tecnico>.SegundosEntreChecagens = 0;
+        try
+        {
+            var store = new ParquetStore(share, Nova(), true); var db = new Db(store);
+            for (var i = 0; i < 6; i++) db.Tecnicos.Salvar(new Tecnico { Id = "t" + (i % 3), Nome = "v" + i, Cidade = "X" });
+            db.Tecnicos.Apagar("t2");
+            Assert.True(store.FileCount("tecnicos") >= 7);
+            store.Compact("tecnicos");
+            Assert.Equal(1, store.FileCount("tecnicos"));
+            Assert.Equal(2, db.Tecnicos.Todos().Count);
+            Assert.Equal("v3", db.Tecnicos.Obter("t0")!.Nome);
+            Assert.True(Directory.GetFiles(Path.Combine(share, "_historico", "tecnicos"), "*.parquet", SearchOption.AllDirectories).Length >= 7);
+            Assert.Empty(Directory.GetFiles(Path.Combine(share, "tecnicos"), "*.tmp"));
+            Assert.Empty(Directory.GetFiles(Path.Combine(share, "_locks")));        // trava liberada
+            var outra = new Db(new ParquetStore(share, Nova(), true));
+            Assert.Equal(2, outra.Tecnicos.Todos().Count);
+        }
+        finally { Repo<Tecnico>.SegundosEntreChecagens = 3; try { Directory.Delete(share, true); } catch { } }
+    }
+
+    [Fact]
+    public void Trava_de_compactacao_impede_duas_maquinas_ao_mesmo_tempo()
+    {
+        var share = Nova();
+        try
+        {
+            var store = new ParquetStore(share); var db = new Db(store);
+            db.Tecnicos.Salvar(new Tecnico { Id = "a", Nome = "a", Cidade = "X" }); db.Tecnicos.Salvar(new Tecnico { Id = "b", Nome = "b", Cidade = "X" });
+            Directory.CreateDirectory(Path.Combine(share, "_locks"));
+            using var fs = new FileStream(Path.Combine(share, "_locks", "compactar_tecnicos.lock"), FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            Assert.Equal(2, store.Compact("tecnicos"));                                // outra máquina compactando: nada acontece
+            Assert.Equal(2, store.FileCount("tecnicos"));
+        }
+        finally { try { Directory.Delete(share, true); } catch { } }
+    }
+
+    [Fact]
+    public void Diagnostico_testa_leitura_e_escrita_e_pasta_inacessivel_falha_com_mensagem()
+    {
+        var share = Nova();
+        try
+        {
+            var d = new ParquetStore(share).Diagnosticar(); Assert.True(d.Ok && d.Escrita && d.Leitura);
+            Assert.Empty(Directory.GetFiles(share, "_sonda_*"));
+            // caminho impossível (arquivo no lugar da pasta) -> erro claro, sem criar outro lugar
+            var arq = Path.Combine(share, "arquivo.txt"); File.WriteAllText(arq, "x");
+            var ex = Assert.Throws<InvalidOperationException>(() => new ParquetStore(Path.Combine(arq, "sub")));
+            Assert.Contains("Não foi possível acessar a pasta de dados", ex.Message);
+        }
+        finally { try { Directory.Delete(share, true); } catch { } }
+    }
+
+    [Fact]
+    public async Task Anexos_ficam_na_pasta_compartilhada_e_remocao_vai_para_historico()
+    {
+        var share = Nova();
+        try
+        {
+            var db = new Db(new ParquetStore(share, Nova(), true)); var arq = new Armazenamento(db);
+            var svc = new Servicos(db, arq); var adm = new Ator { Login = "a", Nome = "A", Papel = Roles.Admin };
+            var t = svc.SalvarTecnico(adm, new Tecnico { Nome = "T", Cidade = "X" });
+            var d = svc.SalvarDocumento(adm, new Documento { TecnicoId = t.Id, Nome = "Doc", SemVencimento = true });
+            var an = await svc.AnexarAsync(adm, "documento", d.Id, "a.pdf", new MemoryStream(Seed.PdfSimples("t", "r")));
+            Assert.True(File.Exists(Path.Combine(share, "arquivos", an.Chave.Replace('/', Path.DirectorySeparatorChar))));
+            Assert.Empty(Directory.GetFiles(Path.Combine(share, "arquivos"), "*.tmp", SearchOption.AllDirectories));
+            svc.RemoverAnexo(adm, an.Id);
+            Assert.False(File.Exists(Path.Combine(share, "arquivos", an.Chave.Replace('/', Path.DirectorySeparatorChar))));
+            Assert.Single(Directory.GetFiles(Path.Combine(share, "_historico", "arquivos"), "*.bin", SearchOption.AllDirectories));
+        }
+        finally { try { Directory.Delete(share, true); } catch { } }
+    }
+
+    [Fact]
+    public void Base_real_nao_pode_ser_apagada_pela_tela()
+    {
+        var share = Nova();
+        try
+        {
+            var db = new Db(new ParquetStore(share)); var svc = new Servicos(db, new Armazenamento(db)); var adm = new Ator { Papel = Roles.Admin };
+            Assert.False(db.Demo);
+            Assert.Throws<ValidacaoException>(() => svc.LimparDadosOperacionais(adm));
+            Assert.Throws<ValidacaoException>(() => svc.RecarregarDemo(adm));
+        }
+        finally { try { Directory.Delete(share, true); } catch { } }
+    }
+
+    [Fact]
+    public void Codigos_de_viagem_nao_repetem_entre_maquinas()
+    {
+        var share = Nova(); Repo<Tecnico>.SegundosEntreChecagens = 0;
+        try
+        {
+            var adm = new Ator { Login = "a", Nome = "A", Papel = Roles.Admin };
+            var dbA = new Db(new ParquetStore(share, Nova(), true)); var dbB = new Db(new ParquetStore(share, Nova(), true));
+            var sa = new Servicos(dbA, new Armazenamento(dbA)); var sb = new Servicos(dbB, new Armazenamento(dbB));
+            var t = sa.SalvarTecnico(adm, new Tecnico { Nome = "T", Cidade = "X" });
+            var v1 = sa.SalvarViagem(adm, new Viagem { TecnicoIds = t.Id, PlantaId = "", Status = Vocab.ViagemRascunho }, new(), new());
+            var v2 = sb.SalvarViagem(adm, new Viagem { TecnicoIds = t.Id, PlantaId = "", Status = Vocab.ViagemRascunho }, new(), new());
+            Assert.NotEqual(v1.Codigo, v2.Codigo);
+        }
+        finally { Repo<Tecnico>.SegundosEntreChecagens = 3; try { Directory.Delete(share, true); } catch { } }
+    }
+}

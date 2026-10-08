@@ -16,6 +16,7 @@
         <button class="tab @(_aba == "usr" ? "active" : "")" @onclick='() => _aba = "usr"'>Usuários e perfis</button>
         <button class="tab @(_aba == "cfg" ? "active" : "")" @onclick='() => _aba = "cfg"'>Configurações e integrações</button>
     }
+    @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "arm" ? "active" : "")" @onclick='() => _aba = "arm"'>Armazenamento</button> }
     <button class="tab @(_aba == "aud" ? "active" : "")" @onclick='() => _aba = "aud"'>Histórico de alterações</button>
     @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "demo" ? "active" : "")" @onclick='() => _aba = "demo"'>Dados</button> }
 </div>
@@ -85,6 +86,24 @@ else if (_aba == "aud")
         </tbody></table></div>
     <p class="muted sm">Exibindo as 300 mais recentes que atendem ao filtro (de @_aud.Count registros).</p>
 }
+else if (_aba == "arm" && _ator.Pode(Perm.Administrar))
+{
+    var d = Svc.DiagnosticoArmazenamento(_ator);
+    <div class="panel">
+        <div class="panel-head"><div class="panel-title">Base de dados compartilhada</div>@if (d.Ok) { <span class="badge st-pos">@Icons.Svg("check", "bico")Leitura e escrita OK</span> } else { <span class="badge st-neg">@Icons.Svg("x", "bico")Problema de acesso</span> }</div>
+        <dl class="ficha-dl">
+            <dt>Pasta</dt><dd><code>@d.Pasta</code></dd>
+            <dt>Pasta de rede</dt><dd>@(d.Rede ? "Sim" : "Não (pasta local)")</dd>
+            <dt>Espelho local (leitura)</dt><dd>@(d.Espelho is null ? "não usado" : d.Espelho)</dd>
+            <dt>Teste de gravação</dt><dd>@d.LatenciaMs ms @if (!string.IsNullOrEmpty(d.Mensagem)) { <span class="neg"> · @d.Mensagem</span> }</dd>
+        </dl>
+        <p class="muted sm">Cada gravação cria um arquivo pequeno na pasta da entidade; a compactação consolida os arquivos e move os antigos para <code>_historico</code> (30 dias).</p>
+        <table class="grid-tbl"><thead><tr><th>Entidade</th><th>Arquivos na pasta</th></tr></thead><tbody>
+            @foreach (var kv in d.Arquivos.OrderBy(k => k.Key)) { <tr><td>@kv.Key</td><td>@kv.Value</td></tr> }
+        </tbody></table>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="Compactar">@Icons.Svg("layers")Compactar agora</button></div>
+    </div>
+}
 else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
 {
     <div class="panel">
@@ -142,6 +161,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     private void Carregar() { _usuarios = Db.Usuarios.Todos().OrderBy(u => u.Id).ToList(); _aud = Db.Auditorias.Todos().OrderByDescending(a => a.Quando).ToList(); }
     private IEnumerable<Auditoria> AudFiltrada => _aud.Where(a => (_fAcao == "" || a.Acao.StartsWith(_fAcao)) && (string.IsNullOrWhiteSpace(_buscaAud) || DocEngine.Norm($"{a.Usuario} {a.Acao} {a.Resumo}").Contains(DocEngine.Norm(_buscaAud))));
 
+    private void Compactar() { try { var n = Svc.CompactarAgora(_ator); Sessao.Avisar($"{n} entidade(s) compactada(s)."); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); } }
     private void NovoUsuario() { _u = new Usuario { Papel = Roles.Consulta }; _novoU = true; _senha = ""; _erros = null; }
     private void EditarUsuario(Usuario u) { _u = u.Copia<Usuario>(); _novoU = false; _senha = ""; _erros = null; }
     private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar("Usuário salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }

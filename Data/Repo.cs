@@ -32,6 +32,10 @@ public sealed class Repo<T> where T : Entity, new()
     private readonly string _entity;
     private readonly object _lock = new();
     private Dictionary<string, T>? _cache;
+    private string? _assinatura;
+    private long _ultimaChecagem;
+    /// <summary>Intervalo mínimo entre checagens da pasta compartilhada (gravações de outras máquinas).</summary>
+    public static int SegundosEntreChecagens { get; set; } = 3;
 
     public Repo(ParquetStore store, string entity) { _store = store; _entity = entity; }
 
@@ -39,7 +43,18 @@ public sealed class Repo<T> where T : Entity, new()
 
     private Dictionary<string, T> Cache()
     {
-        if (_cache is not null) return _cache;
+        var agora = Environment.TickCount64;
+        if (_cache is not null)
+        {
+            if (agora - _ultimaChecagem < SegundosEntreChecagens * 1000L) return _cache;
+            _ultimaChecagem = agora;
+            // outra máquina gravou/compactou? (a assinatura da pasta mudou) -> recarrega
+            string atual;
+            try { atual = _store.Assinatura(_entity); } catch { return _cache; }   // rede oscilou: segue com o que há em memória
+            if (atual == _assinatura) return _cache;
+        }
+        _ultimaChecagem = agora;
+        _assinatura = _store.Assinatura(_entity);
         var d = new Dictionary<string, T>();
         foreach (var row in _store.ReadAll(_entity))
         {
@@ -90,8 +105,9 @@ public sealed class Repo<T> where T : Entity, new()
             }
             var rows = lista.Select(e => (IReadOnlyList<KeyValuePair<string, string?>>)
                 Props.Select(p => new KeyValuePair<string, string?>(p.Name, Get(p, e))).ToList()).ToList();
-            _store.WriteBatch(_entity, rows);   // primeiro o disco; só então o cache
+            _store.WriteBatch(_entity, rows);   // primeiro a pasta compartilhada; só então o cache
             foreach (var e in lista) cache[e.Id] = e.Copia<T>();
+            _ultimaChecagem = 0;                 // na próxima leitura confere se mais alguém gravou junto
         }
         return lista;
     }
@@ -112,7 +128,7 @@ public sealed class Repo<T> where T : Entity, new()
     /// <summary>Esquece o cache e apaga os arquivos (reset de demonstração).</summary>
     public void Limpar()
     {
-        lock (_lock) { _store.Clear(_entity); _cache = new Dictionary<string, T>(); }
+        lock (_lock) { _store.Clear(_entity); _cache = new Dictionary<string, T>(); _assinatura = null; }
     }
 
     public void Recarregar() { lock (_lock) _cache = null; }

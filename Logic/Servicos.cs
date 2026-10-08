@@ -153,7 +153,8 @@ public sealed partial class Servicos
             if (string.IsNullOrEmpty(v.Codigo))
             {
                 var ano = DateTime.UtcNow.Year;
-                var seq = Db.Viagens.Onde(x => x.Codigo.StartsWith($"V-{ano}-")).Count + 1;
+                Db.Viagens.Recarregar();   // base compartilhada: outra máquina pode ter criado viagens agora
+                var seq = Db.Viagens.Onde(x => x.Codigo.StartsWith($"V-{ano}-")).Select(x => int.TryParse(x.Codigo[^4..], out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1;
                 v.Codigo = $"V-{ano}-{seq:0000}";
             }
         }

@@ -68,7 +68,10 @@ public sealed class Armazenamento
         var chave = $"{DateTime.UtcNow:yyyyMM}/{Guid.NewGuid():N}.bin";
         var caminho = Path.Combine(_dir, chave.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(caminho)!);
-        await File.WriteAllBytesAsync(caminho, bytes);
+        // pasta de rede: grava como .tmp e renomeia, com retentativa — ninguém enxerga arquivo pela metade
+        var tmp = caminho + "." + Guid.NewGuid().ToString("N")[..6] + ".tmp";
+        await File.WriteAllBytesAsync(tmp, bytes);
+        ParquetStore.ComRetentativa(() => { File.Move(tmp, caminho, true); return 0; });
 
         var ext = Path.GetExtension(nome);
         return _db.Anexos.Salvar(new Anexo
@@ -82,19 +85,34 @@ public sealed class Armazenamento
     {
         var caminho = Path.GetFullPath(Path.Combine(_dir, a.Chave.Replace('/', Path.DirectorySeparatorChar)));
         if (!caminho.StartsWith(Path.GetFullPath(_dir), StringComparison.Ordinal)) return null;   // sem path traversal
-        return File.Exists(caminho) ? File.OpenRead(caminho) : null;
+        return File.Exists(caminho) ? ParquetStore.ComRetentativa(() => (Stream)new FileStream(caminho, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) : null;
     }
 
     public void Remover(Anexo a)
     {
         var caminho = Path.GetFullPath(Path.Combine(_dir, a.Chave.Replace('/', Path.DirectorySeparatorChar)));
-        if (caminho.StartsWith(Path.GetFullPath(_dir), StringComparison.Ordinal) && File.Exists(caminho)) File.Delete(caminho);
+        if (caminho.StartsWith(Path.GetFullPath(_dir), StringComparison.Ordinal) && File.Exists(caminho))
+        {
+            // não apaga na hora: vai para _historico/arquivos (recuperável por engano de exclusão)
+            try
+            {
+                var h = Path.Combine(_db.Store.Folder, "_historico", "arquivos", DateTime.UtcNow.ToString("yyyyMMdd"));
+                Directory.CreateDirectory(h);
+                File.Move(caminho, Path.Combine(h, Path.GetFileName(caminho)), true);
+            }
+            catch { File.Delete(caminho); }
+        }
         _db.Anexos.Apagar(a.Id);
     }
 
     public void LimparTudo()
     {
         _db.Anexos.Limpar();
-        if (Directory.Exists(_dir)) { Directory.Delete(_dir, true); Directory.CreateDirectory(_dir); }
+        if (Directory.Exists(_dir))
+        {
+            var h = Path.Combine(_db.Store.Folder, "_historico", "arquivos", "limpeza_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+            Directory.CreateDirectory(h);
+            foreach (var f in Directory.GetFiles(_dir, "*.bin", SearchOption.AllDirectories)) try { File.Move(f, Path.Combine(h, Path.GetFileName(f)), true); } catch { }
+        }
     }
 }
