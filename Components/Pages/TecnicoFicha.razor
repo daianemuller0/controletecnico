@@ -57,7 +57,7 @@ else
                         <label class="fld">E-mail<input type="email" @bind="_f.Email" /></label>
                     }
                     else { <div class="fld full muted sm">@Icons.Svg("lock")Contatos pessoais ocultos @(Sessao.Apresentacao ? "no modo apresentação" : "para o seu perfil").</div> }
-                    <label class="fld">Cidade onde mora *<input @bind="_f.Cidade" /></label>
+                    <label class="fld">Cidade onde mora<input @bind="_f.Cidade" /></label>
                     <label class="fld">Estado<input @bind="_f.Estado" /></label>
                     <label class="fld">País<input list="paises-t" @bind="_f.Pais" /></label>
                     <label class="fld">Origem habitual para viagens <span class="hint">vazio = cidade/UF</span><input @bind="_f.OrigemHabitual" /></label>

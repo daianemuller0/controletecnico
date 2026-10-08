@@ -154,6 +154,7 @@ public sealed class Importador
             var cab = primeira;
             for (var r = primeira; r <= Math.Min(ultima, primeira + 9); r++)
                 if (Enumerable.Range(priCol, ultCol - priCol + 1).Count(c => !string.IsNullOrWhiteSpace(ws.Cell(r, c).GetFormattedString())) >= 2) { cab = r; break; }
+            if (ultCol == priCol) cab = primeira;      // uma coluna só: o cabeçalho é a primeira linha preenchida
             var a = new ArquivoLido { Nome = nome };
             for (var c = priCol; c <= ultCol; c++) a.Cabecalhos.Add(ws.Cell(cab, c).GetFormattedString().Trim());
             for (var r = cab + 1; r <= ultima; r++)
@@ -199,6 +200,7 @@ public sealed class Importador
         if (aspas) throw new ValidacaoException("CSV inválido: aspas não fechadas.");
         var a = new ArquivoLido { Nome = nome };
         var idx = linhas.FindIndex(l => l.Count(x => !string.IsNullOrWhiteSpace(x)) >= 2);
+        if (idx < 0) idx = linhas.FindIndex(l => l.Any(x => !string.IsNullOrWhiteSpace(x)));     // arquivo de uma coluna só (ex.: lista de nomes)
         if (idx < 0) throw new ValidacaoException("Não foi possível identificar o cabeçalho do CSV.");
         a.Cabecalhos.AddRange(linhas[idx].Select(x => x.Trim()));
         for (var i = idx + 1; i < linhas.Count; i++)

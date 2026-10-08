@@ -57,7 +57,7 @@ Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSen
 | `/agenda` | **Agenda**: linha do tempo por técnico, mês, semana, dia; criar/editar; arrastar e soltar com validação; conflitos; períodos livres |
 | `/clientes` | **Clientes e plantas**: cadastros, localização no mapa (corrigível), importação `.xlsx/.csv` em 4 passos |
 | `/viagens`, `/viagens/{id}` | **Controladoria e viagens**: lista, editor com trechos (carro/avião), atendimentos, tempos, verificação, anexos |
-| `/tecnicos`, `/tecnicos/{id}` | **Técnicos**: equipe, importação em massa (.xlsx/.csv), vencimentos, requisitos e aptidão, ficha com 8 seções (docs/treinamentos com anexos e renovação) |
+| `/tecnicos`, `/tecnicos/{id}` | **Técnicos**: equipe, importação em massa só de nomes (.xlsx/.csv), vencimentos, requisitos e aptidão, ficha com 8 seções (docs/treinamentos com anexos e renovação) |
 | `/admin` | Usuários/perfis, parâmetros, integrações, histórico de alterações, dados de demonstração |
 
 ## Plantas: planilha e localização em cascata

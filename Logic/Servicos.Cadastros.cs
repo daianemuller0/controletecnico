@@ -11,7 +11,6 @@ public sealed partial class Servicos
         ator.Exigir(Perm.EditarTecnicos);
         var erros = new List<string>();
         if (string.IsNullOrWhiteSpace(t.Nome)) erros.Add("Informe o nome do técnico.");
-        if (string.IsNullOrWhiteSpace(t.Cidade)) erros.Add("Informe a cidade onde o técnico mora.");
         if (!Tempo.FusoValido(t.FusoHorario)) erros.Add("Fuso horário inválido.");
         if (!TimeSpan.TryParse(t.JornadaInicio, out var ji) || !TimeSpan.TryParse(t.JornadaFim, out var jf) || jf <= ji)
             erros.Add("Jornada inválida: o fim deve ser posterior ao início (formato HH:mm).");
@@ -23,7 +22,7 @@ public sealed partial class Servicos
             erros.Add("Coordenadas da origem habitual inválidas.");
         if (erros.Count > 0) throw new ValidacaoException(erros);
         var novo = string.IsNullOrEmpty(t.Id);
-        if (string.IsNullOrWhiteSpace(t.OrigemHabitual)) t.OrigemHabitual = $"{t.Cidade}{(string.IsNullOrWhiteSpace(t.Estado) ? "" : "/" + t.Estado)}";
+        if (string.IsNullOrWhiteSpace(t.OrigemHabitual) && !string.IsNullOrWhiteSpace(t.Cidade)) t.OrigemHabitual = $"{t.Cidade}{(string.IsNullOrWhiteSpace(t.Estado) ? "" : "/" + t.Estado)}";
         Db.Tecnicos.Salvar(t, ator.Login);
         Auditar(ator, novo ? "tecnico.criar" : "tecnico.alterar", "tecnico", t.Id, $"Técnico {t.Nome} {(novo ? "cadastrado" : "atualizado")}");
         return t;
