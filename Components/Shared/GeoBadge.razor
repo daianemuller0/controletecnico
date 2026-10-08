@@ -6,6 +6,10 @@ else if (P.GeoStatus == "manual")
 {
     <span class="badge st-info" title="@P.GeoFonte">@Icons.Svg("pin", "bico")Ajustada manualmente</span>
 }
+else if (!string.IsNullOrEmpty(P.GeoNivel) && P.GeoNivel != "endereco")
+{
+    <span class="badge st-warn" title="@P.GeoFonte">@Icons.Svg("pin", "bico")Aproximada: @(P.GeoNivel switch { "cidade" => "cidade", "estado" => "estado", "pais" => "país", _ => P.GeoNivel })</span>
+}
 else
 {
     <span class="badge st-pos" title="@P.GeoFonte">@Icons.Svg("pin", "bico")Localizada</span>

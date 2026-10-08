@@ -4,6 +4,7 @@
 @inject Servicos Svc
 @inject Db Db
 @inject Rota Rt
+@inject Geocoder Geo
 @inject Sessao Sessao
 @inject NavigationManager Nav
 
@@ -91,7 +92,7 @@ else
                 <div class="fld full-2"><span>Quem faz este trecho <span class="hint">nenhum marcado = todos</span></span>
                     <div class="chips-tec">@foreach (var tid in _tecs) { var tt = _snap.Tecnico(tid); <label class="chk-inline"><input type="checkbox" checked="@x.Tecs.Contains(tid)" @onchange="e => { if ((bool)e.Value!) x.Tecs.Add(tid); else x.Tecs.Remove(tid); Validar(); }" />@tt?.Nome</label> }</div></div>
                 <label class="fld">Origem<input @bind="x.T.Origem" @bind:after="Validar" list="sug-origens" /></label>
-                <label class="fld">Planta de origem <span class="hint">opcional</span><select @bind="x.T.OrigemPlantaId" @bind:after="Validar"><option value="">—</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => p.Nome)) {<option value="@p.Id">@p.Nome</option>}</select></label>
+                <label class="fld">Planta de origem <span class="hint">opcional</span><select @bind="x.T.OrigemPlantaId" @bind:after="@(() => { Validar(); PedirCidade(x.T.OrigemPlantaId); })"><option value="">—</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => p.Nome)) {<option value="@p.Id">@p.Nome</option>}</select></label>
                 <label class="fld">Destino<input @bind="x.T.Destino" @bind:after="Validar" list="sug-origens" /></label>
                 <label class="fld">Planta de destino <span class="hint">opcional</span><select @bind="x.T.DestPlantaId" @bind:after="@(() => AoPlantaTrecho(x))"><option value="">—</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => p.Nome)) {<option value="@p.Id">@p.Nome</option>}</select></label>
                 <label class="fld">Fuso da saída<select @bind="x.FusoOri" @bind:after="Validar">@foreach (var z in FusosCom(x.FusoOri)) {<option>@z</option>}</select></label>
@@ -135,7 +136,7 @@ else
             <div class="trecho-cab"><span class="trecho-n">@(i + 1)</span><strong>@(string.IsNullOrEmpty(a.A.PlantaId) ? "Atendimento" : _snap.NomePlanta(a.A.PlantaId))</strong><span class="grow"></span>
                 @if (_pode) { <button class="row-act del" title="Remover" @onclick="() => { _at.RemoveAt(idx); Validar(); }">@Icons.Svg("trash")</button> }</div>
             <div class="form-grid g4">
-                <label class="fld">Planta<select @bind="a.A.PlantaId" @bind:after="Validar"><option value="">—</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
+                <label class="fld">Planta<select @bind="a.A.PlantaId" @bind:after="@(() => { Validar(); PedirCidade(a.A.PlantaId); })"><option value="">—</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
                 <label class="fld">Serviço<select @bind="a.A.ServicoId" @bind:after="Validar"><option value="">(o da viagem)</option>@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
                 <div class="fld full-2"><span>Técnicos <span class="hint">nenhum marcado = todos</span></span>
                     <div class="chips-tec">@foreach (var tid in _tecs) { var tt = _snap.Tecnico(tid); <label class="chk-inline"><input type="checkbox" checked="@a.Tecs.Contains(tid)" @onchange="e => { if ((bool)e.Value!) a.Tecs.Add(tid); else a.Tecs.Remove(tid); Validar(); }" />@tt?.Nome</label> }</div></div>
@@ -191,6 +192,7 @@ else
         <div class="panel-head"><div class="panel-title">Verificação</div></div>
         @if (_res.Erros.Count == 0 && _res.Conflitos.Count == 0 && _res.Avisos.Count == 0 && _res.Aptidoes.All(a => a.Apto) && _tecs.Count > 0) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Sem conflitos, sem pendências documentais.</div></div> }
         @foreach (var e in _res.Erros) { <div class="alert-box alert-erro">@Icons.Svg("x")<div>@e</div></div> }
+        @foreach (var pid in _res.PlantasSemCidade) { <button class="btn-ghost sm mb8" @onclick="() => _pedirCidade = pid">@Icons.Svg("pin")Informar a cidade de @_snap.Planta(pid)?.Nome</button> }
         @foreach (var c in _res.Conflitos) { <div class="alert-box @(c.Erro ? "alert-erro" : "alert-aviso")">@Icons.Svg("alert")<div><strong>@(_snap.Tecnico(c.TecnicoId)?.Nome):</strong> @c.Motivo<div class="sm muted">@c.A.Titulo × @c.B.Titulo</div></div></div> }
         @foreach (var ap in _res.Aptidoes.Where(a => !a.Apto))
         { foreach (var p in ap.Pendencias) { <div class="alert-box @(p.Bloqueia ? "alert-erro" : "alert-aviso")">@Icons.Svg("shield")<div><strong>@ap.Tecnico.Nome</strong> — @p.Motivo <span class="sm">@(p.Bloqueia ? "Bloqueia a confirmação." : "Apenas alerta.")</span></div></div> } }
@@ -200,6 +202,10 @@ else
 </aside>
 </div>
 
+@if (_pedirCidade is not null)
+{
+    <CidadePlanta PlantaId="@_pedirCidade" Ator="@_ator" OnSalvo="CidadeSalva" OnFechar="@(() => _pedirCidade = null)" />
+}
 @if (_cancelando)
 {
     <Dialogo Titulo="Cancelar viagem" OnFechar="@(() => _cancelando = false)">
@@ -222,7 +228,7 @@ else
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verReserva, _verAnexos;
     private Viagem _v = new(); private HashSet<string> _tecs = new(); private List<TrechoVm> _tr = new(); private List<AtendVm> _at = new();
     private ResultadoViagem _res = new(); private List<string>? _erros; private List<Anexo> _anexos = new(); private string? _msgAnexo, _motivo;
-    private bool _cancelando;
+    private bool _cancelando; private string? _pedirCidade;
     private TimeSpan? _tIda, _tPerm, _tEntre, _tRet; private double? _hPrev, _hReal; private string? _total;
 
     private IEnumerable<string> FusosCom(string z) => Vocab.Fusos.Concat(new[] { z }).Where(x => !string.IsNullOrEmpty(x)).Distinct();
@@ -376,13 +382,24 @@ else
     {
         var p = _snap.Planta(_v.PlantaId);
         if (p is not null) { _v.ClienteId = p.ClienteId; _v.Destino = _snap.NomePlanta(p.Id); }
-        Validar();
+        Validar(); PedirCidade(_v.PlantaId);
+    }
+
+    /// <summary>Planta escolhida sem cidade: pede a cidade e grava no cadastro.</summary>
+    private void PedirCidade(string? plantaId)
+    {
+        if (!string.IsNullOrEmpty(plantaId) && _snap.Planta(plantaId) is { } p && string.IsNullOrWhiteSpace(p.Cidade) && _ator.Pode(Perm.EditarClientes)) _pedirCidade = plantaId;
+    }
+
+    private void CidadeSalva()
+    {
+        _pedirCidade = null; _snap = Svc.Foto(); Validar(); Sessao.Avisar("Cidade gravada no cadastro da planta.");
     }
     private void AoPlantaTrecho(TrechoVm x)
     {
         var p = _snap.Planta(x.T.DestPlantaId);
         if (p is not null) { if (string.IsNullOrWhiteSpace(x.T.Destino) || x.T.Modal != Vocab.ModalAviao) x.T.Destino = p.Nome; x.FusoDes = p.FusoHorario; }
-        Validar();
+        Validar(); PedirCidade(x.T.DestPlantaId);
     }
     private void NovoTrecho()
     {

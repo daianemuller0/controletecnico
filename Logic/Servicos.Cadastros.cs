@@ -88,19 +88,34 @@ public sealed partial class Servicos
 
     private static string ChaveEndereco(Planta p) => DocEngine.Norm($"{p.Rua}|{p.Numero}|{p.Cep}|{p.Cidade}|{p.Estado}|{p.Pais}|{p.EnderecoCompleto}");
 
+    /// <summary>Só o nome da planta é obrigatório: a cidade pode faltar no cadastro (vem de planilha) e é pedida
+    /// quando a planta for selecionada para enviar um técnico.</summary>
     public void ValidarPlanta(Planta p)
     {
         var erros = new List<string>();
         if (string.IsNullOrWhiteSpace(p.Nome)) erros.Add("Informe o nome da planta/unidade.");
-        if (!Db.Clientes.Existe(p.ClienteId)) erros.Add("Selecione o cliente.");
-        if (string.IsNullOrWhiteSpace(p.Cidade) && string.IsNullOrWhiteSpace(p.EnderecoCompleto)) erros.Add("Informe a cidade ou o endereço completo.");
-        if (string.IsNullOrWhiteSpace(p.Pais)) erros.Add("Informe o país.");
+        if (!string.IsNullOrEmpty(p.ClienteId) && !Db.Clientes.Existe(p.ClienteId)) erros.Add("Cliente não encontrado.");
         if (!Tempo.FusoValido(p.FusoHorario)) erros.Add("Fuso horário inválido.");
         if ((p.Lat.HasValue ^ p.Lon.HasValue) || !(p.Lat is null || Geo.CoordValida(p.Lat, p.Lon))) erros.Add("Latitude/longitude inválidas (lat −90 a 90; lon −180 a 180).");
         if (Db.Plantas.Onde(x => x.Id != p.Id && x.ClienteId == p.ClienteId && DocEngine.Norm(x.Nome) == DocEngine.Norm(p.Nome)).Count > 0)
-            erros.Add("Este cliente já possui uma planta com este nome.");
+            erros.Add("Já existe uma planta com este nome" + (string.IsNullOrEmpty(p.ClienteId) ? "." : " para este cliente."));
         if (erros.Count > 0) throw new ValidacaoException(erros);
     }
+
+    /// <summary>Aplica o resultado da busca em cascata à planta.</summary>
+    private static void AplicarGeo(Planta p, GeoResultado r)
+    {
+        if (r.Ok)
+        {
+            p.Lat = r.Lat; p.Lon = r.Lon; p.GeoStatus = "ok"; p.GeoNivel = r.Nivel; p.GeoEm = DateTime.UtcNow;
+            p.GeoFonte = r.Nivel == "endereco" ? r.Fonte : $"{r.Fonte} · aproximada ao nível de {r.Nivel}";
+        }
+        else { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoNivel = ""; p.GeoFonte = r.Mensagem; }
+    }
+
+    private static Task<GeoResultado> Localizar(Geocoder geo, Planta p, CancellationToken ct = default) =>
+        geo.BuscarHierarquicoAsync(p.Pais, p.Estado, p.Cidade, string.Join(" ", new[] { p.Rua, p.Numero }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            string.IsNullOrWhiteSpace(p.Cidade) && string.IsNullOrWhiteSpace(p.Estado) ? p.EnderecoCompleto : null, ct);
 
     /// <summary>Grava a planta. As coordenadas são consultadas UMA vez e guardadas: só há nova
     /// consulta se o endereço mudou (e não foi posicionada à mão) ou se o usuário pedir.</summary>
@@ -115,17 +130,13 @@ public sealed partial class Servicos
 
         if (coordMudouNaMao || (antes is null && p.TemCoord && p.GeoStatus != "ok"))
         {
-            p.GeoStatus = "manual"; p.GeoFonte = "Posição informada manualmente"; p.GeoEm = DateTime.UtcNow;
+            p.GeoStatus = "manual"; p.GeoNivel = ""; p.GeoFonte = "Posição informada manualmente"; p.GeoEm = DateTime.UtcNow;
         }
         else if (p.GeoStatus != "manual" && (enderecoMudou || forcarGeocodificar || !p.TemCoord))
         {
-            if (enderecoMudou || forcarGeocodificar) { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoFonte = ""; }
-            if (geo is { Configurado: true } && (enderecoMudou || forcarGeocodificar))
-            {
-                var r = await geo.BuscarAsync(p.EnderecoCompleto, p.Pais);
-                if (r.Ok) { p.Lat = r.Lat; p.Lon = r.Lon; p.GeoStatus = "ok"; p.GeoFonte = r.Fonte; p.GeoEm = DateTime.UtcNow; }
-                else { p.GeoStatus = "pendente"; p.GeoFonte = r.Mensagem; }
-            }
+            if (enderecoMudou || forcarGeocodificar) { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoNivel = ""; p.GeoFonte = ""; }
+            if (geo is { Configurado: true } && (enderecoMudou || forcarGeocodificar) && TemLocal(p))
+                AplicarGeo(p, await Localizar(geo, p));
         }
         if (!p.TemCoord && p.GeoStatus != "manual") p.GeoStatus = "pendente";
         var novo = string.IsNullOrEmpty(p.Id);
@@ -140,29 +151,52 @@ public sealed partial class Servicos
         ator.Exigir(Perm.EditarClientes);
         if (!Geo.CoordValida(lat, lon)) throw new ValidacaoException("Coordenadas inválidas.");
         var p = Db.Plantas.Obter(plantaId) ?? throw new ValidacaoException("Planta não encontrada.");
-        p.Lat = lat; p.Lon = lon; p.GeoStatus = "manual"; p.GeoFonte = "Posição corrigida manualmente no mapa"; p.GeoEm = DateTime.UtcNow;
+        p.Lat = lat; p.Lon = lon; p.GeoStatus = "manual"; p.GeoNivel = ""; p.GeoFonte = "Posição corrigida manualmente no mapa"; p.GeoEm = DateTime.UtcNow;
         Db.Plantas.Salvar(p, ator.Login);
         Auditar(ator, "planta.posicao", "planta", p.Id, $"{p.Nome}: posição corrigida para {lat:0.00000}, {lon:0.00000}");
         return p;
     }
 
-    /// <summary>Geocodifica as plantas pendentes (1 por segundo, política do serviço). Devolve (ok, falhas).</summary>
+    private static bool TemLocal(Planta p) => !string.IsNullOrWhiteSpace(p.Pais) || !string.IsNullOrWhiteSpace(p.Estado) || !string.IsNullOrWhiteSpace(p.Cidade) || !string.IsNullOrWhiteSpace(p.EnderecoCompleto);
+
+    /// <summary>Localiza as plantas sem coordenadas, em cascata (endereço → cidade → estado → país), 1 consulta por segundo.
+    /// Plantas posicionadas à mão nunca são alteradas. Devolve (localizadas, ainda pendentes).</summary>
     public async Task<(int ok, int falhas)> LocalizarPendentesAsync(Ator ator, Geocoder geo, IProgress<string>? progresso = null, CancellationToken ct = default)
     {
         ator.Exigir(Perm.EditarClientes);
         if (!geo.Configurado) throw new ValidacaoException(geo.Pendencia);
         int ok = 0, falhas = 0;
-        foreach (var p in Db.Plantas.Onde(x => x.Ativo && !x.TemCoord && x.GeoStatus != "manual"))
+        var alvo = Db.Plantas.Onde(x => x.Ativo && !x.TemCoord && x.GeoStatus != "manual").ToList();
+        var i = 0;
+        foreach (var p in alvo)
         {
             ct.ThrowIfCancellationRequested();
-            progresso?.Report($"Localizando {p.Nome}…");
-            var r = await geo.BuscarAsync(string.IsNullOrWhiteSpace(p.EnderecoCompleto) ? MontarEndereco(p) : p.EnderecoCompleto, p.Pais, ct);
-            if (r.Ok) { p.Lat = r.Lat; p.Lon = r.Lon; p.GeoStatus = "ok"; p.GeoFonte = r.Fonte; p.GeoEm = DateTime.UtcNow; ok++; }
-            else { p.GeoStatus = "pendente"; p.GeoFonte = r.Mensagem; falhas++; }
+            progresso?.Report($"Localizando {++i} de {alvo.Count}: {p.Nome}…");
+            if (!TemLocal(p)) { falhas++; continue; }
+            AplicarGeo(p, await Localizar(geo, p, ct));
+            if (p.TemCoord) ok++; else falhas++;
             Db.Plantas.Salvar(p, ator.Login);
         }
         Auditar(ator, "planta.geocodificar", "planta", "", $"Localização em lote: {ok} localizada(s), {falhas} pendente(s)");
         return (ok, falhas);
+    }
+
+    /// <summary>A planta selecionada não tinha cidade: grava o que foi informado direto no cadastro e já localiza em cascata.</summary>
+    public async Task<Planta> CompletarLocalAsync(Ator ator, string plantaId, string pais, string estado, string cidade, string endereco, Geocoder? geo)
+    {
+        ator.Exigir(Perm.EditarClientes);
+        var p = Db.Plantas.Obter(plantaId) ?? throw new ValidacaoException("Planta não encontrada.");
+        if (string.IsNullOrWhiteSpace(cidade)) throw new ValidacaoException("Informe a cidade da planta.");
+        p.Cidade = cidade.Trim();
+        if (!string.IsNullOrWhiteSpace(estado)) p.Estado = estado.Trim();
+        if (!string.IsNullOrWhiteSpace(pais)) p.Pais = pais.Trim();
+        if (!string.IsNullOrWhiteSpace(endereco)) p.Rua = endereco.Trim();
+        p.EnderecoCompleto = MontarEndereco(p);
+        if (p.GeoStatus != "manual") { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoNivel = ""; p.GeoFonte = ""; }
+        if (p.GeoStatus != "manual" && geo is { Configurado: true }) AplicarGeo(p, await Localizar(geo, p));
+        Db.Plantas.Salvar(p, ator.Login);
+        Auditar(ator, "planta.completar", "planta", p.Id, $"{p.Nome}: cidade informada ({p.Cidade}/{p.Estado}/{p.Pais}); localização {(p.TemCoord ? "ao nível de " + (p.GeoNivel == "" ? "manual" : p.GeoNivel) : "pendente")}");
+        return p;
     }
 
     // -------------------------------------------------------------- requisitos
@@ -336,7 +370,7 @@ public sealed partial class Servicos
         return u;
     }
 
-    public void SalvarConfig(Ator ator, string alertas, string fusoPadrao, int confirmacaoHoras)
+    public void SalvarConfig(Ator ator, string alertas, string fusoPadrao, int confirmacaoHoras, string? contatoGeocodificacao = null)
     {
         ator.Exigir(Perm.Administrar);
         var dias = alertas.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -347,6 +381,12 @@ public sealed partial class Servicos
         Db.SetCfg(Db.CfgAlertas, string.Join(",", dias.Distinct().OrderBy(x => x)), ator.Login);
         Db.SetCfg(Db.CfgFusoPadrao, fusoPadrao, ator.Login);
         Db.SetCfg(Db.CfgConfirmacaoHoras, confirmacaoHoras.ToString(), ator.Login);
+        if (contatoGeocodificacao is not null)
+        {
+            var c = contatoGeocodificacao.Trim();
+            if (c != "" && !c.Contains('@')) throw new ValidacaoException("O contato da geocodificação deve ser um e-mail.");
+            Db.SetCfg("geocoding_contato", c, ator.Login);
+        }
         Auditar(ator, "config.alterar", "config", "", $"Alertas {string.Join("/", dias)} dias; fuso {fusoPadrao}; confirmação de local {confirmacaoHoras} h");
     }
 }

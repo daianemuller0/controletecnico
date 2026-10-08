@@ -225,7 +225,10 @@ else if (_aba == "importar" && _pode)
                 <h3 class="sec">@Icons.Svg("info")Avisos</h3>
                 <ul class="difs">@foreach (var a in _res.Avisos) { <li>Linha @a.linha: @a.detalhe</li> }</ul>
             }
-            <p class="muted mt16">As plantas novas ficam como <strong>localização pendente</strong> até serem localizadas pelo endereço ou posicionadas no mapa.</p>
+            <p class="muted mt16">As plantas novas ficam como <strong>localização pendente</strong> até serem localizadas. A busca é em cascata: tenta o endereço; se não achar, para na cidade; depois no estado; depois no país.</p>
+            @if (Geo.Configurado) { <button class="btn-primary" @onclick="LocalizarPendentes" disabled="@_localizando">@Icons.Svg("pin")@(_localizando ? "Localizando…" : $"Localizar no mapa as {_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual")} plantas pendentes")</button> }
+            else { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@Geo.Pendencia</div></div> }
+            @if (!string.IsNullOrEmpty(_msgGeo)) { <div class="alert-box alert-info mt8">@Icons.Svg("info")<div>@_msgGeo</div></div> }
             <div class="modal-actions">
                 <button class="btn-ghost" @onclick="ReiniciarImport">Nova importação</button>
                 <button class="btn-primary" @onclick="@(() => { _aba = "plantas"; _fGeo = ""; ReiniciarImport(); })">Ver plantas</button>
@@ -259,13 +262,13 @@ else if (_aba == "importar" && _pode)
         <div class="pl-grid">
             <div>
                 <div class="form-grid">
-                    <label class="fld">Cliente *<select @bind="_pl.ClienteId"><option value="">— selecione —</option>@foreach (var c in _clientes.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
+                    <label class="fld">Cliente <span class="hint">opcional</span><select @bind="_pl.ClienteId"><option value="">— sem cliente —</option>@foreach (var c in _clientes.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
                     <label class="fld">Nome da planta / unidade *<input @bind="_pl.Nome" /></label>
-                    <label class="fld">País *<input list="lista-paises" @bind="_pl.Pais" /></label>
+                    <label class="fld">País<input list="lista-paises" @bind="_pl.Pais" /></label>
                     <label class="fld">Estado / região<input @bind="_pl.Estado" /></label>
-                    <label class="fld">Cidade<input @bind="_pl.Cidade" /></label>
+                    <label class="fld">Cidade <span class="hint">mínimo para localizar no mapa</span><input @bind="_pl.Cidade" /></label>
                     <label class="fld">CEP / código postal<input @bind="_pl.Cep" /></label>
-                    <label class="fld">Rua<input @bind="_pl.Rua" /></label>
+                    <label class="fld">Endereço (Address 1)<input @bind="_pl.Rua" /></label>
                     <label class="fld">Número<input @bind="_pl.Numero" /></label>
                     <label class="fld full">Complemento<input @bind="_pl.Complemento" /></label>
                     <label class="fld full">Endereço completo <span class="hint">vazio = montado a partir dos campos acima; use para formatos internacionais</span><input @bind="_pl.EnderecoCompleto" placeholder="@Servicos.MontarEndereco(_pl)" /></label>
@@ -397,14 +400,15 @@ else if (_aba == "importar" && _pode)
     {
         if (_pl is null) return;
         _localizando = true; _msgGeoPl = null; StateHasChanged();
-        var end = string.IsNullOrWhiteSpace(_pl.EnderecoCompleto) ? Servicos.MontarEndereco(_pl) : _pl.EnderecoCompleto;
-        var r = await Geo.BuscarAsync(end, _pl.Pais);
+        var rua = string.Join(" ", new[] { _pl.Rua, _pl.Numero }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        var r = await Geo.BuscarHierarquicoAsync(_pl.Pais, _pl.Estado, _pl.Cidade, rua, string.IsNullOrWhiteSpace(_pl.Cidade) && string.IsNullOrWhiteSpace(_pl.Estado) ? _pl.EnderecoCompleto : null);
         _localizando = false;
         if (r.Ok)
         {
-            _pl.Lat = r.Lat; _pl.Lon = r.Lon; _pl.GeoStatus = "ok"; _pl.GeoFonte = r.Fonte; _pl.GeoEm = DateTime.UtcNow;
+            _pl.Lat = r.Lat; _pl.Lon = r.Lon; _pl.GeoStatus = "ok"; _pl.GeoNivel = r.Nivel; _pl.GeoEm = DateTime.UtcNow;
+            _pl.GeoFonte = r.Nivel == "endereco" ? r.Fonte : $"{r.Fonte} · aproximada ao nível de {r.Nivel}";
             _lat = r.Lat!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture); _lon = r.Lon!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            _msgGeoPl = $"Endereço localizado. Revise a posição no mapa. ({r.Mensagem})";
+            _msgGeoPl = r.Nivel == "endereco" ? "Endereço localizado. Revise a posição no mapa." : r.Mensagem;
             await JS.InvokeVoidAsync("app.mapa.definir", "mapa-planta", _pl.Lat, _pl.Lon);
         }
         else _msgGeoPl = r.Mensagem + " Você pode salvar assim (localização pendente) ou posicionar manualmente no mapa.";
@@ -431,8 +435,9 @@ else if (_aba == "importar" && _pode)
         _localizando = true; _msgGeo = "Consultando endereços (1 por segundo)…"; StateHasChanged();
         try
         {
-            var (ok, falhas) = await Svc.LocalizarPendentesAsync(_ator, Geo);
-            _msgGeo = $"Localização concluída: {ok} localizada(s), {falhas} continuam pendentes (endereço não encontrado). Posicione-as manualmente no mapa.";
+            var prog = new Progress<string>(m => { _msgGeo = m; InvokeAsync(StateHasChanged); });
+            var (ok, falhas) = await Svc.LocalizarPendentesAsync(_ator, Geo, prog);
+            _msgGeo = $"Localização concluída: {ok} localizada(s) (ao nível mais preciso encontrado: endereço, cidade, estado ou país); {falhas} continuam pendentes (sem dados suficientes ou não encontradas). Posicione-as manualmente no mapa.";
             Carregar();
         }
         catch (Exception ex) { _msgGeo = string.Join(" ", Ui.Erros(ex)); }

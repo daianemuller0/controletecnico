@@ -68,6 +68,8 @@ public class Planta : Entity
     /// <summary>ok (geocodificada) | manual (corrigida pelo usuário) | pendente.</summary>
     public string GeoStatus { get; set; } = "pendente";
     public string GeoFonte { get; set; } = "";
+    /// <summary>Até onde a localização em cascata chegou: endereco | cidade | estado | pais (vazio = manual/pendente).</summary>
+    public string GeoNivel { get; set; } = "";
     public DateTime? GeoEm { get; set; }
     public string ContatoLocal { get; set; } = "";
     public string Acesso { get; set; } = "";

@@ -10,6 +10,8 @@ public sealed class ResultadoViagem
     public List<string> Avisos { get; } = new();
     public List<Conflito> Conflitos { get; set; } = new();
     public List<Aptidao> Aptidoes { get; } = new();
+    /// <summary>Plantas usadas na viagem que não têm cidade: a tela pede a cidade e grava no cadastro.</summary>
+    public List<string> PlantasSemCidade { get; } = new();
     public bool ConflitoErro => Conflitos.Any(c => c.Erro);
     public bool RequisitoBloqueante => Aptidoes.Any(a => a.Bloqueado);
     public bool PodeConfirmar => Erros.Count == 0 && !ConflitoErro && !RequisitoBloqueante;
@@ -53,6 +55,16 @@ public sealed partial class Servicos
         if (string.IsNullOrWhiteSpace(v.PlantaId) && atends.Count == 0 && !rascunho)
             r.Erros.Add("Informe a planta de destino ou ao menos um atendimento.");
         if (!string.IsNullOrEmpty(v.PlantaId) && snap.Planta(v.PlantaId) is null) r.Erros.Add("Planta de destino não encontrada.");
+
+        // planta sem cidade: não dá para localizar no mapa nem planejar o deslocamento; a tela pede a cidade
+        var usadas = new[] { v.PlantaId }.Concat(atends.Select(x => x.PlantaId)).Concat(trechos.Select(x => x.DestPlantaId)).Concat(trechos.Select(x => x.OrigemPlantaId))
+            .Where(x => !string.IsNullOrEmpty(x)).Distinct();
+        foreach (var pid in usadas)
+            if (snap.Planta(pid) is { } pl && string.IsNullOrWhiteSpace(pl.Cidade))
+            {
+                r.PlantasSemCidade.Add(pid);
+                (rascunho ? r.Avisos : r.Erros).Add($"A planta \"{snap.NomePlanta(pid)}\" não tem cidade cadastrada: informe a cidade para localizá-la no mapa.");
+            }
 
         var n = 0;
         foreach (var t in trechos)

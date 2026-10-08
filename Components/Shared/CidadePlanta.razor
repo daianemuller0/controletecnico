@@ -1,0 +1,53 @@
+@* A planta selecionada não tem cidade: pede ao usuário e já grava no cadastro (localizando no mapa em cascata). *@
+@inject Servicos Svc
+@inject Db Db
+@inject Geocoder Geo
+
+<Dialogo Titulo="Informe a cidade da planta" OnFechar="Fechar" Erros="_erros">
+    <p>A planta <strong>@_p?.Nome</strong> não tem cidade cadastrada. Informe abaixo: os dados são gravados direto no cadastro da planta e ela é localizada no mapa.</p>
+    <div class="form-grid">
+        <label class="fld">País<input list="paises-cp" @bind="_pais" /></label>
+        <label class="fld">Estado<input @bind="_estado" /></label>
+        <label class="fld">Cidade *<input @bind="_cidade" autofocus /></label>
+        <label class="fld">Endereço <span class="hint">opcional</span><input @bind="_end" /></label>
+    </div>
+    <datalist id="paises-cp">@foreach (var x in Vocab.Paises) {<option value="@x"></option>}</datalist>
+    <p class="muted sm">A localização é buscada em cascata: endereço → cidade → estado → país. Se o endereço não for encontrado, a planta fica marcada na cidade; se a cidade não for encontrada, no estado; e assim por diante.
+        @if (!Geo.Configurado) { <span class="warn"> Geocodificação não configurada: a planta será gravada com localização pendente.</span> }</p>
+    @if (!string.IsNullOrEmpty(_resultado)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@_resultado</div></div> }
+    <div class="modal-actions">
+        <button class="btn-ghost" @onclick="Fechar">Cancelar</button>
+        <button class="btn-primary" @onclick="Salvar" disabled="@_salvando">@Icons.Svg("check")@(_salvando ? "Localizando…" : "Salvar e localizar")</button>
+    </div>
+</Dialogo>
+
+@code {
+    [Parameter, EditorRequired] public string PlantaId { get; set; } = "";
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter] public EventCallback OnSalvo { get; set; }
+    [Parameter] public EventCallback OnFechar { get; set; }
+
+    private Planta? _p; private string _pais = "", _estado = "", _cidade = "", _end = ""; private List<string>? _erros; private bool _salvando; private string? _resultado;
+
+    protected override void OnParametersSet()
+    {
+        if (_p?.Id == PlantaId) return;
+        _p = Db.Plantas.Obter(PlantaId);
+        _pais = _p?.Pais ?? ""; _estado = _p?.Estado ?? ""; _cidade = _p?.Cidade ?? ""; _end = _p?.Rua ?? "";
+    }
+
+    private Task Fechar() => OnFechar.InvokeAsync();
+
+    private async Task Salvar()
+    {
+        _erros = null; _salvando = true;
+        try
+        {
+            var p = await Svc.CompletarLocalAsync(Ator, PlantaId, _pais, _estado, _cidade, _end, Geo);
+            _resultado = p.TemCoord ? (p.GeoNivel == "endereco" ? "Planta localizada pelo endereço." : $"Endereço não encontrado: planta marcada ao nível de {p.GeoNivel}.") : "Cidade gravada; localização ainda pendente.";
+            await OnSalvo.InvokeAsync();
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _salvando = false;
+    }
+}

@@ -3,7 +3,8 @@ using System.Text.Json;
 
 namespace ControleTecnico.Logic;
 
-public sealed record GeoResultado(bool Ok, double? Lat, double? Lon, string Fonte, string Mensagem);
+/// <summary>Nivel: endereco | cidade | estado | pais — até onde a busca em cascata conseguiu chegar.</summary>
+public sealed record GeoResultado(bool Ok, double? Lat, double? Lon, string Fonte, string Mensagem, string Nivel = "");
 public sealed record RotaResultado(bool Ok, double? Km, int? Minutos, string Mensagem);
 
 /// <summary>Geocodificação por Nominatim/OpenStreetMap (ou instância compatível).
@@ -13,47 +14,97 @@ public sealed class Geocoder
 {
     private readonly HttpClient _http;
     private readonly string _base;
-    private readonly string _contato;
+    private readonly string _contatoCfg;
+    private readonly Data.Db? _db;
+    private readonly int _intervaloMs;
     private readonly SemaphoreSlim _ritmo = new(1, 1);
     private DateTime _ultimo = DateTime.MinValue;
 
-    public Geocoder(IHttpClientFactory f, IConfiguration cfg)
+    public Geocoder(IHttpClientFactory f, IConfiguration cfg, Data.Db? db = null)
     {
         _http = f.CreateClient("geo");
         _base = (cfg["Geocoding:BaseUrl"] ?? "https://nominatim.openstreetmap.org").TrimEnd('/');
-        _contato = cfg["Geocoding:Contato"] ?? "";
+        _contatoCfg = cfg["Geocoding:Contato"] ?? "";
+        _intervaloMs = int.TryParse(cfg["Geocoding:IntervaloMs"], out var ms) ? ms : 1100;
+        _db = db;
     }
 
-    public bool Configurado => !string.IsNullOrWhiteSpace(_contato);
-    public string Pendencia => "Geocodificação não configurada: defina Geocoding:Contato (e-mail de contato exigido pelo serviço) " +
-                               "nas configurações do ambiente. Enquanto isso as plantas ficam como \"localização pendente\" ou podem ser posicionadas manualmente no mapa.";
+    /// <summary>E-mail de contato exigido pela política do serviço: do appsettings/ambiente ou definido em Administração.</summary>
+    private string Contato => !string.IsNullOrWhiteSpace(_contatoCfg) ? _contatoCfg : _db?.Cfg("geocoding_contato") ?? "";
+    public bool Configurado => !string.IsNullOrWhiteSpace(Contato);
+    public string Pendencia => "Geocodificação não configurada: informe o e-mail de contato (exigido pelo serviço de mapas) em Administração → Configurações, " +
+                               "ou em Geocoding:Contato. Enquanto isso as plantas ficam como \"localização pendente\" ou podem ser posicionadas manualmente no mapa.";
 
-    public async Task<GeoResultado> BuscarAsync(string endereco, string? pais = null, CancellationToken ct = default)
+    /// <summary>
+    /// Localiza uma planta em CASCATA, do mais preciso ao mais genérico, parando no último nível que existir:
+    /// endereço (rua + cidade + estado + país) → cidade (+ estado + país) → estado (+ país) → país.
+    /// Cada consulta é estruturada (campos separados), então a hierarquia é respeitada: o endereço só vale dentro da
+    /// cidade, a cidade dentro do estado e o estado dentro do país. Níveis sem dado informado são pulados.
+    /// </summary>
+    public async Task<GeoResultado> BuscarHierarquicoAsync(string? pais, string? estado, string? cidade, string? endereco,
+        string? textoLivre = null, CancellationToken ct = default)
     {
         if (!Configurado) return new(false, null, null, "", Pendencia);
-        if (string.IsNullOrWhiteSpace(endereco)) return new(false, null, null, "", "Endereço vazio.");
+        pais = (pais ?? "").Trim(); estado = (estado ?? "").Trim(); cidade = (cidade ?? "").Trim(); endereco = (endereco ?? "").Trim();
+        var niveis = new List<(string nivel, Dictionary<string, string> q)>();
+        if (endereco != "" && cidade != "") niveis.Add(("endereco", Q(pais, estado, cidade, endereco)));
+        if (cidade != "") niveis.Add(("cidade", Q(pais, estado, cidade, null)));
+        if (estado != "") niveis.Add(("estado", Q(pais, estado, null, null)));
+        if (pais != "") niveis.Add(("pais", Q(pais, null, null, null)));
+        if (niveis.Count == 0)
+        {
+            if (string.IsNullOrWhiteSpace(textoLivre)) return new(false, null, null, "", "Informe ao menos o país, o estado ou a cidade.");
+            var livre = await ConsultarAsync(new Dictionary<string, string> { ["q"] = textoLivre! }, ct);
+            return livre.ok ? new(true, livre.lat, livre.lon, "OpenStreetMap/Nominatim", livre.nome, "endereco") : new(false, null, null, "", livre.erro ?? "Endereço não localizado.");
+        }
+        string? ultimoErro = null; var tentados = new List<string>();
+        foreach (var (nivel, q) in niveis)
+        {
+            var r = await ConsultarAsync(q, ct);
+            if (r.erro is not null && !r.ok && r.falhaDeRede) return new(false, null, null, "", r.erro);   // rede/serviço fora: não conclui "não existe"
+            if (r.ok)
+            {
+                var msg = tentados.Count == 0 ? r.nome : $"{r.nome} — não encontrado: {string.Join(", ", tentados)}; posição aproximada ao nível de {nivel}.";
+                return new(true, r.lat, r.lon, "OpenStreetMap/Nominatim", msg, nivel);
+            }
+            tentados.Add(nivel); ultimoErro = r.erro;
+        }
+        return new(false, null, null, "", ultimoErro ?? "Local não encontrado (país, estado, cidade e endereço).");
+    }
+
+    private static Dictionary<string, string> Q(string pais, string estado, string? cidade, string? rua)
+    {
+        var d = new Dictionary<string, string>();
+        if (!string.IsNullOrEmpty(rua)) d["street"] = rua;
+        if (!string.IsNullOrEmpty(cidade)) d["city"] = cidade;
+        if (!string.IsNullOrEmpty(estado)) d["state"] = estado;
+        if (!string.IsNullOrEmpty(pais)) d["country"] = pais;
+        return d;
+    }
+
+    private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede)> ConsultarAsync(Dictionary<string, string> parametros, CancellationToken ct)
+    {
         await _ritmo.WaitAsync(ct);
         try
         {
             // política do Nominatim público: no máximo 1 requisição por segundo
-            var espera = TimeSpan.FromMilliseconds(1100) - (DateTime.UtcNow - _ultimo);
+            var espera = TimeSpan.FromMilliseconds(_intervaloMs) - (DateTime.UtcNow - _ultimo);
             if (espera > TimeSpan.Zero) await Task.Delay(espera, ct);
-            var url = $"{_base}/search?format=jsonv2&limit=1&q={Uri.EscapeDataString(endereco)}&email={Uri.EscapeDataString(_contato)}";
+            var qs = string.Join("&", parametros.Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value)}"));
+            var url = $"{_base}/search?format=jsonv2&limit=1&accept-language=pt-BR&{qs}&email={Uri.EscapeDataString(Contato)}";
             using var req = new HttpRequestMessage(HttpMethod.Get, url);
-            req.Headers.UserAgent.ParseAdd($"ControleTecnico/1.0 ({_contato})");
-            req.Headers.AcceptLanguage.ParseAdd("pt-BR");
+            req.Headers.UserAgent.ParseAdd($"ControleTecnico/1.0 ({Contato})");
             using var resp = await _http.SendAsync(req, ct);
             _ultimo = DateTime.UtcNow;
-            if (!resp.IsSuccessStatusCode) return new(false, null, null, "", $"Serviço de geocodificação respondeu {(int)resp.StatusCode}.");
+            if (!resp.IsSuccessStatusCode) return (false, 0, 0, "", $"Serviço de geocodificação respondeu {(int)resp.StatusCode}.", true);
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-            if (doc.RootElement.GetArrayLength() == 0) return new(false, null, null, "", "Endereço não localizado.");
+            if (doc.RootElement.GetArrayLength() == 0) return (false, 0, 0, "", "Não encontrado.", false);
             var e = doc.RootElement[0];
-            var lat = double.Parse(e.GetProperty("lat").GetString()!, CultureInfo.InvariantCulture);
-            var lon = double.Parse(e.GetProperty("lon").GetString()!, CultureInfo.InvariantCulture);
-            return new(true, lat, lon, "OpenStreetMap/Nominatim", e.TryGetProperty("display_name", out var dn) ? dn.GetString() ?? "" : "");
+            return (true, double.Parse(e.GetProperty("lat").GetString()!, CultureInfo.InvariantCulture), double.Parse(e.GetProperty("lon").GetString()!, CultureInfo.InvariantCulture),
+                e.TryGetProperty("display_name", out var dn) ? dn.GetString() ?? "" : "", null, false);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) { return new(false, null, null, "", "Falha ao consultar o serviço: " + ex.Message); }
+        catch (Exception ex) { return (false, 0, 0, "", "Falha ao consultar o serviço: " + ex.Message, true); }
         finally { _ritmo.Release(); }
     }
 }

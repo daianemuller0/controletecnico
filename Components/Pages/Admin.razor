@@ -55,6 +55,7 @@ else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
                 <label class="fld full">Alertas antecipados de vencimento (dias, separados por vírgula)<input @bind="_alertas" /></label>
                 <label class="fld">Fuso horário padrão da agenda<select @bind="_fuso">@foreach (var f in Vocab.Fusos.Concat(new[] { _fuso }).Distinct()) {<option>@f</option>}</select></label>
                 <label class="fld">Validade da localização confirmada (horas)<input type="number" min="1" @bind="_horas" /></label>
+                <label class="fld full">E-mail de contato da geocodificação <span class="hint">exigido pelo serviço de mapas (Nominatim/OpenStreetMap) para localizar plantas pelo endereço</span><input type="email" @bind="_contatoGeo" placeholder="ti@suaempresa.com" /></label>
             </div>
             @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
             <div class="modal-actions"><button class="btn-primary" @onclick="SalvarCfg">@Icons.Svg("check")Salvar</button></div>
@@ -141,7 +142,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
 
 @code {
     private Ator _ator = new(); private string _aba = "aud"; private List<Usuario> _usuarios = new(); private List<Auditoria> _aud = new();
-    private List<string>? _erros; private Usuario? _u; private bool _novoU; private string _senha = "", _alertas = "", _fuso = "", _buscaAud = "", _fAcao = "", _confirma = ""; private int _horas;
+    private List<string>? _erros; private Usuario? _u; private bool _novoU; private string _senha = "", _alertas = "", _fuso = "", _buscaAud = "", _fAcao = "", _confirma = ""; private int _horas; private string _contatoGeo = "";
 
     private static readonly (Perm, string)[] Matriz =
     {
@@ -156,7 +157,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     {
         _ator = await Sessao.AtorAsync();
         _aba = _ator.Pode(Perm.Administrar) ? "usr" : "aud"; Carregar();
-        _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras;
+        _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _contatoGeo = Db.Cfg("geocoding_contato");
     }
     private void Carregar() { _usuarios = Db.Usuarios.Todos().OrderBy(u => u.Id).ToList(); _aud = Db.Auditorias.Todos().OrderByDescending(a => a.Quando).ToList(); }
     private IEnumerable<Auditoria> AudFiltrada => _aud.Where(a => (_fAcao == "" || a.Acao.StartsWith(_fAcao)) && (string.IsNullOrWhiteSpace(_buscaAud) || DocEngine.Norm($"{a.Usuario} {a.Acao} {a.Resumo}").Contains(DocEngine.Norm(_buscaAud))));
@@ -165,7 +166,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     private void NovoUsuario() { _u = new Usuario { Papel = Roles.Consulta }; _novoU = true; _senha = ""; _erros = null; }
     private void EditarUsuario(Usuario u) { _u = u.Copia<Usuario>(); _novoU = false; _senha = ""; _erros = null; }
     private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar("Usuário salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
-    private void SalvarCfg() { _erros = null; try { Svc.SalvarConfig(_ator, _alertas, _fuso, _horas); Sessao.Avisar("Configurações salvas."); Carregar(); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void SalvarCfg() { _erros = null; try { Svc.SalvarConfig(_ator, _alertas, _fuso, _horas, _contatoGeo); Sessao.Avisar("Configurações salvas."); Carregar(); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
     private void ExecutarDados()
     {
         try { if (_confirma == "recarregar") Svc.RecarregarDemo(_ator); else Svc.LimparDadosOperacionais(_ator); _confirma = ""; Carregar(); Sessao.Avisar("Concluído."); }

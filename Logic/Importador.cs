@@ -54,19 +54,22 @@ public sealed class Importador
 
     public Importador(Db db, Servicos svc) { _db = db; _svc = svc; }
 
+    /// <summary>Layout principal da planilha de plantas (5 colunas): 1) nome da planta, 2) Country, 3) City, 4) State, 5) Address 1.
+    /// Todas as demais colunas são opcionais. Só o nome da planta é obrigatório; sem cidade a planta entra e a cidade
+    /// é pedida quando ela for selecionada para enviar um técnico.</summary>
     public static readonly CampoImport[] Campos =
     {
-        new("cliente", "Cliente", true, new[] { "cliente", "nome do cliente", "customer", "client", "empresa" }, "Indústria Alfa S.A."),
-        new("planta", "Planta/Unidade", true, new[] { "planta", "unidade", "planta/unidade", "plant", "site", "filial", "nome da planta" }, "Planta Campinas"),
-        new("rua", "Rua", false, new[] { "rua", "logradouro", "endereco", "street", "address" }, "Av. das Indústrias"),
-        new("numero", "Número", false, new[] { "numero", "nº", "n°", "num", "number" }, "1500"),
-        new("complemento", "Complemento", false, new[] { "complemento", "compl", "address 2" }, "Galpão 3"),
-        new("cep", "CEP / código postal", false, new[] { "cep", "codigo postal", "postal code", "zip", "zipcode" }, "13000-000"),
-        new("cidade", "Cidade", false, new[] { "cidade", "municipio", "city" }, "Campinas"),
-        new("estado", "Estado / região", false, new[] { "estado", "uf", "regiao", "state", "province", "region" }, "SP"),
-        new("pais", "País", false, new[] { "pais", "country" }, "Brasil"),
+        new("planta", "Planta", true, new[] { "planta", "nome da planta", "planta/unidade", "unidade", "plant", "plant name", "site", "name", "nome", "filial" }, "Planta Campinas"),
+        new("pais", "Country", false, new[] { "country", "pais", "país" }, "Brasil"),
+        new("cidade", "City", false, new[] { "city", "cidade", "municipio" }, "Campinas"),
+        new("estado", "State", false, new[] { "state", "estado", "uf", "provincia", "region", "regiao" }, "SP"),
+        new("rua", "Address 1", false, new[] { "address 1", "address1", "address", "endereco", "endereço", "rua", "logradouro", "street" }, "Av. das Indústrias, 1500"),
+        new("cliente", "Cliente (opcional)", false, new[] { "cliente", "customer", "client", "empresa", "nome do cliente" }, ""),
+        new("numero", "Número (opcional)", false, new[] { "numero", "nº", "n°", "num", "number" }, ""),
+        new("complemento", "Complemento (opcional)", false, new[] { "complemento", "compl", "address 2" }, ""),
+        new("cep", "CEP / código postal (opcional)", false, new[] { "cep", "codigo postal", "postal code", "zip", "zipcode" }, ""),
         new("endereco", "Endereço completo (opcional)", false, new[] { "endereco completo", "full address" }, ""),
-        new("fuso", "Fuso horário (opcional)", false, new[] { "fuso", "fuso horario", "timezone", "time zone", "tz" }, "America/Sao_Paulo"),
+        new("fuso", "Fuso horário (opcional)", false, new[] { "fuso", "fuso horario", "timezone", "time zone", "tz" }, ""),
         new("lat", "Latitude (opcional)", false, new[] { "latitude", "lat" }, ""),
         new("lon", "Longitude (opcional)", false, new[] { "longitude", "lon", "lng", "long" }, ""),
         new("razao", "Razão social (opcional)", false, new[] { "razao social", "razao" }, ""),
@@ -92,31 +95,31 @@ public sealed class Importador
     {
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Plantas");
-        var principais = Campos.Take(9).ToArray();
-        for (var i = 0; i < Campos.Length; i++)
+        string[] cab = { "Planta", "Country", "City", "State", "Address 1" };
+        string[][] ex =
         {
-            var c = ws.Cell(1, i + 1); c.Value = Campos[i].Label;
-            c.Style.Font.Bold = true; c.Style.Fill.BackgroundColor = i < 9 ? XLColor.FromHtml("#004785") : XLColor.FromHtml("#6b7a90");
-            c.Style.Font.FontColor = XLColor.White;
-            ws.Cell(2, i + 1).SetValue(Campos[i].Exemplo).Style.NumberFormat.Format = "@";
+            new[] { "Planta Campinas", "Brasil", "Campinas", "SP", "Av. das Indústrias, 1500" },
+            new[] { "Planta Monterrey", "México", "Monterrey", "Nuevo León", "Av. Constitución 2100" },
+            new[] { "Planta Calama", "Chile", "Calama", "Antofagasta", "" },
+        };
+        for (var i = 0; i < cab.Length; i++)
+        {
+            var c = ws.Cell(1, i + 1); c.Value = cab[i]; c.Style.Font.Bold = true; c.Style.Font.FontColor = XLColor.White;
+            c.Style.Fill.BackgroundColor = i == 0 ? XLColor.FromHtml("#004785") : XLColor.FromHtml("#6b7a90");
+            for (var r = 0; r < ex.Length; r++) ws.Cell(r + 2, i + 1).SetValue(ex[r][i]).Style.NumberFormat.Format = "@";
         }
-        ws.Cell(3, 1).Value = "Indústria Alfa S.A."; ws.Cell(3, 2).Value = "Planta Monterrey"; ws.Cell(3, 3).Value = "Av. Constitución";
-        ws.Cell(3, 4).Value = "2100"; ws.Cell(3, 6).Value = "64000"; ws.Cell(3, 7).Value = "Monterrey"; ws.Cell(3, 8).Value = "Nuevo León"; ws.Cell(3, 9).Value = "México";
-        ws.Cell(3, 11).Value = "America/Mexico_City";
         ws.Columns().AdjustToContents();
         var info = wb.AddWorksheet("Instruções");
         var linhas = new[]
         {
-            "Preencha uma linha por PLANTA/UNIDADE. Um cliente pode ter várias plantas (repita o nome do cliente).",
-            "Obrigatórias: Cliente e Planta/Unidade, mais Cidade (ou Endereço completo).",
-            "As colunas em cinza são opcionais. Endereços internacionais são aceitos: use o país e o fuso horário do local.",
-            "Latitude/longitude: se informadas, não haverá consulta de endereço. Use ponto ou vírgula decimal.",
-            "Mantenha CEP/código postal como TEXTO para preservar zeros à esquerda.",
-            "Linhas de exemplo (2 e 3) devem ser apagadas antes de importar.",
-            "Fusos horários no formato IANA, por exemplo: America/Sao_Paulo, America/Santiago, Europe/Lisbon.",
+            "Uma linha por planta. Colunas, nesta ordem: 1) Planta (nome que será selecionado ao enviar o técnico), 2) Country, 3) City, 4) State, 5) Address 1.",
+            "Só o nome da planta é obrigatório. A localização no mapa é buscada em cascata: país → estado → cidade → endereço.",
+            "Se o endereço não for encontrado, a planta fica marcada na cidade; se a cidade não for encontrada, no estado; se o estado não for encontrado, no país.",
+            "Planta sem cidade pode ser importada: quando for selecionada numa viagem, o sistema pede a cidade e já grava no cadastro.",
+            "Apague as linhas de exemplo (2 a 4) antes de importar. Colunas extras opcionais (cliente, CEP, fuso, coordenadas…) são aceitas se você mapeá-las.",
         };
         for (var i = 0; i < linhas.Length; i++) info.Cell(i + 1, 1).Value = linhas[i];
-        info.Column(1).Width = 110;
+        info.Column(1).Width = 130;
         using var ms = new MemoryStream(); wb.SaveAs(ms); return ms.ToArray();
     }
 
@@ -222,6 +225,13 @@ public sealed class Importador
                 if (h == DocEngine.Norm(c.Label) || c.Sinonimos.Any(s => DocEngine.Norm(s) == h)) { map[c.Key] = i; usados.Add(i); break; }
             }
         }
+        // planilha sem títulos reconhecíveis: vale a ordem combinada (1 planta, 2 país, 3 cidade, 4 estado, 5 endereço)
+        if (!map.ContainsKey("planta") && cabecalhos.Count >= 1)
+        {
+            map.Clear();
+            var ordem = new[] { "planta", "pais", "cidade", "estado", "rua" };
+            for (var i = 0; i < Math.Min(ordem.Length, cabecalhos.Count); i++) map[ordem[i]] = i;
+        }
         return map;
     }
 
@@ -230,8 +240,6 @@ public sealed class Importador
     {
         var faltando = Campos.Where(c => c.Obrigatorio && !map.ContainsKey(c.Key)).Select(c => c.Label).ToList();
         if (faltando.Count > 0) throw new ValidacaoException($"Mapeie as colunas obrigatórias: {string.Join(", ", faltando)}.");
-        if (!map.ContainsKey("cidade") && !map.ContainsKey("endereco"))
-            throw new ValidacaoException("Mapeie a coluna Cidade (ou Endereço completo).");
 
         var clientes = _db.Clientes.Todos();
         var plantas = _db.Plantas.Todos();
@@ -246,9 +254,9 @@ public sealed class Importador
             foreach (var c in Campos)
                 l.V[c.Key] = map.TryGetValue(c.Key, out var col) && col < a.Linhas[i].Length ? a.Linhas[i][col].Trim() : "";
 
-            if (string.IsNullOrWhiteSpace(l.V["cliente"])) l.Erros.Add("Cliente não informado.");
-            if (string.IsNullOrWhiteSpace(l.V["planta"])) l.Erros.Add("Planta/unidade não informada.");
-            if (string.IsNullOrWhiteSpace(l.V["cidade"]) && string.IsNullOrWhiteSpace(l.V["endereco"])) l.Erros.Add("Cidade (ou endereço completo) não informada.");
+            if (string.IsNullOrWhiteSpace(l.V["planta"])) l.Erros.Add("Nome da planta não informado.");
+            if (string.IsNullOrWhiteSpace(l.V["cidade"]) && string.IsNullOrWhiteSpace(l.V["endereco"]))
+                l.Avisos.Add("Sem cidade: a planta será importada, mas a cidade será pedida quando ela for selecionada para enviar um técnico (e a localização no mapa fica pendente).");
 
             if (string.IsNullOrWhiteSpace(l.V["pais"]))
             {
@@ -284,24 +292,24 @@ public sealed class Importador
                 else { l.V["fuso"] = _db.FusoPadrao; l.Avisos.Add($"Fuso horário não informado para {l.V["pais"]}: usado o padrão do sistema ({_db.FusoPadrao}). Revise na planta."); }
             }
 
-            if (l.Erros.Count == 0 || (l.V["cliente"].Length > 0 && l.V["planta"].Length > 0))
+            var kc = DocEngine.Norm(l.V["cliente"]); var kp = DocEngine.Norm(l.V["planta"]);
+            if (kp.Length > 0)
             {
-                var kc = DocEngine.Norm(l.V["cliente"]); var kp = DocEngine.Norm(l.V["planta"]);
-                if (kc.Length > 0 && kp.Length > 0)
+                var chave = $"{kc}|{kp}";
+                if (vistos.TryGetValue(chave, out var primeira)) l.Erros.Add($"Duplicada no arquivo (mesma planta da linha {primeira}).");
+                else vistos[chave] = l.Numero;
+                Planta? pl = null; Cliente? cli = null;
+                if (kc.Length > 0)
                 {
-                    var chave = $"{kc}|{kp}";
-                    if (vistos.TryGetValue(chave, out var primeira)) l.Erros.Add($"Duplicada no arquivo (mesma planta da linha {primeira}).");
-                    else vistos[chave] = l.Numero;
-                    if (porCliente.TryGetValue(kc, out var cli))
-                    {
-                        l.ClienteExistenteId = cli.Id;
-                        if (plantaPorChave.TryGetValue($"{cli.Id}|{kp}", out var pl))
-                        {
-                            l.PlantaExistenteId = pl.Id;
-                            if (!l.Rejeitada) { MontarDiferencas(l, cli, pl); }
-                        }
-                    }
+                    if (porCliente.TryGetValue(kc, out cli)) { l.ClienteExistenteId = cli.Id; plantaPorChave.TryGetValue($"{cli.Id}|{kp}", out pl); }
                 }
+                else
+                {
+                    // sem cliente na planilha: o nome da planta é a chave (é o que se seleciona ao enviar o técnico)
+                    pl = plantas.Where(x => DocEngine.Norm(x.Nome) == kp).OrderBy(x => x.ClienteId == "" ? 0 : 1).FirstOrDefault();
+                    if (pl is not null && pl.ClienteId != "") cli = clientes.FirstOrDefault(c => c.Id == pl.ClienteId);
+                }
+                if (pl is not null) { l.PlantaExistenteId = pl.Id; if (!l.Rejeitada) MontarDiferencas(l, cli, pl); }
             }
             l.Acao = l.Rejeitada ? AcaoImport.Ignorar : l.Existente ? AcaoImport.Atualizar : AcaoImport.Criar;
             if (l.Existente && !l.Rejeitada && l.Diferencas.Count == 0) { l.Avisos.Add("Idêntica ao cadastro existente: nada a atualizar."); l.Acao = AcaoImport.Ignorar; }
@@ -313,7 +321,7 @@ public sealed class Importador
     private static bool TryNum(string s, out double d) =>
         double.TryParse(s.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d);
 
-    private static void MontarDiferencas(LinhaImport l, Cliente c, Planta p)
+    private static void MontarDiferencas(LinhaImport l, Cliente? c, Planta p)
     {
         void Dif(string campo, string atual, string novo)
         {
@@ -324,8 +332,11 @@ public sealed class Importador
         Dif("CEP", p.Cep, l.V["cep"]); Dif("Cidade", p.Cidade, l.V["cidade"]); Dif("Estado", p.Estado, l.V["estado"]);
         Dif("País", p.Pais, l.V["pais"]); Dif("Fuso", p.FusoHorario, l.V["fuso"]);
         Dif("Contato local", p.ContatoLocal, l.V["contato_local"]); Dif("Acesso", p.Acesso, l.V["acesso"]); Dif("Observações", p.Obs, l.V["obs"]);
-        Dif("Razão social", c.RazaoSocial, l.V["razao"]); Dif("Documento", c.Documento, l.V["documento"]);
-        Dif("Contato do cliente", c.Contato, l.V["contato"]); Dif("Telefone", c.Telefone, l.V["telefone"]); Dif("E-mail", c.Email, l.V["email"]);
+        if (c is not null)
+        {
+            Dif("Razão social", c.RazaoSocial, l.V["razao"]); Dif("Documento", c.Documento, l.V["documento"]);
+            Dif("Contato do cliente", c.Contato, l.V["contato"]); Dif("Telefone", c.Telefone, l.V["telefone"]); Dif("E-mail", c.Email, l.V["email"]);
+        }
         if (TryNum(l.V["lat"], out var la) && TryNum(l.V["lon"], out var lo) && (p.Lat != la || p.Lon != lo))
             l.Diferencas.Add($"Coordenadas: {(p.TemCoord ? $"{p.Lat:0.#####}, {p.Lon:0.#####}" : "vazio")} → {la:0.#####}, {lo:0.#####}");
     }
@@ -349,10 +360,11 @@ public sealed class Importador
             if (l.Acao == AcaoImport.Ignorar) { r.Ignoradas++; continue; }
 
             var kc = DocEngine.Norm(l.V["cliente"]);
-            Cliente cli;
-            if (!clientes.TryGetValue(kc, out cli!))
+            Cliente? cli = null;
+            if (kc.Length == 0) { /* sem cliente na planilha: a planta fica sem cliente (ou mantém o que já tem) */ }
+            else if (!clientes.TryGetValue(kc, out cli))
             {
-                if (!novosClientes.TryGetValue(kc, out cli!))
+                if (!novosClientes.TryGetValue(kc, out cli))
                 {
                     cli = new Cliente
                     {
@@ -378,17 +390,18 @@ public sealed class Importador
             Planta p;
             var ehAtualizacao = l.Acao == AcaoImport.Atualizar && l.PlantaExistenteId is not null;
             var nomePlanta = l.V["planta"];
-            if (ehAtualizacao) p = plantasPorId[l.PlantaExistenteId!];
+            var cliId = cli?.Id ?? "";
+            if (ehAtualizacao) { p = plantasPorId[l.PlantaExistenteId!]; if (cli is not null) p.ClienteId = cli.Id; cliId = p.ClienteId; }
             else
             {
                 // "criar mesmo assim" para algo que já existe: nome diferenciado, visível no resultado
-                if (nomesUsados.Contains($"{cli.Id}|{DocEngine.Norm(nomePlanta)}"))
+                if (nomesUsados.Contains($"{cliId}|{DocEngine.Norm(nomePlanta)}"))
                 {
-                    var n = 2; while (nomesUsados.Contains($"{cli.Id}|{DocEngine.Norm(nomePlanta + " (" + n + ")")}")) n++;
+                    var n = 2; while (nomesUsados.Contains($"{cliId}|{DocEngine.Norm(nomePlanta + " (" + n + ")")}")) n++;
                     r.Avisos.Add((l.Numero, $"Já existia \"{nomePlanta}\": criada como \"{nomePlanta} ({n})\"."));
                     nomePlanta = $"{nomePlanta} ({n})";
                 }
-                p = new Planta { Id = Repo<Planta>.NovoId(), ClienteId = cli.Id, Nome = nomePlanta, Ativo = true };
+                p = new Planta { Id = Repo<Planta>.NovoId(), ClienteId = cliId, Nome = nomePlanta, Ativo = true };
             }
             var enderecoAntes = $"{p.Rua}|{p.Numero}|{p.Cep}|{p.Cidade}|{p.Estado}|{p.Pais}";
             void S(string novo, Func<string> get, Action<string> set) { if (!string.IsNullOrWhiteSpace(novo)) set(novo); else if (!ehAtualizacao) set(""); }
@@ -407,7 +420,7 @@ public sealed class Importador
             else if (enderecoAntes != $"{p.Rua}|{p.Numero}|{p.Cep}|{p.Cidade}|{p.Estado}|{p.Pais}" && p.GeoStatus != "manual")
             { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoFonte = ""; r.Avisos.Add((l.Numero, "Endereço alterado: a localização será consultada novamente.")); }
 
-            nomesUsados.Add($"{cli.Id}|{DocEngine.Norm(p.Nome)}");
+            nomesUsados.Add($"{p.ClienteId}|{DocEngine.Norm(p.Nome)}");
             plantasParaSalvar.Add(p);
             if (ehAtualizacao) r.Atualizadas++; else r.Importadas++;
         }

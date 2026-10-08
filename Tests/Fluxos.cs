@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using ControleTecnico.Data;
 using ControleTecnico.Logic;
 using ControleTecnico.Models;
@@ -264,11 +265,11 @@ public class ImportacaoTests
         var map = Importador.SugerirMapeamento(arq.Cabecalhos);
         var linhas = imp.Analisar(arq, map);
         Assert.Equal(6, linhas.Count);
-        Assert.Equal(4, linhas.Count(l => l.Rejeitada));
-        Assert.Contains(linhas[1].Erros, e => e.Contains("Cliente"));
+        Assert.Equal(new[] { false, false, false, true, false, true }, linhas.Select(l => l.Rejeitada).ToArray());   // coordenada inválida e duplicada
+        Assert.Contains(linhas[2].Avisos, w => w.Contains("Sem cidade"));                                          // cidade ausente NÃO rejeita
         Assert.Contains(linhas[5].Erros, e => e.Contains("Duplicada"));
         var res = imp.Aplicar(a.Admin, linhas);
-        Assert.Equal(2, res.Importadas); Assert.Equal(4, res.Rejeitadas.Count); Assert.Equal(2, res.ClientesCriados);
+        Assert.Equal(4, res.Importadas); Assert.Equal(2, res.Rejeitadas.Count); Assert.Equal(2, res.ClientesCriados);
         Assert.All(res.Rejeitadas, r => Assert.False(string.IsNullOrWhiteSpace(r.motivo)));
         var p5 = a.Db.Plantas.Onde(p => p.Nome == "P5").Single(); Assert.True(p5.TemCoord);
         var p1 = a.Db.Plantas.Onde(p => p.Nome == "P1").Single();
@@ -299,10 +300,11 @@ public class ImportacaoTests
         var arq = Importador.Ler("modelo.xlsx", ms);
         Assert.True(arq.Linhas.Count >= 2);
         var map = Importador.SugerirMapeamento(arq.Cabecalhos);
-        Assert.True(map.ContainsKey("cliente") && map.ContainsKey("planta") && map.ContainsKey("cep") && map.ContainsKey("pais"));
+        Assert.True(map.ContainsKey("planta") && map.ContainsKey("pais") && map.ContainsKey("cidade") && map.ContainsKey("estado") && map.ContainsKey("rua"));
+        Assert.Equal(new[] { "Planta", "Country", "City", "State", "Address 1" }, arq.Cabecalhos.ToArray());
         using var a = new Amb(); var imp = new Importador(a.Db, a.Svc);
         var l = imp.Analisar(arq, map);
-        var mex = l.Single(x => x.V["pais"] == "México"); Assert.False(mex.Rejeitada); Assert.Equal("America/Mexico_City", mex.V["fuso"]);
+        var mex = l.Single(x => x.V["pais"] == "México"); Assert.Equal("Monterrey", mex.V["cidade"]); Assert.False(mex.Rejeitada); Assert.Equal("America/Mexico_City", mex.V["fuso"]);
     }
 
     [Fact]
@@ -567,5 +569,123 @@ public class ImportacaoTecnicosTests
         Assert.Throws<UnauthorizedAccessException>(() => imp.Aplicar(a.Contr, imp.Analisar(arq, map)));
         Assert.Equal(new HashSet<int> { 1, 2, 3, 4, 5 }, ImportadorTecnicos.ParseDias("seg-sex"));
         Assert.Null(ImportadorTecnicos.ParseDias("abc"));
+    }
+}
+
+
+public class PlantasPlanilhaSimplesTests
+{
+    private static ArquivoLido Csv(string t) => Importador.Ler("t.csv", new MemoryStream(System.Text.Encoding.UTF8.GetBytes(t)));
+
+    [Fact]
+    public void Planilha_de_5_colunas_sem_cliente_e_sem_cidade_e_aceita()
+    {
+        using var a = new Amb(); var imp = new Importador(a.Db, a.Svc);
+        var arq = Csv("Planta;Country;City;State;Address 1\nPlanta A;Brasil;Campinas;SP;Av. X, 10\nPlanta B;Chile;;Antofagasta;\nPlanta C;Peru;;;\n");
+        var map = Importador.SugerirMapeamento(arq.Cabecalhos);
+        var l = imp.Analisar(arq, map);
+        Assert.All(l, x => Assert.False(x.Rejeitada));
+        Assert.Contains(l[1].Avisos, w => w.Contains("Sem cidade")); Assert.Contains(l[2].Avisos, w => w.Contains("Sem cidade"));
+        var r = imp.Aplicar(a.Admin, l);
+        Assert.Equal(3, r.Importadas); Assert.Equal(0, r.ClientesCriados);
+        var pa = a.Db.Plantas.Onde(p => p.Nome == "Planta A").Single();
+        Assert.Equal("", pa.ClienteId); Assert.Equal("Av. X, 10", pa.Rua); Assert.Equal("Campinas", pa.Cidade); Assert.Equal("SP", pa.Estado); Assert.Equal("pendente", pa.GeoStatus);
+        Assert.Equal("Planta A", a.Svc.Foto().NomePlanta(pa.Id));        // sem cliente: o nome é o que se seleciona
+        // reimportar: reconhecida pelo nome, idêntica
+        var l2 = imp.Analisar(arq, map); Assert.All(l2, x => { Assert.True(x.Existente); Assert.Equal(AcaoImport.Ignorar, x.Acao); });
+    }
+
+    [Fact]
+    public void Sem_titulos_reconheciveis_vale_a_ordem_das_colunas()
+    {
+        var map = Importador.SugerirMapeamento(new() { "Col A", "Col B", "Col C", "Col D", "Col E" });
+        Assert.Equal(0, map["planta"]); Assert.Equal(1, map["pais"]); Assert.Equal(2, map["cidade"]); Assert.Equal(3, map["estado"]); Assert.Equal(4, map["rua"]);
+    }
+
+    [Fact]
+    public void Planta_sem_cidade_marca_a_viagem_e_completar_grava_no_cadastro()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        var p = a.Db.Plantas.Salvar(new Planta { Nome = "Planta Sem Cidade", Pais = "Brasil" });
+        var v = new Viagem { PlantaId = p.Id, TecnicoIds = t.Id, Status = Vocab.ViagemPlanejada };
+        var res = a.Svc.Validar(v, new(), new());
+        Assert.Contains(p.Id, res.PlantasSemCidade); Assert.Contains(res.Erros, e => e.Contains("não tem cidade"));
+        Assert.Throws<ValidacaoException>(() => a.Svc.CompletarLocalAsync(a.Admin, p.Id, "Brasil", "SP", "  ", "", null).GetAwaiter().GetResult());
+        var ok = a.Svc.CompletarLocalAsync(a.Admin, p.Id, "Brasil", "SP", "Campinas", "Rua Y, 5", null).GetAwaiter().GetResult();
+        Assert.Equal("Campinas", a.Db.Plantas.Obter(p.Id)!.Cidade); Assert.Equal("SP", ok.Estado); Assert.Contains("Campinas", ok.EnderecoCompleto);
+        Assert.Empty(a.Svc.Validar(v, new(), new()).PlantasSemCidade);
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.CompletarLocalAsync(a.Consulta, p.Id, "", "", "X", "", null).GetAwaiter().GetResult());
+    }
+}
+
+public class GeocodificacaoCascataTests
+{
+    private sealed class Fake : HttpMessageHandler
+    {
+        public List<string> Chamadas = new(); public Func<Dictionary<string, string>, bool> Acha = _ => false;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            var q = System.Web.HttpUtility.ParseQueryString(req.RequestUri!.Query).AllKeys.Where(k => k is not null).ToDictionary(k => k!, k => System.Web.HttpUtility.ParseQueryString(req.RequestUri!.Query)[k]!);
+            var nivel = q.ContainsKey("street") ? "endereco" : q.ContainsKey("city") ? "cidade" : q.ContainsKey("state") ? "estado" : "pais";
+            Chamadas.Add(nivel);
+            var corpo = Acha(q) ? "[{\"lat\":\"-23.5\",\"lon\":\"-47.4\",\"display_name\":\"Local " + nivel + "\"}]" : "[]";
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(corpo) });
+        }
+    }
+    private sealed class Fab : IHttpClientFactory { public HttpMessageHandler H = null!; public HttpClient CreateClient(string name) => new(H); }
+    private static (Geocoder g, Fake f) Novo(Func<Dictionary<string, string>, bool> acha, string contato = "ti@x.com")
+    {
+        var f = new Fake { Acha = acha };
+        var cfg = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:Contato"] = contato, ["Geocoding:IntervaloMs"] = "0" }).Build();
+        return (new Geocoder(new Fab { H = f }, cfg), f);
+    }
+
+    [Fact]
+    public async Task Acha_o_endereco_para_no_endereco()
+    {
+        var (g, f) = Novo(_ => true);
+        var r = await g.BuscarHierarquicoAsync("Brasil", "SP", "Campinas", "Av. X, 10");
+        Assert.True(r.Ok); Assert.Equal("endereco", r.Nivel); Assert.Equal(new[] { "endereco" }, f.Chamadas);
+    }
+
+    [Fact]
+    public async Task Sem_endereco_para_na_cidade_sem_cidade_para_no_estado_sem_estado_para_no_pais()
+    {
+        var (g, f) = Novo(q => !q.ContainsKey("street"));
+        var r = await g.BuscarHierarquicoAsync("Brasil", "SP", "Campinas", "Rua inexistente");
+        Assert.Equal("cidade", r.Nivel); Assert.Equal(new[] { "endereco", "cidade" }, f.Chamadas); Assert.Contains("não encontrado: endereco", r.Mensagem);
+
+        (g, f) = Novo(q => !q.ContainsKey("street") && !q.ContainsKey("city"));
+        r = await g.BuscarHierarquicoAsync("Brasil", "SP", "Cidadeinexistente", "Rua");
+        Assert.Equal("estado", r.Nivel); Assert.Equal(new[] { "endereco", "cidade", "estado" }, f.Chamadas);
+
+        (g, f) = Novo(q => q.Keys.All(k => k is "country" or "format" or "limit" or "accept-language" or "email"));
+        r = await g.BuscarHierarquicoAsync("Brasil", "Estadoinexistente", "Cidade", "Rua");
+        Assert.Equal("pais", r.Nivel); Assert.Equal(new[] { "endereco", "cidade", "estado", "pais" }, f.Chamadas);
+
+        (g, f) = Novo(_ => false);
+        r = await g.BuscarHierarquicoAsync("Xyz", "", "", "");
+        Assert.False(r.Ok); Assert.Equal(new[] { "pais" }, f.Chamadas);
+    }
+
+    [Fact]
+    public async Task Niveis_sem_dado_sao_pulados_e_sem_configuracao_nao_simula()
+    {
+        var (g, f) = Novo(_ => true);
+        var r = await g.BuscarHierarquicoAsync("Chile", "Antofagasta", "", "Rua sem cidade");   // sem cidade: nem tenta endereço
+        Assert.Equal("estado", r.Nivel); Assert.Equal(new[] { "estado" }, f.Chamadas);
+        var (g2, f2) = Novo(_ => true, contato: "");
+        var r2 = await g2.BuscarHierarquicoAsync("Brasil", "SP", "Campinas", "");
+        Assert.False(r2.Ok); Assert.Empty(f2.Chamadas); Assert.Contains("não configurada", r2.Mensagem);
+    }
+
+    [Fact]
+    public async Task Planta_e_localizada_em_cascata_e_marca_o_nivel()
+    {
+        using var a = new Amb(); var (g, _) = Novo(q => !q.ContainsKey("street"));
+        var p = await a.Svc.SalvarPlantaAsync(a.Admin, new Planta { Nome = "P", Pais = "Brasil", Estado = "SP", Cidade = "Campinas", Rua = "Rua que não existe" }, g);
+        Assert.True(p.TemCoord); Assert.Equal("ok", p.GeoStatus); Assert.Equal("cidade", p.GeoNivel); Assert.Contains("aproximada ao nível de cidade", p.GeoFonte);
+        a.Svc.CorrigirPosicao(a.Admin, p.Id, -10, -40);
+        Assert.Equal("manual", a.Db.Plantas.Obter(p.Id)!.GeoStatus); Assert.Equal("", a.Db.Plantas.Obter(p.Id)!.GeoNivel);
     }
 }

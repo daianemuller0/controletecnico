@@ -5,6 +5,7 @@
 @inject Sessao Sessao
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@inject Geocoder Geo
 
 <PageTitle>Agenda · Controle Técnico</PageTitle>
 
@@ -331,6 +332,11 @@ else
     </Dialogo>
 }
 
+@if (_pedirCidade is not null)
+{
+    <CidadePlanta PlantaId="@_pedirCidade" Ator="@_ator" OnSalvo="CidadeSalva" OnFechar="@(() => _pedirCidade = null)" />
+}
+
 @* ----------------------------- novo / editar compromisso ----------------------------- *@
 @if (_form is not null)
 {
@@ -351,7 +357,7 @@ else
                     <div class="chk-grid">@foreach (var t in TecnicosVisiveis.Where(t => t.Ativo)) {
                         <label class="chk-inline"><input type="checkbox" checked="@_form.Tecs.Contains(t.Id)" @onchange="e => { if ((bool)e.Value!) _form.Tecs.Add(t.Id); else _form.Tecs.Remove(t.Id); Previa(); }" />@t.Nome</label> }</div></div>
                 <label class="fld">Planta
-                    <select @bind="_form.PlantaId" @bind:after="Previa"><option value="">— selecione —</option>
+                    <select @bind="_form.PlantaId" @bind:after="AoPlantaForm"><option value="">— selecione —</option>
                         @foreach (var p in _snap.Plantas.Values.Where(p => p.Ativo).OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
                 <label class="fld">Serviço
                     <select @bind="_form.ServicoId" @bind:after="Previa"><option value="">— selecione —</option>
@@ -601,6 +607,14 @@ else
         public HashSet<string> Tecs = new(); public DateTime Ini, Fim; public double? Horas; public bool DiaInteiro = true, Provisoria;
         public DateTime DiaDe, DiaAte; public string ViagemId = ""; public Atendimento? Orig;
     }
+    private string? _pedirCidade;
+    private void AoPlantaForm()
+    {
+        Previa();
+        if (!string.IsNullOrEmpty(_form?.PlantaId) && _snap.Planta(_form.PlantaId) is { } p && string.IsNullOrWhiteSpace(p.Cidade) && _ator.Pode(Perm.EditarClientes)) _pedirCidade = _form.PlantaId;
+    }
+    private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(); Previa(); Sessao.Avisar("Cidade gravada no cadastro da planta."); }
+
     private Form? _form; private List<string>? _errosForm;
     private List<Conflito> _prevConf = new(); private List<Aptidao> _prevApt = new(); private bool _previaFeita;
     private string FusoForm => _snap.Planta(_form?.PlantaId)?.FusoHorario ?? _snap.FusoPadrao;
