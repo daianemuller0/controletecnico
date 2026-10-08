@@ -17,6 +17,7 @@ public sealed class Geocoder
     private readonly string _contatoCfg;
     private readonly Data.Db? _db;
     private readonly int _intervaloMs;
+    private readonly bool _ativo;
     private readonly SemaphoreSlim _ritmo = new(1, 1);
     private DateTime _ultimo = DateTime.MinValue;
     // Muitas plantas dividem cidade/estado/país: a mesma consulta (inclusive "não encontrado") nunca é repetida.
@@ -30,14 +31,16 @@ public sealed class Geocoder
         _base = (cfg["Geocoding:BaseUrl"] ?? "https://nominatim.openstreetmap.org").TrimEnd('/');
         _contatoCfg = cfg["Geocoding:Contato"] ?? "";
         _intervaloMs = int.TryParse(cfg["Geocoding:IntervaloMs"], out var ms) ? ms : 1100;
+        _ativo = !string.Equals(cfg["Geocoding:Ativo"], "false", StringComparison.OrdinalIgnoreCase);
         _db = db;
     }
 
     /// <summary>E-mail de contato exigido pela política do serviço: do appsettings/ambiente ou definido em Administração.</summary>
     private string Contato => !string.IsNullOrWhiteSpace(_contatoCfg) ? _contatoCfg : _db?.Cfg("geocoding_contato") ?? "";
-    public bool Configurado => !string.IsNullOrWhiteSpace(Contato);
-    public string Pendencia => "Geocodificação não configurada: informe o e-mail de contato (exigido pelo serviço de mapas) em Administração → Configurações, " +
-                               "ou em Geocoding:Contato. Enquanto isso as plantas ficam como \"localização pendente\" ou podem ser posicionadas manualmente no mapa.";
+    /// <summary>Ligada por padrão (o Nominatim público não exige chave). O e-mail de contato é recomendado pela política de uso,
+    /// mas opcional. Pode ser desligada com Geocoding:Ativo=false ou apontada para outro serviço em Geocoding:BaseUrl.</summary>
+    public bool Configurado => _ativo && !string.IsNullOrWhiteSpace(_base);
+    public string Pendencia => "Geocodificação desativada (Geocoding:Ativo=false). Enquanto isso as plantas ficam como \"localização pendente\" ou podem ser posicionadas manualmente no mapa.";
 
     /// <summary>
     /// Localiza uma planta em CASCATA, do mais preciso ao mais genérico, parando no último nível que existir:
@@ -50,6 +53,8 @@ public sealed class Geocoder
     {
         if (!Configurado) return new(false, null, null, "", Pendencia);
         pais = (pais ?? "").Trim(); estado = (estado ?? "").Trim(); cidade = (cidade ?? "").Trim(); endereco = (endereco ?? "").Trim();
+        // "MG" não é reconhecido de forma confiável como estado pelo serviço de mapas: expande a sigla brasileira para o nome
+        if (estado.Length == 2 && DocEngine.Norm(pais) is "brasil" or "brazil" && UfBrasil.TryGetValue(estado.ToUpperInvariant(), out var nomeUf)) estado = nomeUf;
         var niveis = new List<(string nivel, Dictionary<string, string> q)>();
         if (endereco != "" && cidade != "") niveis.Add(("endereco", Q(pais, estado, cidade, endereco)));
         if (cidade != "") niveis.Add(("cidade", Q(pais, estado, cidade, null)));
@@ -75,6 +80,14 @@ public sealed class Geocoder
         }
         return new(false, null, null, "", ultimoErro ?? "Local não encontrado (país, estado, cidade e endereço).");
     }
+
+    private static readonly Dictionary<string, string> UfBrasil = new()
+    {
+        ["AC"] = "Acre", ["AL"] = "Alagoas", ["AP"] = "Amapá", ["AM"] = "Amazonas", ["BA"] = "Bahia", ["CE"] = "Ceará", ["DF"] = "Distrito Federal",
+        ["ES"] = "Espírito Santo", ["GO"] = "Goiás", ["MA"] = "Maranhão", ["MT"] = "Mato Grosso", ["MS"] = "Mato Grosso do Sul", ["MG"] = "Minas Gerais",
+        ["PA"] = "Pará", ["PB"] = "Paraíba", ["PR"] = "Paraná", ["PE"] = "Pernambuco", ["PI"] = "Piauí", ["RJ"] = "Rio de Janeiro", ["RN"] = "Rio Grande do Norte",
+        ["RS"] = "Rio Grande do Sul", ["RO"] = "Rondônia", ["RR"] = "Roraima", ["SC"] = "Santa Catarina", ["SP"] = "São Paulo", ["SE"] = "Sergipe", ["TO"] = "Tocantins",
+    };
 
     private static Dictionary<string, string> Q(string pais, string estado, string? cidade, string? rua)
     {
@@ -105,9 +118,9 @@ public sealed class Geocoder
             var espera = TimeSpan.FromMilliseconds(_intervaloMs) - (DateTime.UtcNow - _ultimo);
             if (espera > TimeSpan.Zero) await Task.Delay(espera, ct);
             var qs = string.Join("&", parametros.Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value)}"));
-            var url = $"{_base}/search?format=jsonv2&limit=1&accept-language=pt-BR&{qs}&email={Uri.EscapeDataString(Contato)}";
+            var url = $"{_base}/search?format=jsonv2&limit=1&accept-language=pt-BR&{qs}" + (string.IsNullOrWhiteSpace(Contato) ? "" : $"&email={Uri.EscapeDataString(Contato)}");
             using var req = new HttpRequestMessage(HttpMethod.Get, url);
-            req.Headers.UserAgent.ParseAdd($"ControleTecnico/1.0 ({Contato})");
+            req.Headers.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(Contato) ? "ControleTecnico/1.0" : $"ControleTecnico/1.0 ({Contato})");
             using var resp = await _http.SendAsync(req, ct);
             _ultimo = DateTime.UtcNow;
             if (!resp.IsSuccessStatusCode) return (false, 0, 0, "", $"Serviço de geocodificação respondeu {(int)resp.StatusCode}.", true);

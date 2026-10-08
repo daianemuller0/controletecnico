@@ -13,7 +13,7 @@
     </div>
     <datalist id="paises-cp">@foreach (var x in Vocab.Paises) {<option value="@x"></option>}</datalist>
     <p class="muted sm">A localização é buscada em cascata: endereço → cidade → estado → país. Se o endereço não for encontrado, a planta fica marcada na cidade; se a cidade não for encontrada, no estado; e assim por diante.
-        @if (!Geo.Configurado) { <span class="warn"> Geocodificação não configurada: a planta será gravada com localização pendente.</span> }</p>
+        @if (!Geo.Configurado) { <span class="warn"> Geocodificação desativada: a planta será gravada com localização pendente.</span> }</p>
     @if (!string.IsNullOrEmpty(_resultado)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@_resultado</div></div> }
     <div class="modal-actions">
         <button class="btn-ghost" @onclick="Fechar">Cancelar</button>

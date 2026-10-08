@@ -55,7 +55,7 @@ else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
                 <label class="fld full">Alertas antecipados de vencimento (dias, separados por vírgula)<input @bind="_alertas" /></label>
                 <label class="fld">Fuso horário padrão da agenda<select @bind="_fuso">@foreach (var f in Vocab.Fusos.Concat(new[] { _fuso }).Distinct()) {<option>@f</option>}</select></label>
                 <label class="fld">Validade da localização confirmada (horas)<input type="number" min="1" @bind="_horas" /></label>
-                <label class="fld full">E-mail de contato da geocodificação <span class="hint">exigido pelo serviço de mapas (Nominatim/OpenStreetMap) para localizar plantas pelo endereço</span><input type="email" @bind="_contatoGeo" placeholder="ti@suaempresa.com" /></label>
+                <label class="fld full">E-mail de contato da geocodificação <span class="hint">opcional, recomendado pela política do serviço de mapas (Nominatim/OpenStreetMap)</span><input type="email" @bind="_contatoGeo" placeholder="ti@suaempresa.com" /></label>
             </div>
             @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
             <div class="modal-actions"><button class="btn-primary" @onclick="SalvarCfg">@Icons.Svg("check")Salvar</button></div>
@@ -64,7 +64,7 @@ else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
             <div class="panel-head"><div class="panel-title">Integrações externas</div></div>
             <p class="muted sm">Configuradas por ambiente (appsettings ou variáveis de ambiente). Segredos nunca ficam no código.</p>
             <table class="grid-tbl"><tbody>
-                <tr><td><strong>Geocodificação</strong><div class="muted sm">Geocoding__Contato · Geocoding__BaseUrl</div></td><td>@if (Geo.Configurado) { <span class="badge st-pos">Ativa</span> } else { <span class="badge st-warn">Configuração pendente</span> }</td></tr>
+                <tr><td><strong>Geocodificação (localizar plantas pelo endereço)</strong><div class="muted sm">Geocoding__Ativo · Geocoding__BaseUrl · Geocoding__Contato</div></td><td>@if (Geo.Configurado) { <span class="badge st-pos">Ativa</span> } else { <span class="badge st-warn">Desativada</span> }</td></tr>
                 <tr><td><strong>Estimativa de rota (carro)</strong><div class="muted sm">Routing__BaseUrl (compatível com OSRM)</div></td><td>@if (Rt.Configurada) { <span class="badge st-pos">Ativa</span> } else { <span class="badge st-warn">Não configurada — informar manualmente</span> }</td></tr>
                 <tr><td><strong>Camada do mapa</strong><div class="muted sm">Mapa__TileUrl · @Cfg["Mapa:TileUrl"]</div></td><td><span class="badge st-info">OpenStreetMap (público)</span></td></tr>
             </tbody></table>

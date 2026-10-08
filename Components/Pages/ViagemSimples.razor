@@ -93,8 +93,9 @@ else
             @if (_planta is null) { <div class="vs-mapa-aviso">Selecione a planta para ver no mapa onde o técnico vai estar.</div> }
             else if (!_planta.TemCoord) { <div class="vs-mapa-aviso">@Icons.Svg("pin")<span>Esta planta ainda não tem localização no mapa.</span>
                 @if (string.IsNullOrWhiteSpace(_planta.Cidade)) { <button class="btn-primary sm" @onclick="() => _pedirCidade = _planta.Id">Informar cidade</button> }
-                else if (Geo.Configurado) { <button class="btn-primary sm" @onclick="LocalizarAgora" disabled="@_localizando">@(_localizando ? "Localizando…" : "Localizar agora")</button> }
-                else { <span class="sm">Geocodificação não configurada.</span> }</div> }
+                else if (_localizando) { <span class="sm">Localizando pelo endereço…</span> }
+                else if (Geo.Configurado) { <button class="btn-primary sm" @onclick="LocalizarAgora">Tentar localizar de novo</button> @if (!string.IsNullOrEmpty(_planta.GeoFonte)) { <span class="sm">@_planta.GeoFonte</span> } }
+                else { <span class="sm">@Geo.Pendencia</span> }</div> }
         </div>
         @if (_planta is not null)
         {
@@ -281,10 +282,13 @@ else
     };
 
     // ---- planta / mapa ----
-    private void AoPlanta()
+    private async Task AoPlanta()
     {
         AtualizarPlanta(); Validar(); _redesenhar = true;
-        if (_planta is not null && string.IsNullOrWhiteSpace(_planta.Cidade) && _ator.Pode(Perm.EditarClientes)) _pedirCidade = _planta.Id;
+        if (_planta is null) return;
+        if (string.IsNullOrWhiteSpace(_planta.Cidade) && _ator.Pode(Perm.EditarClientes)) _pedirCidade = _planta.Id;
+        // tem endereço mas ainda não foi localizada: busca na hora (endereço → cidade → estado → país) e grava no cadastro
+        else if (!_planta.TemCoord && _planta.GeoStatus != "manual" && Geo.Configurado && _ator.Pode(Perm.EditarClientes)) await LocalizarAgora();
     }
     private void AlternarTec(string id, bool on) { if (on) _tecs.Add(id); else _tecs.Remove(id); AtualizarPlanta(); Validar(); _redesenhar = true; }
     private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(); AtualizarPlanta(); Validar(); _redesenhar = true; Sessao.Avisar("Cidade gravada no cadastro da planta."); }
@@ -293,9 +297,9 @@ else
     {
         if (_planta is null) return;
         _localizando = true; StateHasChanged();
-        try { await Svc.SalvarPlantaAsync(_ator, Db.Plantas.Obter(_planta.Id)!, Geo, forcarGeocodificar: true); _snap = Svc.Foto(); AtualizarPlanta(); _redesenhar = true; }
+        try { await Svc.SalvarPlantaAsync(_ator, Db.Plantas.Obter(_planta.Id)!, Geo, forcarGeocodificar: true); _snap = Svc.Foto(); AtualizarPlanta(); _redesenhar = true; Validar(); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
-        _localizando = false;
+        _localizando = false; StateHasChanged();
     }
 
     [JSInvokable] public Task AoClicarGrupo(string chave) => Task.CompletedTask;

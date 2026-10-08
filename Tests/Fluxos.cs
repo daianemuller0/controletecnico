@@ -616,10 +616,10 @@ public class GeocodificacaoCascataTests
         }
     }
     private sealed class Fab : IHttpClientFactory { public HttpMessageHandler H = null!; public HttpClient CreateClient(string name) => new(H); }
-    private static (Geocoder g, Fake f) Novo(Func<Dictionary<string, string>, bool> acha, string contato = "ti@x.com")
+    private static (Geocoder g, Fake f) Novo(Func<Dictionary<string, string>, bool> acha, string contato = "ti@x.com", string ativo = "true")
     {
         var f = new Fake { Acha = acha };
-        var cfg = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:Contato"] = contato, ["Geocoding:IntervaloMs"] = "0" }).Build();
+        var cfg = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:Contato"] = contato, ["Geocoding:Ativo"] = ativo, ["Geocoding:IntervaloMs"] = "0" }).Build();
         return (new Geocoder(new Fab { H = f }, cfg), f);
     }
 
@@ -657,9 +657,23 @@ public class GeocodificacaoCascataTests
         var (g, f) = Novo(_ => true);
         var r = await g.BuscarHierarquicoAsync("Chile", "Antofagasta", "", "Rua sem cidade");   // sem cidade: nem tenta endereço
         Assert.Equal("estado", r.Nivel); Assert.Equal(new[] { "estado" }, f.Chamadas);
-        var (g2, f2) = Novo(_ => true, contato: "");
+        var (g2, f2) = Novo(_ => true, contato: "", ativo: "false");
         var r2 = await g2.BuscarHierarquicoAsync("Brasil", "SP", "Campinas", "");
-        Assert.False(r2.Ok); Assert.Empty(f2.Chamadas); Assert.Contains("não configurada", r2.Mensagem);
+        Assert.False(r2.Ok); Assert.Empty(f2.Chamadas); Assert.Contains("desativada", r2.Mensagem);
+        var (g3, f3) = Novo(_ => true, contato: "");                                   // sem e-mail: funciona (contato é opcional)
+        Assert.True((await g3.BuscarHierarquicoAsync("Brasil", "SP", "Campinas", "")).Ok);
+    }
+
+    [Fact]
+    public async Task Sigla_de_estado_brasileiro_e_expandida_e_pais_em_ingles_funciona()
+    {
+        string? estadoVisto = null;
+        var (g, f) = Novo(q => { q.TryGetValue("state", out estadoVisto); return true; });
+        var r = await g.BuscarHierarquicoAsync("Brazil", "MG", "Itaú de Minas", "Rodovia MG 050 Km 341 - Taboca");
+        Assert.True(r.Ok); Assert.Equal("Minas Gerais", estadoVisto);
+        var (g2, _) = Novo(q => { q.TryGetValue("state", out estadoVisto); return true; });
+        await g2.BuscarHierarquicoAsync("Chile", "MG", "X", "");
+        Assert.Equal("MG", estadoVisto);                     // fora do Brasil a sigla não é alterada
     }
 
     [Fact]
