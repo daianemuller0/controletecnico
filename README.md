@@ -69,6 +69,10 @@ Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSen
 * **Planta sem cidade:** pode ser importada; ao selecionar a planta numa viagem ou compromisso, o sistema **pede a cidade** (e estado/país/endereço) e já grava no cadastro, localizando em seguida. Viagem com planta sem cidade não pode ser confirmada.
 * O e-mail de contato da geocodificação pode ser definido em *Administração → Configurações e integrações*.
 
+## Nova viagem (tela enxuta)
+
+Planta + serviço + técnicos e **três blocos de diárias**: *deslocamento de ida*, *serviço* e *deslocamento de volta* (início/fim de cada um; a tela conta as diárias de cada etapa e o total). Ao escolher a planta, o **mapa mostra onde o técnico vai estar** (e o deslocamento desde a origem do técnico, quando cadastrada). Por baixo, a viagem continua sendo gravada como trechos de ida/retorno e atendimento, então agenda, mapa e conflitos funcionam igual. Viagens antigas com itinerário complexo (vários trechos, trechos por técnico, entre plantas) abrem automaticamente no **modo avançado** (`/viagens/{id}/avancado`), sem perder dados.
+
 ## Decisões de modelagem
 
 * **Fonte única**: a agenda não duplica lançamentos. Os blocos são calculados de *trechos*, *atendimentos* e *indisponibilidades*

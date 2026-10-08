@@ -1,0 +1,365 @@
+@page "/viagens/{Id}"
+@attribute [Authorize]
+@implements IDisposable
+@inject Servicos Svc
+@inject Db Db
+@inject Geocoder Geo
+@inject Sessao Sessao
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IConfiguration Cfg
+
+<PageTitle>@(_novo ? "Nova viagem" : _v.Codigo) · Controle Técnico</PageTitle>
+<div class="breadcrumbs"><a href="/viagens">Controladoria e viagens</a><span class="sep">/</span><span class="strong" style="color:var(--text-2)">@(_novo ? "Nova viagem" : _v.Codigo)</span></div>
+
+@if (!_ok)
+{
+    <div class="state-box state-err">@Icons.Svg("lock")<div><strong>Viagem não encontrada ou sem permissão.</strong></div><a class="btn-ghost" href="/viagens">Voltar</a></div>
+}
+else
+{
+<div class="page-head compacto">
+    <div>
+        <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
+    </div>
+    @if (_pode)
+    {
+        <div class="momento-ctl">
+            <button class="btn-ghost" @onclick="@(() => Salvar(null))">@Icons.Svg("check")Salvar</button>
+            @if (_v.Status is Vocab.ViagemRascunho) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemPlanejada))">Salvar como planejada</button> }
+            @if (_v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConfirmada))" disabled="@(!_res.PodeConfirmar)" title="@(_res.PodeConfirmar ? "" : "Há pendências que impedem a confirmação")">@Icons.Svg("check")Confirmar</button> }
+            @if (_v.Status == Vocab.ViagemConfirmada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemAndamento))">@Icons.Svg("play")Iniciar</button> }
+            @if (_v.Status == Vocab.ViagemAndamento) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConcluida))">@Icons.Svg("flag")Concluir</button> }
+            @if (!_novo && _v.Status != Vocab.ViagemCancelada && _v.Status != Vocab.ViagemConcluida) { <button class="btn-danger-ghost" @onclick="@(() => _cancelando = true)">@Icons.Svg("x")Cancelar viagem</button> }
+            @if (!_novo && _v.Status == Vocab.ViagemCancelada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemRascunho))">Reabrir</button> }
+        </div>
+    }
+</div>
+@if (_v.Status == Vocab.ViagemCancelada) { <div class="alert-box alert-erro">@Icons.Svg("x")<div><strong>Cancelada:</strong> saiu da agenda e do mapa e não bloqueia a disponibilidade.</div></div> }
+@if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro" role="alert">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+
+<div class="vs-grid">
+<fieldset class="semborda vs-form" disabled="@(!_pode)">
+
+    <div class="panel">
+        <div class="form-grid">
+            <label class="fld">Planta
+                <select @bind="_v.PlantaId" @bind:after="AoPlanta"><option value="">— selecione —</option>
+                    @foreach (var p in _snap.Plantas.Values.Where(p => p.Ativo || p.Id == _v.PlantaId).OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)@(string.IsNullOrWhiteSpace(p.Cidade) ? "" : " — " + p.Cidade)</option>}</select></label>
+            <label class="fld">Serviço
+                <select @bind="_v.ServicoId" @bind:after="Validar"><option value="">— selecione —</option>
+                    @foreach (var s in _snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
+            <div class="fld full"><span>Técnicos</span>
+                <div class="chips-tec">@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo || _tecs.Contains(t.Id)).OrderBy(t => t.Nome)) {
+                    <label class="chk-inline"><input type="checkbox" checked="@_tecs.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome</label> }</div></div>
+        </div>
+    </div>
+
+    <div class="diarias">
+        @Bloco("ida", "Deslocamento de ida", "plane", "#d9822b", _ida, _fusoOrigem, _fusoPlanta, Dias(_ida.Ini, _ida.Fim), true)
+        @Bloco("serv", "Serviço", "customers", "#0369a1", _serv, _fusoPlanta, _fusoPlanta, Dias(_serv.Ini, _serv.Fim), false)
+        @Bloco("volta", "Deslocamento de volta", "plane", "#c26a14", _volta, _fusoPlanta, _fusoOrigem, Dias(_volta.Ini, _volta.Fim), true)
+    </div>
+
+    <details class="mais" open="@_maisAberto">
+        <summary @onclick="@(() => _maisAberto = !_maisAberto)" @onclick:preventDefault>Mais opções @Icons.Svg("chevron-right")</summary>
+        <div class="form-grid mt8">
+            <label class="fld">Status<select @bind="_v.Status" @bind:after="Validar">@foreach (var s in Vocab.StatusViagem) {<option value="@s.Key">@s.Label</option>}</select></label>
+            <label class="fld">Responsável pelo planejamento<input @bind="_v.Responsavel" /></label>
+            <label class="fld">Horas de serviço previstas <span class="hint">opcional</span><input type="number" step="0.5" min="0" @bind="_horasPrev" /></label>
+            <label class="fld">Horas de serviço realizadas <span class="hint">opcional</span><input type="number" step="0.5" min="0" @bind="_horasReal" /></label>
+            <label class="fld full">Observações<textarea @bind="_v.Obs"></textarea></label>
+        </div>
+        @if (!_novo)
+        {
+            <div class="mt8"><span class="muted sm">Anexos da viagem (bilhetes, vouchers)</span>
+            @if (!_verAnexos) { <div class="muted">@Icons.Svg("lock")Ocultos @(Sessao.Apresentacao ? "no modo apresentação" : "para o seu perfil").</div> }
+            else
+            {
+                @foreach (var an in _anexos) { <div class="anexo">@Icons.Svg("paperclip")<a href="/arquivos/@an.Id" target="_blank" rel="noopener">@an.NomeOriginal</a><a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal">@Icons.Svg("download")</a>
+                    @if (_pode) { <button class="row-act del" @onclick="() => RemoverAnexo(an)" title="Remover">@Icons.Svg("x")</button> }</div> }
+                @if (_pode) { <InputFile OnChange="AoAnexar" multiple accept=".pdf,.jpg,.jpeg,.png" /> }
+                @if (!string.IsNullOrEmpty(_msgAnexo)) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@_msgAnexo</div></div> }
+            }</div>
+        }
+    </details>
+</fieldset>
+
+<aside class="vs-lado">
+    <div class="panel">
+        <div class="panel-head"><div class="panel-title">Onde vai estar</div>@if (_planta is not null) { <GeoBadge P="_planta" /> }</div>
+        <div class="vs-mapa-wrap">
+            <div id="mapa-viagem" class="mapa vs-mapa" role="application" aria-label="Mapa do local do serviço"></div>
+            @if (_planta is null) { <div class="vs-mapa-aviso">Selecione a planta para ver no mapa onde o técnico vai estar.</div> }
+            else if (!_planta.TemCoord) { <div class="vs-mapa-aviso">@Icons.Svg("pin")<span>Esta planta ainda não tem localização no mapa.</span>
+                @if (string.IsNullOrWhiteSpace(_planta.Cidade)) { <button class="btn-primary sm" @onclick="() => _pedirCidade = _planta.Id">Informar cidade</button> }
+                else if (Geo.Configurado) { <button class="btn-primary sm" @onclick="LocalizarAgora" disabled="@_localizando">@(_localizando ? "Localizando…" : "Localizar agora")</button> }
+                else { <span class="sm">Geocodificação não configurada.</span> }</div> }
+        </div>
+        @if (_planta is not null)
+        {
+            <div class="vs-local"><strong>@_snap.NomePlanta(_planta.Id)</strong>
+                <div class="muted sm">@string.Join(", ", new[] { _planta.Rua, _planta.Cidade, _planta.Estado, _planta.Pais }.Where(x => !string.IsNullOrWhiteSpace(x)))</div>
+                @if (_planta.TemCoord && !string.IsNullOrEmpty(_planta.GeoNivel) && _planta.GeoNivel != "endereco") { <div class="sm warn">Posição aproximada ao nível de @(_planta.GeoNivel == "pais" ? "país" : _planta.GeoNivel): o endereço exato não foi encontrado.</div> }</div>
+        }
+    </div>
+
+    <div class="panel mt16">
+        <div class="panel-head"><div class="panel-title">Diárias</div></div>
+        <table class="tempos">
+            <tr><th>Deslocamento de ida</th><td>@Diar(Dias(_ida.Ini, _ida.Fim))</td></tr>
+            <tr><th>Serviço</th><td>@Diar(Dias(_serv.Ini, _serv.Fim))</td></tr>
+            <tr><th>Deslocamento de volta</th><td>@Diar(Dias(_volta.Ini, _volta.Fim))</td></tr>
+            <tr class="tot"><th>Total da viagem</th><td>@Diar(TotalDias())</td></tr>
+        </table>
+        <p class="muted sm">Diária = cada dia do calendário em que o técnico está naquela etapa (primeiro e último dia contam).</p>
+    </div>
+
+    <div class="panel mt16">
+        <div class="panel-head"><div class="panel-title">Verificação</div></div>
+        @if (!Tocou) { <p class="muted sm">Escolha a planta, os técnicos e as datas: a verificação de conflitos e de documentos aparece aqui.</p> }
+        else {
+        @if (_res.Erros.Count == 0 && _res.Conflitos.Count == 0 && _res.Avisos.Count == 0 && _res.Aptidoes.All(a => a.Apto) && _tecs.Count > 0 && _planta is not null) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Tudo certo: sem conflitos e sem pendências documentais.</div></div> }
+        @foreach (var e in _res.Erros) { <div class="alert-box alert-erro">@Icons.Svg("x")<div>@e</div></div> }
+        @foreach (var pid in _res.PlantasSemCidade) { <button class="btn-ghost sm mb8" @onclick="() => _pedirCidade = pid">@Icons.Svg("pin")Informar a cidade de @_snap.Planta(pid)?.Nome</button> }
+        @foreach (var c in _res.Conflitos) { <div class="alert-box @(c.Erro ? "alert-erro" : "alert-aviso")">@Icons.Svg("alert")<div><strong>@(_snap.Tecnico(c.TecnicoId)?.Nome):</strong> @c.Motivo</div></div> }
+        @foreach (var ap in _res.Aptidoes.Where(a => !a.Apto))
+        { foreach (var p in ap.Pendencias) { <div class="alert-box @(p.Bloqueia ? "alert-erro" : "alert-aviso")">@Icons.Svg("shield")<div><strong>@ap.Tecnico.Nome</strong> — @p.Motivo <span class="sm">@(p.Bloqueia ? "Bloqueia a confirmação." : "Apenas alerta.")</span></div></div> } }
+        @foreach (var w in _res.Avisos) { <div class="alert-box alert-aviso">@Icons.Svg("info")<div>@w</div></div> }
+        }
+    </div>
+</aside>
+</div>
+
+@if (_pedirCidade is not null) { <CidadePlanta PlantaId="@_pedirCidade" Ator="@_ator" OnSalvo="CidadeSalva" OnFechar="@(() => _pedirCidade = null)" /> }
+@if (_cancelando)
+{
+    <Dialogo Titulo="Cancelar viagem" OnFechar="@(() => _cancelando = false)">
+        <p>A viagem sai da agenda e do mapa e a disponibilidade dos técnicos é liberada. O registro e o histórico são mantidos.</p>
+        <label class="fld">Motivo <input @bind="_motivo" /></label>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _cancelando = false)">Voltar</button><button class="btn-danger" @onclick="Cancelar">@Icons.Svg("x")Cancelar viagem</button></div>
+    </Dialogo>
+}
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private sealed class Faixa { public string Ini = "", Fim = "", Modal = Vocab.ModalAviao; public Trecho? T; public Atendimento? A; }
+
+    private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verAnexos, _maisAberto, _cancelando, _localizando;
+    private Viagem _v = new(); private HashSet<string> _tecs = new(); private Faixa _ida = new(), _serv = new(), _volta = new();
+    private double? _horasPrev, _horasReal; private ResultadoViagem _res = new(); private List<string>? _erros; private Planta? _planta;
+    private List<Anexo> _anexos = new(); private string? _msgAnexo, _motivo, _pedirCidade; private string _fusoOrigem = "", _fusoPlanta = "";
+    private DotNetObjectReference<ViagemSimples>? _ref; private bool _mapaPronto, _redesenhar;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _ator = await Sessao.AtorAsync();
+        Sessao.Mudou -= Ao; Sessao.Mudou += Ao; _ref ??= DotNetObjectReference.Create(this);
+        Carregar();
+    }
+    private void Ao() => InvokeAsync(StateHasChanged);
+
+    private void Carregar()
+    {
+        _snap = Svc.Foto(); _erros = null; _novo = Id == "novo"; _pode = _ator.Pode(Perm.EditarViagens);
+        _verAnexos = (_ator.Pode(Perm.VerAnexosViagem) || _ator.Papel == Roles.Tecnico) && !Sessao.Apresentacao;
+        _ida = new Faixa { Modal = Vocab.ModalAviao }; _serv = new Faixa(); _volta = new Faixa { Modal = Vocab.ModalAviao }; _horasPrev = _horasReal = null;
+        if (_novo) { _ok = _pode; _v = new Viagem { Responsavel = _ator.Nome }; _tecs = new(); }
+        else
+        {
+            var v = _snap.Viagem(Id);
+            if (v is null || !(_ator.VeTodaEquipe || (_ator.Papel == Roles.Tecnico && Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId)))) { _ok = false; return; }
+            var trs = _snap.Trechos.Where(t => t.ViagemId == Id).OrderBy(t => t.Ordem).ToList(); var ats = _snap.Atendimentos.Where(a => a.ViagemId == Id).ToList();
+            var todos = Ui.Ids(v.TecnicoIds).ToHashSet();
+            bool paraTodos(string ids) => ids == "" || Ui.Ids(ids).ToHashSet().SetEquals(todos);      // vale para todos os técnicos da viagem
+            // viagem com itinerário complexo (vários trechos/atendimentos, trechos por técnico, entre plantas): usa o modo avançado, sem perder nada
+            var simples = trs.Count(t => t.Tipo == Vocab.TrechoIda) <= 1 && trs.Count(t => t.Tipo == Vocab.TrechoRetorno) <= 1 && trs.All(t => t.Tipo != Vocab.TrechoEntre && paraTodos(t.TecnicoIds))
+                          && ats.Count <= 1 && ats.All(a => paraTodos(a.TecnicoIds) && (a.PlantaId == v.PlantaId || v.PlantaId == ""));
+            if (!simples) { Nav.NavigateTo($"/viagens/{Id}/avancado", replace: true); return; }
+            _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet();
+            _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == Id);
+            AtualizarPlanta();
+            var ti = trs.FirstOrDefault(t => t.Tipo == Vocab.TrechoIda); var tr = trs.FirstOrDefault(t => t.Tipo == Vocab.TrechoRetorno); var at = ats.FirstOrDefault();
+            if (ti is not null) _ida = new Faixa { T = ti.Copia<Trecho>(), Modal = ti.Modal, Ini = Ui.ParaInput(ti.PartidaPrev, _fusoOrigem), Fim = Ui.ParaInput(ti.ChegadaPrev, _fusoPlanta) };
+            if (tr is not null) _volta = new Faixa { T = tr.Copia<Trecho>(), Modal = tr.Modal, Ini = Ui.ParaInput(tr.PartidaPrev, _fusoPlanta), Fim = Ui.ParaInput(tr.ChegadaPrev, _fusoOrigem) };
+            if (at is not null) { _serv = new Faixa { A = at.Copia<Atendimento>(), Ini = Ui.ParaInput(at.IniPrev, _fusoPlanta), Fim = Ui.ParaInput(at.FimPrev, _fusoPlanta) }; _horasPrev = at.HorasPrev; _horasReal = at.HorasReal; }
+        }
+        AtualizarPlanta(); Validar(); _redesenhar = true;
+    }
+
+    private void AtualizarPlanta()
+    {
+        _planta = _snap.Planta(_v.PlantaId);
+        _fusoPlanta = _planta?.FusoHorario ?? _snap.FusoPadrao;
+        _fusoOrigem = _tecs.Select(t => _snap.Tecnico(t)?.FusoHorario).FirstOrDefault(f => !string.IsNullOrEmpty(f)) ?? _snap.FusoPadrao;
+    }
+
+    private string OrigemTexto()
+    {
+        var t = _tecs.Select(x => _snap.Tecnico(x)).FirstOrDefault(x => x is not null);
+        return t is null ? "Origem" : !string.IsNullOrWhiteSpace(t.OrigemHabitual) ? t.OrigemHabitual : string.IsNullOrWhiteSpace(t.Cidade) ? t.Nome : t.Cidade;
+    }
+
+    private (double?, double?) OrigemCoord()
+    {
+        var t = _tecs.Select(x => _snap.Tecnico(x)).FirstOrDefault(x => x?.OrigemLat is not null);
+        return (t?.OrigemLat, t?.OrigemLon);
+    }
+
+    private (Viagem v, List<Trecho> tr, List<Atendimento> at) Montar()
+    {
+        var v = _v.Copia<Viagem>(); v.TecnicoIds = Servicos.Csv(_tecs);
+        if (_planta is not null) { v.ClienteId = _planta.ClienteId; v.Destino = _snap.NomePlanta(_planta.Id); }
+        v.Origem = OrigemTexto(); v.HorasPrevistas = _horasPrev; v.HorasRealizadas = _horasReal;
+        var tr = new List<Trecho>(); var at = new List<Atendimento>();
+        var (olat, olon) = OrigemCoord(); var nomeP = _planta is null ? "Destino" : _snap.NomePlanta(_planta.Id);
+
+        var ini = Ui.DoInput(_ida.Ini, _fusoOrigem); var fim = Ui.DoInput(_ida.Fim, _fusoPlanta);
+        if (ini.HasValue || fim.HasValue)
+        {
+            var t = (_ida.T ?? new Trecho()).Copia<Trecho>();
+            t.Tipo = Vocab.TrechoIda; t.Modal = _ida.Modal; t.Origem = OrigemTexto(); t.Destino = nomeP; t.DestPlantaId = _v.PlantaId; t.OrigemPlantaId = "";
+            t.FusoOrigem = _fusoOrigem; t.FusoDestino = _fusoPlanta; t.PartidaPrev = ini; t.ChegadaPrev = fim; t.OrigemLat = olat; t.OrigemLon = olon;
+            t.DestLat = _planta?.Lat; t.DestLon = _planta?.Lon; t.TecnicoIds = "";
+            if (ini.HasValue && fim.HasValue) { t.DuracaoMin = (int)(fim.Value - ini.Value).TotalMinutes; t.DuracaoFonte = "horarios"; }
+            tr.Add(t);
+        }
+        var si = Ui.DoInput(_serv.Ini, _fusoPlanta); var sf = Ui.DoInput(_serv.Fim, _fusoPlanta);
+        if (si.HasValue || sf.HasValue)
+        {
+            var a = (_serv.A ?? new Atendimento()).Copia<Atendimento>();
+            a.PlantaId = _v.PlantaId; a.ServicoId = _v.ServicoId; a.ClienteId = _v.ClienteId; a.IniPrev = si ?? default; a.FimPrev = sf ?? default; a.TecnicoIds = "";
+            a.HorasPrev = _horasPrev; a.HorasReal = _horasReal; a.ViagemId = _v.Id;
+            at.Add(a);
+        }
+        var vi = Ui.DoInput(_volta.Ini, _fusoPlanta); var vf = Ui.DoInput(_volta.Fim, _fusoOrigem);
+        if (vi.HasValue || vf.HasValue)
+        {
+            var t = (_volta.T ?? new Trecho()).Copia<Trecho>();
+            t.Tipo = Vocab.TrechoRetorno; t.Modal = _volta.Modal; t.Origem = nomeP; t.OrigemPlantaId = _v.PlantaId; t.Destino = OrigemTexto(); t.DestPlantaId = "";
+            t.FusoOrigem = _fusoPlanta; t.FusoDestino = _fusoOrigem; t.PartidaPrev = vi; t.ChegadaPrev = vf; t.OrigemLat = _planta?.Lat; t.OrigemLon = _planta?.Lon;
+            t.DestLat = olat; t.DestLon = olon; t.TecnicoIds = "";
+            if (vi.HasValue && vf.HasValue) { t.DuracaoMin = (int)(vf.Value - vi.Value).TotalMinutes; t.DuracaoFonte = "horarios"; }
+            tr.Add(t);
+        }
+        return (v, tr, at);
+    }
+
+    private void Validar()
+    {
+        try { var (v, tr, at) = Montar(); _res = Svc.Validar(v, tr, at); }
+        catch (Exception ex) { _res = new ResultadoViagem(); _res.Erros.Add(ex.Message); }
+    }
+
+    // ---- diárias ----
+    private int? Dias(string ini, string fim)
+    {
+        if (!DateTime.TryParse(ini, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var a) ||
+            !DateTime.TryParse(fim, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var b) || b < a) return null;
+        return (int)(b.Date - a.Date).TotalDays + 1;
+    }
+    private int? TotalDias()
+    {
+        var todos = new[] { _ida, _serv, _volta }.SelectMany(f => new[] { f.Ini, f.Fim }).Where(x => DateTime.TryParse(x, out _)).Select(x => DateTime.Parse(x, System.Globalization.CultureInfo.InvariantCulture).Date).ToList();
+        return todos.Count < 2 ? null : (int)(todos.Max() - todos.Min()).TotalDays + 1;
+    }
+    private bool Tocou => !_novo || !string.IsNullOrEmpty(_v.PlantaId) || _tecs.Count > 0 || new[] { _ida, _serv, _volta }.Any(f => f.Ini != "" || f.Fim != "");
+    private static string Diar(int? d) => d is null ? "—" : d == 1 ? "1 diária" : $"{d} diárias";
+
+    private RenderFragment Bloco(string chave, string titulo, string icone, string cor, Faixa f, string fusoIni, string fusoFim, int? dias, bool transporte) => __builder =>
+    {
+        <div class="diaria" style="--c:@cor">
+            <div class="diaria-cab"><span class="ev-selo sm" style="background:@cor">@Icons.Svg(icone)</span><strong>@titulo</strong><span class="grow"></span><span class="badge diar-n">@Diar(dias)</span></div>
+            <div class="form-grid">
+                <label class="fld">@(transporte ? "Saída" : "Início") <span class="hint">@Tempo.Offset(fusoIni, DateTime.UtcNow)</span><input type="datetime-local" value="@f.Ini" @onchange="e => { f.Ini = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                <label class="fld">@(transporte ? "Chegada" : "Fim") <span class="hint">@Tempo.Offset(fusoFim, DateTime.UtcNow)</span><input type="datetime-local" value="@f.Fim" @onchange="e => { f.Fim = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                @if (transporte) { <label class="fld">Transporte<select value="@f.Modal" @onchange="e => f.Modal = e.Value?.ToString() ?? Vocab.ModalCarro"><option value="aviao">Avião</option><option value="carro">Carro</option><option value="outro">Outro</option></select></label> }
+            </div>
+        </div>
+    };
+
+    // ---- planta / mapa ----
+    private void AoPlanta()
+    {
+        AtualizarPlanta(); Validar(); _redesenhar = true;
+        if (_planta is not null && string.IsNullOrWhiteSpace(_planta.Cidade) && _ator.Pode(Perm.EditarClientes)) _pedirCidade = _planta.Id;
+    }
+    private void AlternarTec(string id, bool on) { if (on) _tecs.Add(id); else _tecs.Remove(id); AtualizarPlanta(); Validar(); _redesenhar = true; }
+    private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(); AtualizarPlanta(); Validar(); _redesenhar = true; Sessao.Avisar("Cidade gravada no cadastro da planta."); }
+
+    private async Task LocalizarAgora()
+    {
+        if (_planta is null) return;
+        _localizando = true; StateHasChanged();
+        try { await Svc.SalvarPlantaAsync(_ator, Db.Plantas.Obter(_planta.Id)!, Geo, forcarGeocodificar: true); _snap = Svc.Foto(); AtualizarPlanta(); _redesenhar = true; }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _localizando = false;
+    }
+
+    [JSInvokable] public Task AoClicarGrupo(string chave) => Task.CompletedTask;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_ok) return;
+        try
+        {
+            if (!_mapaPronto)
+            {
+                _mapaPronto = await JS.InvokeAsync<bool>("app.mapa.iniciar", "mapa-viagem", _ref, new { centro = new[] { -15.0, -52.0 }, zoom = 4, tileUrl = Cfg["Mapa:TileUrl"], atribuicao = Cfg["Mapa:Atribuicao"] });
+                _redesenhar = true;
+            }
+            if (_mapaPronto && _redesenhar)
+            {
+                _redesenhar = false;
+                var grupos = new List<object>(); var rotas = new List<object>();
+                if (_planta is { TemCoord: true } p)
+                {
+                    var nomes = _tecs.Select(t => _snap.Tecnico(t)?.Nome).Where(n => n != null).Select(n => new { nome = n!, cor = "#0369a1" }).ToList();
+                    grupos.Add(new { chave = p.Id, lat = p.Lat!.Value, lon = p.Lon!.Value, titulo = _snap.NomePlanta(p.Id), cor = "#0369a1", tracejado = p.GeoNivel is "cidade" or "estado" or "pais",
+                        viagem = false, iniciais = "📍", rotulo = p.GeoNivel is "cidade" or "estado" or "pais" ? $"Posição aproximada ({p.GeoNivel})" : "Local do serviço", tecnicos = nomes.Count == 0 ? new[] { new { nome = "Técnico(s) a definir", cor = "#8793a6" } }.ToList() : nomes });
+                    var (la, lo) = OrigemCoord();
+                    if (la.HasValue) rotas.Add(new { de = new[] { la.Value, lo!.Value }, para = new[] { p.Lat!.Value, p.Lon!.Value }, cor = "#d9822b", titulo = $"{OrigemTexto()} → {_snap.NomePlanta(p.Id)} (deslocamento)" });
+                }
+                await JS.InvokeVoidAsync("app.mapa.desenhar", "mapa-viagem", new { grupos, rotas, ajustar = true });
+            }
+        }
+        catch (JSDisconnectedException) { }
+        catch { }
+    }
+
+    // ---- salvar ----
+    private void Salvar(string? status)
+    {
+        _erros = null;
+        try
+        {
+            if (status is not null) _v.Status = status;
+            var (v, tr, at) = Montar();
+            var salvo = Svc.SalvarViagem(_ator, v, tr, at);
+            Sessao.Avisar(status == Vocab.ViagemConfirmada ? "Viagem confirmada." : "Viagem salva.");
+            if (_novo) Nav.NavigateTo($"/viagens/{salvo.Id}"); else { Id = salvo.Id; Carregar(); }
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); if (status is not null && !_novo) _v.Status = _snap.Viagem(Id)?.Status ?? _v.Status; }
+    }
+
+    private void Cancelar()
+    {
+        try { Svc.AlterarStatusViagem(_ator, Id, Vocab.ViagemCancelada, _motivo); _cancelando = false; Carregar(); Sessao.Avisar("Viagem cancelada; agenda e mapa atualizados."); }
+        catch (Exception ex) { _cancelando = false; _erros = Ui.Erros(ex); }
+    }
+
+    private async Task AoAnexar(InputFileChangeEventArgs e)
+    {
+        _msgAnexo = null; var falhas = new List<string>();
+        foreach (var f in e.GetMultipleFiles(10))
+            try { await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(_ator, "viagem", Id, f.Name, s); }
+            catch (Exception ex) { falhas.Add($"{f.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+        _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == Id);
+        if (falhas.Count > 0) _msgAnexo = string.Join(" | ", falhas); else Sessao.Avisar("Anexo adicionado.");
+    }
+    private void RemoverAnexo(Anexo a) { try { Svc.RemoverAnexo(_ator, a.Id); _anexos = Db.Anexos.Onde(x => x.DonoTipo == "viagem" && x.DonoId == Id); } catch (Exception ex) { _msgAnexo = string.Join(" ", Ui.Erros(ex)); } }
+
+    public void Dispose() { Sessao.Mudou -= Ao; try { _ = JS.InvokeVoidAsync("app.mapa.destruir", "mapa-viagem"); } catch { } _ref?.Dispose(); }
+}

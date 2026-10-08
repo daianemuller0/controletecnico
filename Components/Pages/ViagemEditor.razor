@@ -1,4 +1,4 @@
-@page "/viagens/{Id}"
+@page "/viagens/{Id}/avancado"
 @attribute [Authorize]
 @implements IDisposable
 @inject Servicos Svc
@@ -9,7 +9,7 @@
 @inject NavigationManager Nav
 
 <PageTitle>@(_novo ? "Nova viagem" : _v.Codigo) · Controle Técnico</PageTitle>
-<div class="breadcrumbs"><a href="/viagens">Controladoria e viagens</a><span class="sep">/</span><span class="strong" style="color:var(--text-2)">@(_novo ? "Nova viagem" : _v.Codigo)</span></div>
+<div class="breadcrumbs"><a href="/viagens">Controladoria e viagens</a><span class="sep">/</span><span class="strong" style="color:var(--text-2)">@(_novo ? "Nova viagem" : _v.Codigo) · modo avançado (trechos)</span></div>
 
 @if (!_ok)
 {

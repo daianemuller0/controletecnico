@@ -381,3 +381,26 @@ input[type=checkbox], input[type=radio] { width: auto !important; accent-color: 
 .paginacao { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 10px 0; font-size: 12.5px; color: var(--text-2); }
 .job-painel .barra { height: 8px; border-radius: 99px; background: rgba(0,0,0,.08); margin: 6px 0; min-width: 260px; overflow: hidden; }
 .job-painel .barra i { display: block; height: 100%; background: var(--primary); transition: width .3s; }
+
+/* ==========================================================================
+   Nova viagem (enxuta): formulário + mapa + diárias
+   ========================================================================== */
+.vs-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+.vs-lado { position: sticky; top: 76px; }
+.vs-mapa-wrap { position: relative; }
+.vs-mapa { height: 250px; min-height: 220px; }
+.vs-mapa-aviso { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; text-align: center; padding: 16px;
+    background: rgba(238, 242, 247, .86); border-radius: 10px; color: var(--text-2); font-size: 12.5px; z-index: 450; }
+.vs-mapa-aviso svg { width: 22px; height: 22px; color: var(--muted); }
+.vs-local { margin-top: 10px; font-size: 12.5px; }
+.diarias { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.diaria { background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--c); border-radius: var(--radius); padding: 12px 14px; }
+.diaria-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.diaria .form-grid { grid-template-columns: 1fr 1fr 150px; }
+.badge.diar-n { background: color-mix(in srgb, var(--c) 14%, #fff); color: var(--c); }
+.mais { margin-top: 14px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; }
+.mais summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--primary); list-style: none; display: flex; align-items: center; gap: 6px; }
+.mais summary svg { width: 14px; height: 14px; transition: transform .15s; }
+.mais[open] summary svg { transform: rotate(90deg); }
+@media (max-width: 1100px) { .vs-grid { grid-template-columns: 1fr; } .vs-lado { position: static; } }
+@media (max-width: 640px) { .diaria .form-grid { grid-template-columns: 1fr; } }
