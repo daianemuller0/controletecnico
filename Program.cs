@@ -48,6 +48,24 @@ catch (Exception ex)
                             "Para desenvolvimento use a variável Data__Folder apontando para uma pasta local.");
     return 1;
 }
+// Recuperação de acesso: dotnet run -- --redefinir-admin [--senha=NovaSenha]
+// Só quem tem acesso à pasta da base (e à máquina) consegue executar; não apaga nenhum dado.
+if (args.Contains("--redefinir-admin"))
+{
+    var dbR = new Db(store);
+    var senhaR = args.FirstOrDefault(a => a.StartsWith("--senha="))?["--senha=".Length..] ?? builder.Configuration["Seed:AdminSenha"];
+    if (string.IsNullOrEmpty(senhaR))
+        senhaR = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12)).Replace('/', 'x').Replace('+', 'y');
+    if (senhaR.Length < 8) { Console.Error.WriteLine("A senha deve ter ao menos 8 caracteres."); return 1; }
+    var uAdm = dbR.Usuarios.Obter("admin") ?? new Usuario { Id = "admin", Nome = "Administrador" };
+    uAdm.Papel = Roles.Admin; uAdm.Ativo = true; (uAdm.Hash, uAdm.Salt) = Servicos.HashSenha(senhaR);
+    dbR.Usuarios.Salvar(uAdm, "recuperacao");
+    dbR.Auditorias.Salvar(new Auditoria { Quando = DateTime.UtcNow, Usuario = $"{Environment.UserName}@{Environment.MachineName}", Papel = Roles.Admin,
+        Acao = "usuario.recuperar", Entidade = "usuario", EntidadeId = "admin", Resumo = "Senha do administrador redefinida por linha de comando" });
+    Console.WriteLine($"[controletecnico] Usuário 'admin' redefinido e ativo. Senha: {senhaR}");
+    Console.WriteLine("Entre e troque a senha pelo cadeado no topo da tela.");
+    return 0;
+}
 Repo<Tecnico>.SegundosEntreChecagens = builder.Configuration.GetValue("Data:AtualizarCacheSegundos", 3);
 builder.Services.AddSingleton(store);
 builder.Services.AddHostedService<CompactacaoService>();

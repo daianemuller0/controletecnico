@@ -28,6 +28,14 @@ Como foi pensado para pasta de rede com várias pessoas usando ao mesmo tempo:
 * A conta que executa o programa precisa de **leitura e escrita** na pasta. Em *Administração → Armazenamento* há o teste real de leitura/escrita, latência e contagem de arquivos.
 * Base real (`Seed:Demo=false`, padrão): as telas de "apagar/recarregar dados fictícios" ficam bloqueadas.
 
+## Recuperar o acesso do administrador
+
+```bash
+dotnet run -- --redefinir-admin --senha=NovaSenha123   # sem --senha, gera uma aleatória e imprime
+```
+
+Recria/reativa o usuário `admin` com a senha informada (mín. 8 caracteres), **sem apagar dados**, e registra a operação no histórico. Só funciona em quem tem acesso à pasta da base.
+
 ## Como executar
 
 ```bash
