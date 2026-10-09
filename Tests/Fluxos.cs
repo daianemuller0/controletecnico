@@ -73,12 +73,13 @@ public class AgendaTests
     }
 
     [Fact]
-    public void Tecnico_sem_agenda_e_sem_programacao_nao_disponivel()
+    public void Tecnico_sem_programacao_e_considerado_disponivel()
     {
         using var a = new Amb(); var t = a.NovoTec();
         var snap = a.Svc.Foto(); var ev = AgendaEngine.Eventos(snap);
         var est = AgendaEngine.EstadoEm(snap, ev, snap.Tecnicos[t.Id], DateTime.UtcNow, DateTime.UtcNow);
-        Assert.Equal(Vocab.OpSemProg, est.Status);
+        Assert.Equal(Vocab.OpDisponivel, est.Status);
+        Assert.False(est.AgendaMantida);
         Assert.Equal("nenhum", est.LocalFonte);
     }
 
@@ -337,7 +338,7 @@ public class DemoTests
         var snap = a.Svc.Foto(); var ev = AgendaEngine.Eventos(snap); var agora = DateTime.UtcNow;
         var estados = snap.Tecnicos.Values.Select(t => AgendaEngine.EstadoEm(snap, ev, t, agora, agora).Status).ToHashSet();
         Assert.Contains(Vocab.OpDisponivel, estados); Assert.Contains(Vocab.OpAtendimento, estados); Assert.Contains(Vocab.OpViagem, estados);
-        Assert.Contains(Vocab.OpFerias, estados); Assert.Contains(Vocab.OpSemProg, estados); Assert.Contains(Vocab.OpIndisponivel, estados);
+        Assert.Contains(Vocab.OpFerias, estados); Assert.Contains(Vocab.OpIndisponivel, estados);
         Assert.Contains(snap.Trechos, t => t.Modal == Vocab.ModalAviao); Assert.Contains(snap.Trechos, t => t.Modal == Vocab.ModalCarro);
         Assert.True(snap.Plantas.Values.GroupBy(p => p.ClienteId).Any(g => g.Count() > 1));
         var hoje = DocEngine.Hoje(snap.FusoPadrao);

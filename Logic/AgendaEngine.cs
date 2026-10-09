@@ -258,19 +258,19 @@ public static class AgendaEngine
         var atend = ativos.FirstOrDefault(e => e.Tipo == Vocab.EvAtendimento);
         var viag = ativos.FirstOrDefault(e => e.EhViagem);
 
-        string status; Evento? atual;
+        string status; Evento? atual; var mantida = false;
         if (ind is not null) { status = ind.Tipo == Vocab.EvFerias ? Vocab.OpFerias : Vocab.OpIndisponivel; atual = ind; }
         else if (atend is not null) { status = Vocab.OpAtendimento; atual = atend; }
         else if (viag is not null) { status = Vocab.OpViagem; atual = viag; }
         else
         {
             atual = null;
-            // "Sem programação" ≠ "disponível": só há disponibilidade real onde a agenda é mantida.
+            // Sem compromisso = disponível. "AgendaMantida" só indica se há movimento recente/futuro cadastrado (usado como aviso).
             var janela = TimeSpan.FromDays(90);
-            var mantida = meus.Any(e => e.Fim > instante - janela && e.Ini < instante + janela);
-            status = mantida ? Vocab.OpDisponivel : Vocab.OpSemProg;
+            mantida = meus.Any(e => e.Fim > instante - janela && e.Ini < instante + janela);
+            status = Vocab.OpDisponivel;
         }
-        var mantidaFinal = status != Vocab.OpSemProg;
+        var mantidaFinal = status != Vocab.OpDisponivel || mantida;
 
         // ---- localização prevista (derivada da agenda) ----
         string texto = ""; string fonte = "nenhum"; Planta? planta = null; double? lat = null, lon = null;
@@ -317,6 +317,7 @@ public static class AgendaEngine
         var motivo = status switch
         {
             Vocab.OpSemProg => "Nenhum compromisso cadastrado perto desta data: não há informação para afirmar que está livre.",
+            Vocab.OpDisponivel when !mantidaFinal => "Sem compromissos neste momento (sem programação cadastrada perto desta data): considerado disponível.",
             Vocab.OpDisponivel => "Sem compromissos neste momento, com agenda mantida.",
             _ => atual?.Titulo ?? "",
         };

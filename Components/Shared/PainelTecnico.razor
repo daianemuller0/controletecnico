@@ -82,7 +82,7 @@
         <dd>@if (E.Proximo is { } prox) { <span>@prox.Titulo · @Ui.Periodo(prox.Ini, prox.Fim, prox.Fuso, Snap)</span> } else { <span class="muted">Nenhum agendado</span> }</dd>
         <dt>Próximo período disponível</dt>
         <dd>@if (Livre is { } l) { <span>@(l.fim is null ? $"a partir de {l.ini:dd/MM/yyyy}" : $"{l.ini:dd/MM/yyyy} a {l.fim:dd/MM/yyyy}")</span> } else { <span class="muted">Sem janela livre no horizonte</span> }</dd>
-        @if (E.Status == Vocab.OpSemProg) { <dt>Observação</dt><dd class="muted">@E.Motivo</dd> }
+        @if (E.Status == Vocab.OpDisponivel && !E.AgendaMantida) { <dt>Observação</dt><dd class="muted">@E.Motivo</dd> }
     </dl>
 
     <h3 class="sec">@Icons.Svg("shield")Documentos e treinamentos</h3>

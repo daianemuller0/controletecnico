@@ -500,3 +500,35 @@ input[type=checkbox], input[type=radio] { width: auto !important; accent-color: 
 body.apresentacao .gp-head-v { font-size: 52px; }
 .gp-grid > .gp-card:last-child { grid-column: span 2; }
 @media (max-width: 1100px) { .gp-grid > .gp-card:last-child { grid-column: auto; } }
+
+/* ---- modo automático (apresentação em tela cheia) ---- */
+body.auto-on { overflow: hidden; }
+body.auto-on .op-mapa { position: fixed; inset: 0; z-index: 3000; padding: 0; border-radius: 0; background: #fff; }
+body.auto-on .mapa { height: 100vh; min-height: 0; border: 0; border-radius: 0; }
+body.auto-on .mapa-leg, body.auto-on .mapa-nota, body.auto-on .sem-mapa { display: none; }
+body.auto-on .toast-area, body.auto-on .toaster { z-index: 3500; }
+.auto-ctl { position: fixed; top: 14px; right: 14px; z-index: 3100; display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,.94); padding: 6px 8px; border-radius: 12px; box-shadow: 0 4px 18px rgba(0,30,70,.25); }
+.auto-vel { display: inline-flex; border: 1px solid var(--border, #dde3ea); border-radius: 8px; overflow: hidden; }
+.auto-vel button { border: 0; background: #fff; padding: 6px 10px; font-size: 12px; cursor: pointer; color: #1d2b3f; } .auto-vel button.on { background: #004785; color: #fff; }
+.auto-card { position: fixed; left: 18px; top: 18px; bottom: 64px; width: min(430px, 42vw); z-index: 3100; background: rgba(255,255,255,.96); border-radius: 16px; border-top: 8px solid var(--c);
+    box-shadow: 0 10px 34px rgba(0,30,70,.3); padding: 18px 20px; display: flex; flex-direction: column; min-height: 0; }
+.auto-topo { display: flex; align-items: center; gap: 14px; }
+.auto-ico { width: 52px; height: 52px; border-radius: 14px; background: var(--c); color: #fff; display: grid; place-items: center; flex: none; } .auto-ico svg { width: 28px; height: 28px; }
+.auto-tit { font-size: 26px; font-weight: 800; color: #1d2b3f; line-height: 1.1; } .auto-sub { font-size: 14px; color: #5b6b80; margin-top: 3px; }
+.auto-qtd { font-size: 96px; font-weight: 800; color: var(--c); line-height: 1; margin: 10px 0 4px; animation: autoPop .5s ease; }
+.auto-lista { list-style: none; margin: 10px 0 0; padding: 0; overflow-y: auto; display: grid; gap: 8px; align-content: start; flex: 1; min-height: 0; }
+.auto-lista li { display: flex; gap: 10px; align-items: flex-start; font-size: 17px; padding: 8px 10px; border-radius: 10px; background: #f3f6fa; animation: autoIn .4s ease; }
+.auto-lista li.novo { background: #e6f0fb; outline: 2px solid var(--c); }
+.auto-lista li i { width: 12px; height: 12px; border-radius: 50%; margin-top: 6px; flex: none; }
+.auto-lista li strong { display: block; color: #1d2b3f; } .auto-lista li span { display: block; font-size: 13px; color: #5b6b80; margin-top: 1px; }
+.auto-lista li.vazio { color: #6b7a90; background: none; font-size: 18px; }
+.auto-passos { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 3100; display: flex; gap: 6px; background: rgba(255,255,255,.94); padding: 7px 10px; border-radius: 999px; box-shadow: 0 4px 18px rgba(0,30,70,.25); max-width: 96vw; overflow: hidden; }
+.auto-passos span { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 4px 9px; border-radius: 999px; color: #8793a6; }
+.auto-passos span i { width: 9px; height: 9px; border-radius: 50%; opacity: .45; }
+.auto-passos span.ok { color: #4a5a70; } .auto-passos span.on { background: #004785; color: #fff; font-weight: 700; } .auto-passos span.on i { opacity: 1; }
+.mk-novo { animation: mkPulse 1s ease 2; z-index: 1000; }
+@keyframes mkPulse { 0% { transform: scale(.2); opacity: 0; } 60% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes autoIn { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes autoPop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (max-width: 760px) { .auto-card { width: auto; right: 18px; bottom: 80px; top: auto; max-height: 55vh; } }
+body.auto-on .leaflet-control-zoom, body.auto-on .mapa-aviso { display: none; }

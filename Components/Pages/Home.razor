@@ -21,6 +21,7 @@
         </label>
         <button class="btn-ghost sm" @onclick="VoltarAgora" disabled="@_agora">@Icons.Svg("clock")Agora</button>
         <button class="btn-ghost sm" @onclick="@(() => Recarregar(true))" title="Recarregar dados">@Icons.Svg("refresh")</button>
+        <button class="btn-primary sm" @onclick="IniciarAuto" title="Apresentação automática em tela cheia: mapa e indicadores, um por vez">@Icons.Svg("monitor")Modo automático</button>
     </div>
 </div>
 
@@ -36,7 +37,7 @@ else if (_erro is not null)
 else
 {
     <div class="kpi-linha" role="group" aria-label="Indicadores">
-        @Kpi("disponivel", "Disponíveis", _kDisp.Count, "check", "#1f9254", "Técnicos sem compromisso e com agenda mantida")
+        @Kpi("disponivel", "Disponíveis", _kDisp.Count, "check", "#1f9254", "Técnicos sem compromisso neste momento (inclui quem não tem programação)")
         @Kpi("atendimento", "Em atendimento", _kAtend.Count, "customers", "#0369a1", "Na planta do cliente")
         @Kpi("viagem", "Em viagem", _kViag.Count, "plane", "#d9822b", "Em deslocamento")
         @Kpi("ferias", "Em férias", _kFer.Count, "sun", "#7b4fc0", "Férias vigentes")
@@ -47,7 +48,6 @@ else
     </div>
     <div class="kpi-aux muted">
         <span>@Icons.Svg("ban")@_kInd.Count indisponível(is)</span>
-        <span>@Icons.Svg("help")@_kSem.Count sem programação</span>
         <span class="sep">·</span>
         <span>@_estados.Count técnico(s) ativos @(_estados.Count == 0 ? "" : "na visão")</span>
     </div>
@@ -58,7 +58,7 @@ else
         <label class="flt"><span class="flt-label">Especialidade</span>
             <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@FEsp" ValueChanged="@(async (string v) => { FEsp = v; Aplicar(); })" Placeholder="Todas" /></label>
         <label class="flt"><span class="flt-label">Status</span>
-            <select @bind="FStatus" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var s in Vocab.StatusOp) {<option value="@s.Key">@s.Label</option>}</select></label>
+            <select @bind="FStatus" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var s in Vocab.StatusOp.Where(x => x.Key != Vocab.OpSemProg)) {<option value="@s.Key">@s.Label</option>}</select></label>
         <label class="flt"><span class="flt-label">Cliente</span>
             <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@FCli" ValueChanged="@(async (string v) => { FCli = v; Aplicar(); })" Placeholder="Todos" /></label>
         <div class="flt flt-planta"><span class="flt-label">Planta</span><SeletorPlanta Value="@FPlanta" ValueChanged="id => { FPlanta = id ?? string.Empty; Aplicar(); }" Vazio="Todas as plantas" Placeholder="Todas" SoAtivas="false" /></div>
@@ -132,9 +132,32 @@ else
                 <span class="leg"><i class="mk-amostra conf"></i>Localização confirmada</span>
                 <span class="leg"><i class="mk-amostra prev"></i>Localização prevista (agenda)</span>
                 <span class="leg"><i class="mk-amostra rota"></i>Deslocamento (origem → destino; sem rastreamento)</span>
-                @foreach (var s in Vocab.StatusOp) { <span class="leg"><i class="cor" style="background:@s.Color"></i>@s.Label</span> }
+                @foreach (var s in Vocab.StatusOp.Where(x => x.Key != Vocab.OpSemProg)) { <span class="leg"><i class="cor" style="background:@s.Color"></i>@s.Label</span> }
             </div>
             <div id="mapa-op" class="mapa" role="application" aria-label="Mapa de localização da equipe" tabindex="0"></div>
+            @if (_auto)
+            {
+                <div class="auto-ctl">
+                    <button class="btn-ghost sm" @onclick="@(() => _autoPausa = !_autoPausa)">@Icons.Svg(_autoPausa ? "play" : "clock")@(_autoPausa ? "Continuar" : "Pausar")</button>
+                    <span class="auto-vel" role="group" aria-label="Velocidade">
+                        @foreach (var v in new[] { ("lenta", "Lenta"), ("normal", "Normal"), ("rapida", "Rápida") }) { <button class="@(_autoVel == v.Item1 ? "on" : "")" @onclick="@(() => _autoVel = v.Item1)">@v.Item2</button> }
+                    </span>
+                    <button class="btn-ghost sm" @onclick="PararAuto">@Icons.Svg("x")Parar (Esc)</button>
+                </div>
+                <div class="auto-card" style="--c:@_autoCor" aria-live="polite">
+                    <div class="auto-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub</div></div></div>
+                    @if (_autoMostraQtd) { <div class="auto-qtd">@_autoQtd</div> }
+                    <ul class="auto-lista">
+                        @for (var i = 0; i < _autoItens.Count; i++)
+                        {
+                            var it = _autoItens[i];
+                            <li class="@(i == 0 ? "novo" : "")"><i style="background:@it.cor"></i><div><strong>@it.nome</strong>@if (!string.IsNullOrEmpty(it.det)) { <span>@it.det</span> }</div></li>
+                        }
+                        @if (_autoMostraQtd && _autoItens.Count == 0) { <li class="vazio">Nenhum no momento</li> }
+                    </ul>
+                </div>
+                <div class="auto-passos">@for (var i = 0; i < _etapas.Length; i++) { <span class="@(i == _autoEtapa ? "on" : i < _autoEtapa ? "ok" : "")" title="@_etapas[i].titulo"><i style="background:@_etapas[i].cor"></i>@_etapas[i].curto</span> }</div>
+            }
             @if (_semMapa.Count > 0)
             {
                 <div class="sem-mapa">
@@ -377,7 +400,10 @@ else
     private object DadosMapa()
     {
         var grupos = new List<object>(); var rotas = new List<object>();
-        foreach (var g in _grupos.Values)
+        var todos = _grupos.Values.ToList(); var lista = _revelar is int rv ? todos.Take(rv).ToList() : todos;
+        var extras = _revelar is null ? new List<double[]>() : todos.Select(g => Posicao(g.Estados[0])!.Value).Select(p => new[] { p.lat, p.lon }).ToList();
+        var vis = lista.SelectMany(g => g.Estados).Select(e => e.Tecnico.Id).ToHashSet();
+        foreach (var g in lista)
         {
             var pos = Posicao(g.Estados[0])!.Value;
             var cores = g.Estados.Select(e => Ui.Op(e.Status).Color).Distinct().ToList();
@@ -385,20 +411,151 @@ else
             var viagem = g.Estados.All(e => e.Status == Vocab.OpViagem);
             grupos.Add(new
             {
-                chave = g.Chave, lat = pos.lat, lon = pos.lon, titulo = g.Titulo,
+                chave = g.Chave, lat = pos.lat, lon = pos.lon, titulo = g.Titulo, novo = _revelar is int r2 && g == lista[^1] && r2 > 0,
                 cor = cores.Count == 1 ? cores[0] : "#004785", tracejado = !todosConf, viagem,
                 iniciais = Avatar.Iniciais(g.Estados[0].Tecnico.Nome),
                 rotulo = viagem ? "Em deslocamento (posição no trajeto não rastreada)" : todosConf ? "Localização confirmada" : "Localização prevista pela agenda",
                 tecnicos = g.Estados.Select(e => new { nome = $"{e.Tecnico.Nome} — {Ui.Op(e.Status).Label} ({(Posicao(e)!.Value.conf ? "confirmada" : "prevista")})", cor = Ui.Op(e.Status).Color }),
             });
         }
-        foreach (var e in _visiveis.Where(e => e.Status == Vocab.OpViagem && e.Atual is { LatIni: not null, LonIni: not null, LatFim: not null, LonFim: not null }))
+        foreach (var e in _visiveis.Where(e => vis.Contains(e.Tecnico.Id) && e.Status == Vocab.OpViagem && e.Atual is { LatIni: not null, LonIni: not null, LatFim: not null, LonFim: not null }))
         {
             var a = e.Atual!;
             rotas.Add(new { de = new[] { a.LatIni!.Value, a.LonIni!.Value }, para = new[] { a.LatFim!.Value, a.LonFim!.Value }, cor = Ui.Op(e.Status).Color,
                 titulo = $"{e.Tecnico.Nome}: {a.LocalIni} → {a.LocalFim} · {Ui.Periodo(a.Ini, a.Fim, a.Fuso, _snap)}" });
         }
-        return new { grupos, rotas, ajustar = true };
+        return new { grupos, rotas, ajustar = _autoAjustar, extras };
+    }
+
+    // ---------------------------------------------------------------- modo automático
+    private bool _auto, _autoPausa, _apresAntes, _autoMostraQtd, _autoAjustar = true; private string _autoVel = "normal";
+    private int? _revelar; private int _autoEtapa, _autoQtd; private CancellationTokenSource? _autoCts;
+    private string _autoTitulo = "", _autoSub = "", _autoCor = "#004785", _autoIcone = "map";
+    private List<(string nome, string det, string cor)> _autoItens = new();
+    private static readonly (string chave, string titulo, string curto, string cor, string icone, string sub)[] _etapas =
+    {
+        ("mapa", "Onde está cada técnico", "Mapa", "#004785", "map", "A equipe aparece no mapa, um local por vez"),
+        ("disponivel", "Disponíveis", "Disponíveis", "#1f9254", "check", "Sem compromisso neste momento (inclui quem não tem programação)"),
+        ("atendimento", "Em atendimento", "Atendimento", "#0369a1", "customers", "Na planta do cliente"),
+        ("viagem", "Em viagem", "Viagem", "#d9822b", "plane", "Em deslocamento"),
+        ("ferias", "Em férias", "Férias", "#7b4fc0", "sun", "Férias vigentes"),
+        ("viagens", "Viagens previstas", "Previstas", "#004785", "route", "Viagens ainda não iniciadas"),
+        ("conflitos", "Conflitos de agenda", "Conflitos", "#c0392b", "alert", "Sobreposição ou deslocamento a verificar"),
+        ("docs", "Documentos a vencer / vencidos", "Docs", "#b7791f", "clock", "Técnicos com documento próximo do vencimento ou vencido"),
+        ("pend", "Pendências documentais", "Pendências", "#c0392b", "shield", "Escalados sem todos os requisitos para o atendimento programado"),
+    };
+
+    private async Task IniciarAuto()
+    {
+        if (_auto || _carregando) return;
+        _apresAntes = Sessao.Apresentacao; Sessao.Apresentacao = true;
+        try { await JS.InvokeVoidAsync("app.apresentacao", true); await JS.InvokeVoidAsync("app.autoTela", true, _ref); } catch { }
+        if (!_agora) VoltarAgora();
+        Limpar(); _auto = true; _autoPausa = false; _autoCts = new CancellationTokenSource();
+        StateHasChanged(); _ = LoopAuto(_autoCts.Token);
+    }
+
+    [JSInvokable] public Task PararAutoJs() => InvokeAsync(PararAuto);
+
+    private async Task PararAuto()
+    {
+        if (!_auto) return;
+        _autoCts?.Cancel(); _auto = false; _revelar = null; _autoAjustar = true; _kpi = ""; _autoItens = new();
+        Aplicar();
+        try
+        {
+            await JS.InvokeVoidAsync("app.autoTela", false, _ref);
+            if (!_apresAntes) { Sessao.Apresentacao = false; await JS.InvokeVoidAsync("app.apresentacao", false); }
+        }
+        catch { }
+        StateHasChanged();
+    }
+
+    private async Task Espera(int ms, CancellationToken ct)
+    {
+        var rest = ms * (_autoVel switch { "lenta" => 1.7, "rapida" => 0.55, _ => 1.0 });
+        while (rest > 0) { await Task.Delay(100, ct); if (!_autoPausa) rest -= 100; }
+    }
+
+    private void Etapa(int i)
+    {
+        _autoEtapa = i; var e = _etapas[i]; _autoTitulo = e.titulo; _autoCor = e.cor; _autoIcone = e.icone; _autoSub = e.sub;
+    }
+
+    private async Task LoopAuto(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                if (_agora) await Recarregar(false);
+                await EtapaMapa(ct);
+                for (var i = 1; i < _etapas.Length; i++) await EtapaIndicador(i, ct);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { Sessao.Avisar("Modo automático interrompido: " + ex.Message, true); await PararAuto(); }
+    }
+
+    private async Task EtapaMapa(CancellationToken ct)
+    {
+        Etapa(0); _kpi = ""; Aplicar(); _autoMostraQtd = false; _autoItens = new();
+        var grupos = _grupos.Values.ToList(); var n = grupos.Count;
+        _revelar = 0; _autoAjustar = true; _redesenhar = true; StateHasChanged();
+        await Espera(1500, ct);
+        var passo = n > 20 ? 800 : 1500;
+        for (var i = 1; i <= n; i++)
+        {
+            var g = grupos[i - 1]; _revelar = i; _autoAjustar = false; _redesenhar = true;
+            foreach (var e in g.Estados)
+            {
+                var it = Ui.Op(e.Status);
+                _autoItens.Insert(0, (e.Tecnico.Nome, $"{it.Label} · {Ui.Corte(g.Titulo, 40)}", it.Color));
+            }
+            if (_autoItens.Count > 14) _autoItens = _autoItens.Take(14).ToList();
+            _autoSub = $"Local {i} de {n} · {g.Titulo}";
+            StateHasChanged(); await Espera(passo, ct);
+        }
+        _revelar = null; _redesenhar = true;
+        _autoSub = $"{_visiveis.Count} técnico(s) em {n} local(is)" + (_semMapa.Count > 0 ? $" · {_semMapa.Count} sem localização" : "");
+        foreach (var e in _semMapa) _autoItens.Insert(0, (e.Tecnico.Nome, "Sem localização no mapa", "#8793a6"));
+        StateHasChanged(); await Espera(2500, ct);
+    }
+
+    private async Task EtapaIndicador(int idx, CancellationToken ct)
+    {
+        Etapa(idx); var chave = _etapas[idx].chave;
+        _revelar = null; _autoAjustar = true; _kpi = chave; Aplicar();
+        _autoItens = ItensDe(chave); _autoMostraQtd = true;
+        _autoQtd = chave == "viagens" ? _kViagensPrev.Count : _visiveis.Count;
+        StateHasChanged();
+        await Espera(_autoItens.Count == 0 ? 3000 : 4200 + Math.Min(_autoItens.Count, 10) * 500, ct);
+    }
+
+    private List<(string nome, string det, string cor)> ItensDe(string chave)
+    {
+        var cor = _etapas.First(x => x.chave == chave).cor;
+        if (chave == "viagens")
+            return _kViagensPrev.Select(id => _snap.Viagem(id)).Where(v => v is not null).OrderBy(v => _prevIni[v!.Id])
+                .Select(v => ($"{v!.Codigo} · {(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)}",
+                    $"{string.Join(", ", Ui.Ids(v.TecnicoIds).Select(t => _snap.Tecnicos.TryGetValue(t, out var tc) ? tc.Nome : "?"))} · {Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)}", cor)).ToList();
+        var hoje = DocEngine.Hoje(_snap.FusoPadrao);
+        return _visiveis.Select(e =>
+        {
+            var det = chave switch
+            {
+                "disponivel" => e.Proximo is { } nx ? $"Próx.: {Ui.Corte(nx.Titulo, 38)} · {Ui.Hora(nx.Ini, nx.Fuso, _snap)}" : LinhaLocal(e),
+                "atendimento" => e.Atual is { } a ? $"{Ui.Corte(a.Titulo, 40)} · até {Ui.Hora(a.Fim, a.Fuso, _snap)}" : "",
+                "viagem" => e.Atual is { } v ? $"A caminho: {Ui.Corte(v.LocalFim, 40)} · chega {Ui.Hora(v.Fim, v.Fuso, _snap)}" : "",
+                "ferias" => e.Atual is { } f ? $"Até {Ui.Hora(f.Fim, f.Fuso, _snap)}" : "",
+                "conflitos" => _conflitos.Where(c => c.TecnicoId == e.Tecnico.Id && c.B.Fim >= _instante).Select(c => c.Motivo).FirstOrDefault() ?? "Conflito de agenda",
+                "docs" => string.Join("; ", DocEngine.Vencimentos(_snap, hoje).Where(l => l.Doc.TecnicoId == e.Tecnico.Id && l.Status is Vocab.DocProximo or Vocab.DocVencido)
+                    .Select(l => $"{l.Doc.Nome} ({(l.Status == Vocab.DocVencido ? "vencido" : "vence " + (l.Doc.Vencimento?.ToString("dd/MM/yyyy") ?? ""))})").Take(3)),
+                "pend" => "Atendimento programado com requisito pendente",
+                _ => "",
+            };
+            return (e.Tecnico.Nome, det, Ui.Op(e.Status).Color);
+        }).ToList();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -514,6 +671,8 @@ else
     public void Dispose()
     {
         Sessao.Mudou -= AoMudarSessao;
+        _autoCts?.Cancel();
+        if (_auto) { try { _ = JS.InvokeVoidAsync("app.autoTela", false, null); } catch { } }
         try { _ = JS.InvokeVoidAsync("app.mapa.destruir", "mapa-op"); } catch { }
         _ref?.Dispose();
     }

@@ -132,3 +132,13 @@ Na parte de baixo da Visão operacional há um painel visual para a diretoria, c
 - Cartões: ocupação hoje, ocupação média dos próximos 30 dias, dias de campo previstos e % de documentos em dia.
 - Situação da equipe agora (rosca), ocupação semanal das próximas 8 semanas (atendimento, deslocamento e rascunho), viagens e dias de campo por mês (6 meses), clientes com mais dias de atendimento (90 dias), saúde documental e meio de transporte.
 - A ocupação considera dias úteis (seg–sex); dias de campo = técnico-dias com atendimento ou deslocamento planejado/confirmado. Rascunhos aparecem hachurados e não entram nos cartões.
+
+## Modo automático (apresentação)
+
+Botão **Modo automático** no topo da Visão operacional: abre o mapa em tela cheia e conduz a apresentação sozinho, em ciclo:
+
+1. O mapa monta a equipe **um local por vez** (com a lista de quem aparece), depois mostra, em sequência: **Disponíveis, Em atendimento, Em viagem, Em férias, Viagens previstas, Conflitos, Docs a vencer/vencidos e Pendências documentais** — cada etapa com o total grande, a lista de técnicos (ou viagens) e o filtro correspondente no mapa.
+2. Controles no canto: **Pausar/Continuar**, velocidade **Lenta / Normal / Rápida** e **Parar** (ou tecla **Esc**). Ao parar, volta ao estado anterior da tela.
+3. A cada ciclo os dados são recarregados; o modo ativa o modo apresentação (sem dados sensíveis).
+
+Técnico **sem programação** agora conta como **Disponível** (a ficha avisa que não há programação cadastrada perto da data).

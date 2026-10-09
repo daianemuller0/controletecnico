@@ -7,6 +7,17 @@ app.apresentacao = (on) => {
     setTimeout(() => { for (const id in app.mapa._m) app.mapa._m[id].map.invalidateSize(); }, 250);
 };
 
+// Modo automático (apresentação em tela cheia): Esc interrompe.
+app.autoTela = (on, ref) => {
+    document.body.classList.toggle('auto-on', !!on);
+    if (app._autoKey) { document.removeEventListener('keydown', app._autoKey); app._autoKey = null; }
+    if (on && ref) {
+        app._autoKey = e => { if (e.key === 'Escape') ref.invokeMethodAsync('PararAutoJs'); };
+        document.addEventListener('keydown', app._autoKey);
+    }
+    setTimeout(() => { for (const id in app.mapa._m) app.mapa._m[id].map.invalidateSize(); }, 250);
+};
+
 app.apresentacaoAtual = () => document.body.classList.contains('apresentacao');
 
 app.baixarTexto = (nome, mime, texto, bom) => {
@@ -71,7 +82,7 @@ app.mapa = {
         }
         for (const g of dados.grupos || []) {
             const n = g.tecnicos.length;
-            const html = `<div class="mk ${g.tracejado ? 'mk-prev' : 'mk-conf'} ${g.viagem ? 'mk-viagem' : ''}" style="--c:${g.cor}">` +
+            const html = `<div class="mk ${g.tracejado ? 'mk-prev' : 'mk-conf'} ${g.viagem ? 'mk-viagem' : ''} ${g.novo ? 'mk-novo' : ''}" style="--c:${g.cor}">` +
                 `<span class="mk-n">${n > 1 ? n : g.iniciais}</span></div>`;
             const icon = L.divIcon({ html, className: 'mk-wrap', iconSize: [38, 38], iconAnchor: [19, 19] });
             const m = L.marker([g.lat, g.lon], { icon, title: g.titulo, keyboard: true, riseOnHover: true }).addTo(o.camada);
@@ -80,9 +91,10 @@ app.mapa = {
             m.on('click', () => o.ref && o.ref.invokeMethodAsync('AoClicarGrupo', g.chave));
             pts.push([g.lat, g.lon]);
         }
+        for (const x of dados.extras || []) pts.push(x);
         if (dados.ajustar && pts.length) {
             if (pts.length === 1) o.map.setView(pts[0], 9);
-            else o.map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 11 });
+            else o.map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 11, paddingTopLeft: document.body.classList.contains('auto-on') ? [Math.min(460, window.innerWidth * 0.44), 40] : [0, 0], paddingBottomRight: document.body.classList.contains('auto-on') ? [20, 70] : [0, 0] });
         }
     },
 
