@@ -446,16 +446,34 @@ else
     {
         try
         {
-            _tecSel.Clear(); _tiposOcultos.Clear();
-            Sessao.AutoEtapa = AutoEtapas.IndiceAgenda; Sessao.NotificarAuto();
-            foreach (var (vista, dias, titulo, ms) in new[] { ("linha", 7, "Agenda · próximos 7 dias", 10000), ("linha", 30, "Agenda · próximos 30 dias", 12000), ("mes", 0, "Agenda · visão do mês", 8000) })
+            while (true)
             {
-                _view = vista; if (dias > 0) _dias = dias; _ref = L(DateTime.UtcNow).Date; Montar(); _autoTitulo = titulo;
-                await InvokeAsync(StateHasChanged);
-                try { await JS.InvokeVoidAsync("app.autoRolar", (int)(ms * (Sessao.AutoVel switch { "lenta" => 2.8, "rapida" => 1.0, _ => 1.8 }))); } catch { }
-                await Sessao.AutoEspera(ms, ct);
+                _tecSel.Clear(); _tiposOcultos.Clear();
+                Sessao.NotificarAuto();
+                var vistas = Sessao.AutoCfg.Vistas.Count > 0 ? Sessao.AutoCfg.Vistas : new List<string> { "30", "mes" };
+                foreach (var (vista, dias, titulo, baseMs) in vistas.Select(v => v == "30" ? ("linha", 30, "Agenda · próximos 30 dias", 12000) : ("mes", 0, "Agenda · visão do mês", 10000)))
+                {
+                    _view = vista; if (dias > 0) _dias = dias; _ref = L(DateTime.UtcNow).Date; Montar(); _autoTitulo = titulo;
+                    await InvokeAsync(StateHasChanged);
+                    // rolagem lenta e constante (px/s por velocidade); a etapa dura o tempo que a rolagem precisar
+                    var fator = Sessao.AutoVel switch { "lenta" => 2.8, "rapida" => 1.0, _ => 1.8 };
+                    var pxs = Sessao.AutoVel switch { "lenta" => 22.0, "rapida" => 55.0, _ => 32.0 };
+                    double altura = 0; try { altura = await JS.InvokeAsync<double>("app.autoAltura"); } catch { }
+                    var dur = Math.Max(baseMs * fator, altura / pxs * 1000 + 6000);
+                    try { await JS.InvokeVoidAsync("app.autoRolar", (int)dur); } catch { }
+                    await Sessao.AutoEspera((int)(dur / fator), ct);
+                }
+                // próxima etapa do plano
+                var prox = Sessao.AutoEtapa + 1;
+                if (prox >= Sessao.AutoPlano.Count)
+                {
+                    if (!Sessao.AutoCfg.Repetir) { Sessao.PararAuto(); return; }
+                    prox = 0;
+                }
+                Sessao.AutoEtapa = prox;
+                if (Sessao.AutoPlano[prox].Chave == "agenda") continue;          // plano só com a agenda: repete aqui mesmo
+                Sessao.AutoFase = "mapa"; Nav.NavigateTo("/"); return;
             }
-            Sessao.AutoFase = "mapa"; Nav.NavigateTo("/");
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Sessao.Avisar("Modo automático interrompido: " + ex.Message, true); Sessao.PararAuto(); }

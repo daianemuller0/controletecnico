@@ -29,16 +29,27 @@ public sealed class Sessao
 
     public event Action? Mudou;
 
-    // ---- modo automático (atravessa páginas: mapa → agenda → mapa …) ----
+    // ---- modo automático (atravessa páginas: mapa ⇄ agenda) ----
     public bool AutoAtivo { get; private set; }
     public bool AutoPausa { get; set; }
     public string AutoVel { get; set; } = "normal";
+    /// <summary>Etapas escolhidas na configuração, em ordem.</summary>
+    public List<AutoEtapas.Etapa> AutoPlano { get; private set; } = new();
+    public AutoEtapas.Cfg AutoCfg { get; private set; } = new();
+    /// <summary>Posição da etapa em andamento dentro de AutoPlano.</summary>
     public int AutoEtapa { get; set; }
     /// <summary>Qual página conduz o ciclo agora: "mapa" (Visão operacional) ou "agenda".</summary>
     public string AutoFase { get; set; } = "mapa";
     private bool _autoApresAntes;
 
-    public void IniciarAuto() { if (AutoAtivo) return; _autoApresAntes = Apresentacao; AutoAtivo = true; AutoPausa = false; AutoFase = "mapa"; AutoEtapa = 0; Apresentacao = true; Mudou?.Invoke(); }
+    public bool IniciarAuto(AutoEtapas.Cfg cfg)
+    {
+        if (AutoAtivo) return true;
+        AutoCfg = cfg.Normalizar(); AutoPlano = AutoCfg.Etapas.Select(AutoEtapas.De).ToList();
+        if (AutoPlano.Count == 0) return false;
+        _autoApresAntes = Apresentacao; AutoAtivo = true; AutoPausa = false; AutoVel = AutoCfg.Velocidade; AutoEtapa = 0;
+        AutoFase = AutoPlano[0].Chave == "agenda" ? "agenda" : "mapa"; Apresentacao = true; Mudou?.Invoke(); return true;
+    }
     public void PararAuto() { if (!AutoAtivo) return; AutoAtivo = false; if (!_autoApresAntes) Apresentacao = false; Mudou?.Invoke(); }
     public void NotificarAuto() => Mudou?.Invoke();
 

@@ -136,7 +136,7 @@ else
                 @foreach (var s in Vocab.StatusOp.Where(x => x.Key != Vocab.OpSemProg)) { <span class="leg"><i class="cor" style="background:@s.Color"></i>@s.Label</span> }
             </div>
             <div id="mapa-op" class="mapa" role="application" aria-label="Mapa de localização da equipe" tabindex="0"></div>
-            @if (_auto)
+            @if (_auto && !_autoGer)
             {
                 <div class="auto-card" style="--c:@_autoCor" aria-live="polite">
                     <div class="auto-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub</div></div></div>
@@ -166,6 +166,13 @@ else
     </div>
 }
 
+@if (_auto && _autoGer)
+{
+    <div class="auto-ger" style="--c:@_autoCor">
+        <div class="auto-ger-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub · @_estados.Count técnicos ativos</div></div></div>
+        <PainelGerencial Auto="true" Mostrar="@_autoGraficos" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
+    </div>
+}
 <PainelGerencial Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
 
 @if (_grupo is not null)
@@ -435,8 +442,9 @@ else
     private async Task IniciarAuto()
     {
         if (_auto || _carregando) return;
-        Sessao.IniciarAuto();
+        if (!Sessao.IniciarAuto(Svc.ApresentacaoAtual())) { Sessao.Avisar("Nenhuma etapa selecionada. Configure em Administração → Apresentação.", true); return; }
         if (!_agora) VoltarAgora();
+        if (Sessao.AutoFase == "agenda") { Nav.NavigateTo("/agenda"); return; }
         ComecarCiclo();
         await Task.CompletedTask;
     }
@@ -451,33 +459,55 @@ else
 
     private void FimAuto()
     {
-        _auto = false; _revelar = null; _autoAjustar = true; _kpi = ""; _autoItens = new();
+        _auto = false; _autoGer = false; _revelar = null; _autoAjustar = true; _kpi = ""; _autoItens = new();
         Aplicar(); StateHasChanged();
     }
 
-    private void Etapa(int i)
+    private void Etapa(AutoEtapas.Etapa e)
     {
-        Sessao.AutoEtapa = i; Sessao.NotificarAuto();
-        var e = AutoEtapas.Todas[i]; _autoTitulo = e.Titulo; _autoCor = e.Cor; _autoIcone = e.Icone; _autoSub = e.Sub;
+        Sessao.NotificarAuto();
+        _autoTitulo = e.Titulo; _autoCor = e.Cor; _autoIcone = e.Icone; _autoSub = e.Sub;
     }
 
+    private bool _autoGer; private HashSet<string> _autoGraficos = new();
+
+    /// <summary>Executa as etapas escolhidas, na ordem. A Agenda é outra página: entrega o comando a ela e ela devolve.</summary>
     private async Task LoopAuto(CancellationToken ct)
     {
         try
         {
-            if (_agora) await Recarregar(false);
-            await EtapaMapa(ct);
-            for (var i = 1; i < AutoEtapas.IndiceAgenda; i++) await EtapaIndicador(i, ct);
-            // próxima etapa do ciclo: a Agenda (ela devolve para cá ao terminar)
-            Sessao.AutoFase = "agenda"; Sessao.AutoEtapa = AutoEtapas.IndiceAgenda; FimAuto(); Nav.NavigateTo("/agenda");
+            while (true)
+            {
+                var plano = Sessao.AutoPlano;
+                if (Sessao.AutoEtapa >= plano.Count)
+                {
+                    if (!Sessao.AutoCfg.Repetir) { Sessao.PararAuto(); FimAuto(); return; }
+                    Sessao.AutoEtapa = 0;
+                }
+                if (Sessao.AutoEtapa == 0 && _agora) await Recarregar(false);
+                var et = plano[Sessao.AutoEtapa];
+                if (et.Chave == "agenda") { Sessao.AutoFase = "agenda"; Sessao.NotificarAuto(); FimAuto(); Nav.NavigateTo("/agenda"); return; }
+                if (et.Chave == "mapa") await EtapaMapa(et, ct);
+                else if (et.Chave == "gerencial") await EtapaGerencial(et, ct);
+                else await EtapaIndicador(et, ct);
+                Sessao.AutoEtapa++;
+            }
         }
         catch (OperationCanceledException) { FimAuto(); }
         catch (Exception ex) { Sessao.Avisar("Modo automático interrompido: " + ex.Message, true); Sessao.PararAuto(); FimAuto(); }
     }
 
-    private async Task EtapaMapa(CancellationToken ct)
+    private async Task EtapaGerencial(AutoEtapas.Etapa et, CancellationToken ct)
     {
-        Etapa(0); _kpi = ""; Aplicar(); _autoMostraQtd = false; _autoItens = new();
+        Etapa(et); _kpi = ""; Aplicar(); _autoGraficos = Sessao.AutoCfg.Graficos.ToHashSet(); _autoGer = true; _autoMostraQtd = false;
+        StateHasChanged();
+        await Espera(9000 + 2500 * _autoGraficos.Count, ct);
+        _autoGer = false; StateHasChanged();
+    }
+
+    private async Task EtapaMapa(AutoEtapas.Etapa et, CancellationToken ct)
+    {
+        Etapa(et); _kpi = ""; Aplicar(); _autoMostraQtd = false; _autoItens = new();
         var grupos = _grupos.Values.ToList(); var n = grupos.Count;
         _revelar = 0; _autoAjustar = true; _redesenhar = true; StateHasChanged();
         await Espera(1500, ct);
@@ -500,9 +530,9 @@ else
         StateHasChanged(); await Espera(2500, ct);
     }
 
-    private async Task EtapaIndicador(int idx, CancellationToken ct)
+    private async Task EtapaIndicador(AutoEtapas.Etapa et, CancellationToken ct)
     {
-        Etapa(idx); var chave = AutoEtapas.Todas[idx].Chave;
+        Etapa(et); var chave = et.Chave;
         _revelar = null; _autoAjustar = true; _kpi = chave; Aplicar();
         _autoItens = ItensDe(chave); _autoMostraQtd = true;
         _autoQtd = chave == "viagens" ? _kViagensPrev.Count : _visiveis.Count;

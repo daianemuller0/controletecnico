@@ -839,3 +839,42 @@ public class BuscaEMarcaTests
         Assert.Equal(svg.Id, new Servicos(new Db(new ParquetStore(a.Dir)), a.Arq).LogoDe("menu")!.Id);
     }
 }
+
+public class ApresentacaoTests
+{
+    [Fact]
+    public void Padrao_tem_todas_as_etapas_e_normaliza_lixo()
+    {
+        var c = AutoEtapas.Ler(null);
+        Assert.Equal(AutoEtapas.Todas.Length, c.Etapas.Count);
+        Assert.Equal("gerencial", c.Etapas[^2]); Assert.Equal("agenda", c.Etapas[^1]);
+        var ruim = AutoEtapas.Ler("{\"Etapas\":[\"agenda\",\"xxx\",\"mapa\",\"agenda\"],\"Velocidade\":\"foguete\"}");
+        Assert.Equal(new[] { "agenda", "mapa" }, ruim.Etapas); Assert.Equal("normal", ruim.Velocidade);
+        Assert.Equal(AutoEtapas.Todas.Length, AutoEtapas.Ler("isto não é json").Etapas.Count);
+    }
+
+    [Fact]
+    public void Salvar_configuracao_valida_permissao_e_conteudo_e_persiste()
+    {
+        using var a = new Amb();
+        var cfg = new AutoEtapas.Cfg { Etapas = { }, };
+        cfg.Etapas = new() { "mapa", "gerencial", "agenda" }; cfg.Graficos = new() { "cartoes" }; cfg.Vistas = new() { "mes" }; cfg.Repetir = false;
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarApresentacao(new Ator { Login = "c", Papel = Roles.Consulta }, cfg));
+        a.Svc.SalvarApresentacao(a.Gestao, cfg);
+        var lido = a.Svc.ApresentacaoAtual();
+        Assert.Equal(new[] { "mapa", "gerencial", "agenda" }, lido.Etapas); Assert.False(lido.Repetir); Assert.Equal(new[] { "mes" }, lido.Vistas);
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarApresentacao(a.Gestao, new AutoEtapas.Cfg { Etapas = new() }));
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarApresentacao(a.Gestao, new AutoEtapas.Cfg { Etapas = new() { "agenda" }, Vistas = new() }));
+        Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "config.apresentacao");
+    }
+
+    [Fact]
+    public void Sessao_monta_o_plano_na_ordem_escolhida()
+    {
+        var s = new Sessao(null!);
+        Assert.False(s.IniciarAuto(new AutoEtapas.Cfg { Etapas = new() }));
+        Assert.True(s.IniciarAuto(new AutoEtapas.Cfg { Etapas = new() { "agenda", "mapa" }, Velocidade = "lenta" }));
+        Assert.Equal("agenda", s.AutoFase); Assert.Equal("lenta", s.AutoVel); Assert.Equal(2, s.AutoPlano.Count);
+        s.PararAuto(); Assert.False(s.AutoAtivo);
+    }
+}

@@ -519,3 +519,20 @@ public sealed partial class Servicos
         return p;
     }
 }
+
+
+public sealed partial class Servicos
+{
+    public AutoEtapas.Cfg ApresentacaoAtual() => AutoEtapas.Ler(Db.Cfg("apresentacao"));
+
+    public void SalvarApresentacao(Ator ator, AutoEtapas.Cfg cfg)
+    {
+        if (!ator.Pode(Perm.Administrar)) ator.Exigir(Perm.EditarTecnicos);
+        cfg.Normalizar();
+        if (cfg.Etapas.Count == 0) throw new ValidacaoException("Selecione ao menos uma etapa da apresentação.");
+        if (cfg.Etapas.Contains("gerencial") && cfg.Graficos.Count == 0) throw new ValidacaoException("Selecione ao menos um gráfico para a etapa de indicadores gerenciais.");
+        if (cfg.Etapas.Contains("agenda") && cfg.Vistas.Count == 0) throw new ValidacaoException("Selecione ao menos uma visualização para a etapa da agenda.");
+        Db.SetCfg("apresentacao", AutoEtapas.Gravar(cfg), ator.Login);
+        Auditar(ator, "config.apresentacao", "config", "", $"Apresentação automática: {string.Join(" › ", cfg.Etapas)}");
+    }
+}

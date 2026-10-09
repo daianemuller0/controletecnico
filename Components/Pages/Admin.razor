@@ -16,6 +16,7 @@
         <button class="tab @(_aba == "usr" ? "active" : "")" @onclick='() => _aba = "usr"'>Usuários e perfis</button>
         <button class="tab @(_aba == "cfg" ? "active" : "")" @onclick='() => _aba = "cfg"'>Configurações e integrações</button>
     }
+    @if (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.EditarTecnicos)) { <button class="tab @(_aba == "apres" ? "active" : "")" @onclick='() => _aba = "apres"'>Apresentação</button> }
     @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "marca" ? "active" : "")" @onclick='() => _aba = "marca"'>Identidade visual</button> }
     @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "arm" ? "active" : "")" @onclick='() => _aba = "arm"'>Armazenamento</button> }
     <button class="tab @(_aba == "aud" ? "active" : "")" @onclick='() => _aba = "aud"'>Histórico de alterações</button>
@@ -87,6 +88,49 @@ else if (_aba == "aud")
         }
         </tbody></table></div>
     <p class="muted sm">Exibindo as 300 mais recentes que atendem ao filtro (de @_aud.Count registros).</p>
+}
+else if (_aba == "apres" && (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.EditarTecnicos)))
+{
+    <p class="muted">Defina o que aparece (e em que ordem) quando alguém aperta <strong>Modo automático</strong> na Visão operacional. Vale para todos os usuários.</p>
+    <div class="g12 top">
+        <div class="c6"><div class="panel">
+            <div class="panel-head"><div class="panel-title">Etapas e ordem</div></div>
+            <ul class="ap-lista">
+                @foreach (var (e, i) in _apOrdem.Select((e, i) => (e, i)))
+                {
+                    var on = _ap.Etapas.Contains(e.Chave);
+                    <li class="@(on ? "" : "off")">
+                        <input type="checkbox" checked="@on" @onchange="x => ApAlternar(e.Chave, (bool)x.Value!)" aria-label="Mostrar @e.Titulo" />
+                        <span class="ap-ico" style="background:@e.Cor">@Icons.Svg(e.Icone)</span>
+                        <span class="ap-nome"><strong>@e.Titulo</strong><small>@e.Sub</small></span>
+                        <button class="icon-btn" disabled="@(i == 0)" @onclick="() => ApMover(i, -1)" aria-label="Subir">@Icons.Svg("up")</button>
+                        <button class="icon-btn" disabled="@(i == _apOrdem.Count - 1)" @onclick="() => ApMover(i, 1)" aria-label="Descer">@Icons.Svg("down")</button>
+                    </li>
+                }
+            </ul>
+        </div></div>
+        <div class="c6">
+            <div class="panel">
+                <div class="panel-head"><div class="panel-title">Indicadores gerenciais — o que mostrar</div></div>
+                @foreach (var g in AutoEtapas.Graficos) { <label class="chk-inline ap-chk"><input type="checkbox" checked="@_ap.Graficos.Contains(g.Chave)" @onchange="x => ApLista(_ap.Graficos, g.Chave, (bool)x.Value!)" />@g.Rotulo</label> }
+            </div>
+            <div class="panel mt16">
+                <div class="panel-head"><div class="panel-title">Agenda — visualizações</div></div>
+                @foreach (var v in AutoEtapas.VistasAgenda) { <label class="chk-inline ap-chk"><input type="checkbox" checked="@_ap.Vistas.Contains(v.Chave)" @onchange="x => ApLista(_ap.Vistas, v.Chave, (bool)x.Value!)" />@v.Rotulo</label> }
+            </div>
+            <div class="panel mt16">
+                <div class="panel-head"><div class="panel-title">Ritmo</div></div>
+                <label class="fld">Velocidade ao iniciar<select @bind="_ap.Velocidade"><option value="lenta">Lenta</option><option value="normal">Normal</option><option value="rapida">Rápida</option></select></label>
+                <label class="chk-inline ap-chk"><input type="checkbox" @bind="_ap.Repetir" />Repetir o ciclo continuamente (desmarque para encerrar ao fim)</label>
+            </div>
+        </div>
+    </div>
+    @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt16">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+    <div class="modal-actions" style="justify-content:flex-start;gap:10px">
+        <button class="btn-primary" @onclick="ApSalvar">@Icons.Svg("check")Salvar apresentação</button>
+        <button class="btn-ghost" @onclick="ApPadrao">Restaurar padrão</button>
+        <a class="btn-ghost" href="/">@Icons.Svg("monitor")Ir para a Visão operacional</a>
+    </div>
 }
 else if (_aba == "marca" && _ator.Pode(Perm.Administrar))
 {
@@ -201,10 +245,30 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     {
         _ator = await Sessao.AtorAsync();
         _aba = _ator.Pode(Perm.Administrar) ? "usr" : "aud"; Carregar();
-        _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _nome = Svc.NomeSistema; _sub = Svc.SubtituloSistema; _contatoGeo = Db.Cfg("geocoding_contato");
+        ApCarregar(); _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _nome = Svc.NomeSistema; _sub = Svc.SubtituloSistema; _contatoGeo = Db.Cfg("geocoding_contato");
     }
     private void Carregar() { _usuarios = Db.Usuarios.Todos().OrderBy(u => u.Id).ToList(); _aud = Db.Auditorias.Todos().OrderByDescending(a => a.Quando).ToList(); }
     private IEnumerable<Auditoria> AudFiltrada => _aud.Where(a => (_fAcao == "" || a.Acao.StartsWith(_fAcao)) && (string.IsNullOrWhiteSpace(_buscaAud) || DocEngine.Norm($"{a.Usuario} {a.Acao} {a.Resumo}").Contains(DocEngine.Norm(_buscaAud))));
+
+    // ---- apresentação automática
+    private AutoEtapas.Cfg _ap = new(); private List<AutoEtapas.Etapa> _apOrdem = new();
+    private void ApCarregar()
+    {
+        _ap = Svc.ApresentacaoAtual();
+        // lista completa: as escolhidas primeiro (na ordem salva), depois as demais
+        _apOrdem = _ap.Etapas.Select(AutoEtapas.De).Concat(AutoEtapas.Todas.Where(e => !_ap.Etapas.Contains(e.Chave))).ToList();
+    }
+    private void ApAlternar(string chave, bool on) { if (on) { if (!_ap.Etapas.Contains(chave)) _ap.Etapas.Add(chave); } else _ap.Etapas.Remove(chave); ApReordenar(); }
+    private void ApLista(List<string> l, string chave, bool on) { if (on) { if (!l.Contains(chave)) l.Add(chave); } else l.Remove(chave); }
+    private void ApMover(int i, int d) { var j = i + d; if (j < 0 || j >= _apOrdem.Count) return; (_apOrdem[i], _apOrdem[j]) = (_apOrdem[j], _apOrdem[i]); ApReordenar(); }
+    private void ApReordenar() => _ap.Etapas = _apOrdem.Select(e => e.Chave).Where(_ap.Etapas.Contains).ToList();
+    private void ApPadrao() { _ap = new AutoEtapas.Cfg(); _apOrdem = AutoEtapas.Todas.ToList(); _erros = null; }
+    private void ApSalvar()
+    {
+        _erros = null;
+        try { ApReordenar(); Svc.SalvarApresentacao(_ator, _ap); ApCarregar(); Sessao.Avisar("Configuração da apresentação salva."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
 
     private string _nome = "", _sub = "";
     private string Sigla() => string.Concat(_nome.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));

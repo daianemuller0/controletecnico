@@ -19,12 +19,14 @@ app.autoTela = (on, ref) => {
 };
 
 // rola a página lentamente de cima para baixo durante `ms` (apresentação automática da agenda)
+app.autoAltura = () => { const el = document.scrollingElement || document.documentElement; return Math.max(0, el.scrollHeight - el.clientHeight); };
 app.autoRolar = (ms) => {
     const el = document.scrollingElement || document.documentElement;
     el.scrollTop = 0;
     const max = el.scrollHeight - el.clientHeight;
     if (max <= 8) return;
-    const t0 = performance.now(), dur = Math.max(1000, ms * 0.7), ini = ms * 0.1;
+    // começa e termina parado por ~12% do tempo; no meio, velocidade constante
+    const t0 = performance.now(), ini = ms * 0.12, dur = ms * 0.76;
     const passo = (t) => {
         if (!document.body.classList.contains('auto-on')) return;
         const f = Math.min(1, Math.max(0, (t - t0 - ini) / dur));

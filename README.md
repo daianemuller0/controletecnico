@@ -139,8 +139,12 @@ Botão **Modo automático** no topo da Visão operacional: abre o mapa em tela c
 
 0. Velocidade padrão **Normal** é propositalmente calma (≈1,8× o tempo base); há também **Lenta** (≈2,8×) e **Rápida**.
 1. O mapa monta a equipe **um local por vez** (com a lista de quem aparece), depois mostra, em sequência: **Disponíveis, Em atendimento, Em viagem, Em férias, Viagens previstas, Conflitos, Docs a vencer/vencidos e Pendências documentais** — cada etapa com o total grande, a lista de técnicos (ou viagens) e o filtro correspondente no mapa.
-1b. Depois dos indicadores o ciclo vai para a **Agenda** (linha do tempo de 7 dias, de 30 dias e visão do mês, rolando devagar pela equipe) e volta ao mapa, recomeçando com dados atualizados.
+1b. Depois dos indicadores o ciclo vai para a **Agenda** (próximos 30 dias e visão do mês, com rolagem lenta e constante pela equipe; a etapa dura o que a rolagem precisar) e volta ao mapa, recomeçando com dados atualizados.
 2. Controles no canto: **Pausar/Continuar**, velocidade **Lenta / Normal / Rápida** e **Parar** (ou tecla **Esc**). Ao parar, volta ao estado anterior da tela.
 3. A cada ciclo os dados são recarregados; o modo ativa o modo apresentação (sem dados sensíveis).
 
 Técnico **sem programação** agora conta como **Disponível** (a ficha avisa que não há programação cadastrada perto da data).
+
+### Configurando a apresentação
+
+**Administração → Apresentação** (Admin e Gestão): marque quais etapas aparecem e reordene com as setas (mapa, cada indicador, **Indicadores gerenciais**, Agenda), escolha quais gráficos entram na tela de indicadores gerenciais, quais visualizações da agenda (30 dias / mês), a velocidade inicial e se o ciclo repete. A configuração vale para todos e fica na base compartilhada.

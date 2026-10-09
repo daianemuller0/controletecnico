@@ -12,9 +12,9 @@
         <button class="btn-ghost sm" @onclick="Sessao.PararAuto">@Icons.Svg("x")Parar (Esc)</button>
     </div>
     <div class="auto-passos">
-        @for (var i = 0; i < AutoEtapas.Todas.Length; i++)
+        @for (var i = 0; i < Sessao.AutoPlano.Count; i++)
         {
-            var e = AutoEtapas.Todas[i];
+            var e = Sessao.AutoPlano[i];
             <span class="@(i == Sessao.AutoEtapa ? "on" : i < Sessao.AutoEtapa ? "ok" : "")" title="@e.Titulo"><i style="background:@e.Cor"></i>@e.Curto</span>
         }
     </div>

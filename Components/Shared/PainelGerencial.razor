@@ -1,26 +1,26 @@
 @using System.Globalization
 @* Indicadores gerenciais da Visão operacional: tudo calculado da agenda e dos cadastros (nada é digitado à mão). Gráficos em SVG puro. *@
 
-<section class="gp" aria-label="Indicadores gerenciais">
-    <div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Calculados a partir da agenda, a partir de @_hoje.ToString("dd/MM/yyyy") · técnicos ativos visíveis para você</span></div>
+<section class="gp @(Auto ? "gp-auto" : "")" aria-label="Indicadores gerenciais">
+    @if (!Auto) {<div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Calculados a partir da agenda, a partir de @_hoje.ToString("dd/MM/yyyy") · técnicos ativos visíveis para você</span></div>}
 
-    <div class="gp-heads">
+    @if (Ver("cartoes")) {<div class="gp-heads">
         @Head("Ocupação hoje", $"{_ocupHoje:0}%", "Técnicos em atendimento ou em viagem", "#0369a1", _ocupHoje)
         @Head("Ocupação média, próx. 30 dias", $"{_ocup30:0}%", "Dias de campo ÷ dias úteis disponíveis", "#d9822b", _ocup30)
         @Head("Dias de campo previstos (30 d)", _diasCampo30.ToString("N0"), "Técnico-dias com atendimento ou deslocamento", "#004785", null)
         @Head("Documentos em dia", $"{_docOk:0}%", $"{_docs.Valido + _docs.SemVenc} de {_docs.Total} válidos", _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
-    </div>
+    </div>}
 
     <div class="gp-grid">
-        <div class="gp-card">
+        @if (Ver("situacao")) {<div class="gp-card">
             <h3>Situação da equipe agora</h3>
             <div class="gp-donut-wrap">
                 @Donut(_situacao.Select(x => (x.rot, x.cor, (double)x.n)).ToList(), _estados.Count.ToString(), "técnicos")
                 <ul class="gp-leg">@foreach (var x in _situacao) {<li><i style="background:@x.cor"></i>@x.rot <strong>@x.n</strong></li>}</ul>
             </div>
-        </div>
+        </div>}
 
-        <div class="gp-card gp-largo">
+        @if (Ver("semanas")) {<div class="gp-card gp-largo">
             <h3>Ocupação da equipe nas próximas 8 semanas <span class="hint">% de técnico-dias úteis</span></h3>
             <div class="gp-barras" role="img" aria-label="Ocupação semanal">
                 @foreach (var s in _semanas)
@@ -37,9 +37,9 @@
                 }
             </div>
             <div class="gp-leg-h"><span><i style="background:#0369a1"></i>Atendimento</span><span><i style="background:#d9822b"></i>Deslocamento</span><span><i class="hat"></i>Rascunho (ainda não confirmado)</span></div>
-        </div>
+        </div>}
 
-        <div class="gp-card gp-largo">
+        @if (Ver("meses")) {<div class="gp-card gp-largo">
             <h3>Viagens e dias de campo por mês <span class="hint">próximos 6 meses</span></h3>
             <div class="gp-barras gp-duplas">
                 @foreach (var m in _meses)
@@ -55,18 +55,18 @@
                 }
             </div>
             <div class="gp-leg-h"><span><i style="background:#004785"></i>Viagens que começam no mês</span><span><i style="background:#7ec3a0"></i>Dias de campo (técnico-dias)</span></div>
-        </div>
+        </div>}
 
-        <div class="gp-card">
+        @if (Ver("clientes")) {<div class="gp-card">
             <h3>Clientes com mais dias de atendimento <span class="hint">próx. 90 dias</span></h3>
             @if (_clientes.Count == 0) { <p class="muted">Nenhum atendimento previsto.</p> }
             @foreach (var c in _clientes)
             {
                 <div class="gp-hb"><div class="gp-hb-r"><span>@c.nome</span><strong>@c.dias d</strong></div><div class="gp-hb-t"><span style="width:@Esc(c.dias, _clientes[0].dias)"></span></div></div>
             }
-        </div>
+        </div>}
 
-        <div class="gp-card">
+        @if (Ver("docs")) {<div class="gp-card">
             <h3>Saúde documental</h3>
             <div class="gp-pilha-h" role="img" aria-label="Situação dos documentos">
                 @if (_docs.Total > 0)
@@ -81,9 +81,9 @@
                 <li><i style="background:#e0a526"></i>A vencer (até @(Snap.DiasAlerta.Max()) dias) <strong>@_docs.Proximo</strong></li>
                 <li><i style="background:#c0392b"></i>Vencidos <strong>@_docs.Vencido</strong></li>
             </ul>
-        </div>
+        </div>}
 
-        <div class="gp-card">
+        @if (Ver("transporte")) {<div class="gp-card">
             <h3>Meio de transporte <span class="hint">trechos nos próx. 90 dias</span></h3>
             @if (_modais.Sum(x => x.n) == 0) { <p class="muted">Sem trechos previstos.</p> }
             else
@@ -93,7 +93,7 @@
                     <ul class="gp-leg">@foreach (var x in _modais) {<li><i style="background:@x.cor"></i>@x.rot <strong>@x.n</strong></li>}</ul>
                 </div>
             }
-        </div>
+        </div>}
     </div>
 </section>
 
@@ -102,6 +102,11 @@
     [Parameter, EditorRequired] public List<Estado> Estados { get; set; } = new();
     [Parameter, EditorRequired] public List<Evento> Eventos { get; set; } = new();
     [Parameter] public DateTime Instante { get; set; } = DateTime.UtcNow;
+    /// <summary>Modo apresentação automática: tela cheia, tipografia grande e cartões entrando um a um.</summary>
+    [Parameter] public bool Auto { get; set; }
+    /// <summary>Quais blocos mostrar (null = todos). Chaves em AutoEtapas.Graficos.</summary>
+    [Parameter] public HashSet<string>? Mostrar { get; set; }
+    private bool Ver(string k) => Mostrar is null || Mostrar.Contains(k);
 
     private static readonly CultureInfo Pt = new("pt-BR");
     private List<Estado> _estados = new(); private DateTime _hoje;
