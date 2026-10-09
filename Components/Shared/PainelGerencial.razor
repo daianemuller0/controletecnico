@@ -1,0 +1,213 @@
+@using System.Globalization
+@* Indicadores gerenciais da Visão operacional: tudo calculado da agenda e dos cadastros (nada é digitado à mão). Gráficos em SVG puro. *@
+
+<section class="gp" aria-label="Indicadores gerenciais">
+    <div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Calculados a partir da agenda, a partir de @_hoje.ToString("dd/MM/yyyy") · técnicos ativos visíveis para você</span></div>
+
+    <div class="gp-heads">
+        @Head("Ocupação hoje", $"{_ocupHoje:0}%", "Técnicos em atendimento ou em viagem", "#0369a1", _ocupHoje)
+        @Head("Ocupação média, próx. 30 dias", $"{_ocup30:0}%", "Dias de campo ÷ dias úteis disponíveis", "#d9822b", _ocup30)
+        @Head("Dias de campo previstos (30 d)", _diasCampo30.ToString("N0"), "Técnico-dias com atendimento ou deslocamento", "#004785", null)
+        @Head("Documentos em dia", $"{_docOk:0}%", $"{_docs.Valido + _docs.SemVenc} de {_docs.Total} válidos", _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
+    </div>
+
+    <div class="gp-grid">
+        <div class="gp-card">
+            <h3>Situação da equipe agora</h3>
+            <div class="gp-donut-wrap">
+                @Donut(_situacao.Select(x => (x.rot, x.cor, (double)x.n)).ToList(), _estados.Count.ToString(), "técnicos")
+                <ul class="gp-leg">@foreach (var x in _situacao) {<li><i style="background:@x.cor"></i>@x.rot <strong>@x.n</strong></li>}</ul>
+            </div>
+        </div>
+
+        <div class="gp-card gp-largo">
+            <h3>Ocupação da equipe nas próximas 8 semanas <span class="hint">% de técnico-dias úteis</span></h3>
+            <div class="gp-barras" role="img" aria-label="Ocupação semanal">
+                @foreach (var s in _semanas)
+                {
+                    <div class="gp-col" title="@s.rot: atendimento @(s.at.ToString("0"))%, deslocamento @(s.des.ToString("0"))%, previsto (rascunho) @(s.prov.ToString("0"))%">
+                        <div class="gp-pilha">
+                            <span class="seg prov" style="height:@Pct(s.prov)"></span>
+                            <span class="seg des" style="height:@Pct(s.des)"></span>
+                            <span class="seg at" style="height:@Pct(s.at)"></span>
+                        </div>
+                        <div class="gp-val">@((s.at + s.des + s.prov).ToString("0"))%</div>
+                        <div class="gp-rot">@s.rot</div>
+                    </div>
+                }
+            </div>
+            <div class="gp-leg-h"><span><i style="background:#0369a1"></i>Atendimento</span><span><i style="background:#d9822b"></i>Deslocamento</span><span><i class="hat"></i>Rascunho (ainda não confirmado)</span></div>
+        </div>
+
+        <div class="gp-card gp-largo">
+            <h3>Viagens e dias de campo por mês <span class="hint">próximos 6 meses</span></h3>
+            <div class="gp-barras gp-duplas">
+                @foreach (var m in _meses)
+                {
+                    <div class="gp-col" title="@m.rot: @m.viagens viagem(ns), @m.dias dia(s) de campo">
+                        <div class="gp-par">
+                            <span class="b b1" style="height:@Esc(m.viagens, _maxViag)"></span>
+                            <span class="b b2" style="height:@Esc(m.dias, _maxDias)"></span>
+                        </div>
+                        <div class="gp-val">@m.viagens · @m.dias d</div>
+                        <div class="gp-rot">@m.rot</div>
+                    </div>
+                }
+            </div>
+            <div class="gp-leg-h"><span><i style="background:#004785"></i>Viagens que começam no mês</span><span><i style="background:#7ec3a0"></i>Dias de campo (técnico-dias)</span></div>
+        </div>
+
+        <div class="gp-card">
+            <h3>Clientes com mais dias de atendimento <span class="hint">próx. 90 dias</span></h3>
+            @if (_clientes.Count == 0) { <p class="muted">Nenhum atendimento previsto.</p> }
+            @foreach (var c in _clientes)
+            {
+                <div class="gp-hb"><div class="gp-hb-r"><span>@c.nome</span><strong>@c.dias d</strong></div><div class="gp-hb-t"><span style="width:@Esc(c.dias, _clientes[0].dias)"></span></div></div>
+            }
+        </div>
+
+        <div class="gp-card">
+            <h3>Saúde documental</h3>
+            <div class="gp-pilha-h" role="img" aria-label="Situação dos documentos">
+                @if (_docs.Total > 0)
+                {
+                    <span style="flex:@_docs.Valido;background:#1f9254" title="Válidos"></span><span style="flex:@_docs.SemVenc;background:#7ec3a0" title="Sem vencimento"></span>
+                    <span style="flex:@_docs.Proximo;background:#e0a526" title="A vencer"></span><span style="flex:@_docs.Vencido;background:#c0392b" title="Vencidos"></span>
+                }
+            </div>
+            <ul class="gp-leg gp-leg-col">
+                <li><i style="background:#1f9254"></i>Válidos <strong>@_docs.Valido</strong></li>
+                <li><i style="background:#7ec3a0"></i>Sem vencimento <strong>@_docs.SemVenc</strong></li>
+                <li><i style="background:#e0a526"></i>A vencer (até @(Snap.DiasAlerta.Max()) dias) <strong>@_docs.Proximo</strong></li>
+                <li><i style="background:#c0392b"></i>Vencidos <strong>@_docs.Vencido</strong></li>
+            </ul>
+        </div>
+
+        <div class="gp-card">
+            <h3>Meio de transporte <span class="hint">trechos nos próx. 90 dias</span></h3>
+            @if (_modais.Sum(x => x.n) == 0) { <p class="muted">Sem trechos previstos.</p> }
+            else
+            {
+                <div class="gp-donut-wrap">
+                    @Donut(_modais.Select(x => (x.rot, x.cor, (double)x.n)).ToList(), _modais.Sum(x => x.n).ToString(), "trechos")
+                    <ul class="gp-leg">@foreach (var x in _modais) {<li><i style="background:@x.cor"></i>@x.rot <strong>@x.n</strong></li>}</ul>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Snapshot Snap { get; set; } = default!;
+    [Parameter, EditorRequired] public List<Estado> Estados { get; set; } = new();
+    [Parameter, EditorRequired] public List<Evento> Eventos { get; set; } = new();
+    [Parameter] public DateTime Instante { get; set; } = DateTime.UtcNow;
+
+    private static readonly CultureInfo Pt = new("pt-BR");
+    private List<Estado> _estados = new(); private DateTime _hoje;
+    private double _ocupHoje, _ocup30, _docOk; private int _diasCampo30;
+    private (int Total, int Valido, int SemVenc, int Proximo, int Vencido) _docs;
+    private List<(string rot, string cor, int n)> _situacao = new(), _modais = new();
+    private List<(string rot, double at, double des, double prov)> _semanas = new();
+    private List<(string rot, int viagens, int dias)> _meses = new(); private int _maxViag = 1, _maxDias = 1;
+    private List<(string nome, int dias)> _clientes = new();
+
+    protected override void OnParametersSet() => Calcular();
+
+    private (DateTime ini, DateTime fim) Janela(DateTime dia) => (Tempo.ParaUtc(dia, Snap.FusoPadrao), Tempo.ParaUtc(dia.AddDays(1), Snap.FusoPadrao));
+    private static bool DiaUtil(DateTime d) => d.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+
+    private void Calcular()
+    {
+        _estados = Estados; _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
+        var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet(); var n = Math.Max(1, ids.Count);
+
+        _situacao = Vocab.StatusOp.Select(s => (s.Label, s.Color, _estados.Count(e => e.Status == s.Key))).Where(x => x.Item3 > 0).ToList();
+        _ocupHoje = 100.0 * _estados.Count(e => e.Status is Vocab.OpAtendimento or Vocab.OpViagem) / n;
+
+        var ev = Eventos.Where(e => ids.Contains(e.TecnicoId) && e.Status != "cancelado" && !e.EhIndisp).ToList();
+        // técnico-dias por dia: (atendimento, deslocamento, provisório)
+        (int at, int des, int prov) Dia(DateTime d)
+        {
+            var (a, b) = Janela(d); int at = 0, des = 0, prov = 0;
+            foreach (var g in ev.Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
+            {
+                var bl = g.Where(e => e.Bloqueia).ToList();
+                if (bl.Any(e => !e.EhViagem)) at++; else if (bl.Any()) des++; else if (g.Any(e => e.Provisorio)) prov++;
+            }
+            return (at, des, prov);
+        }
+        int util = 0, campo = 0;
+        for (var i = 0; i < 30; i++) { var d = _hoje.AddDays(i); if (!DiaUtil(d)) continue; util += n; var (at, des, _) = Dia(d); campo += at + des; }
+        _diasCampo30 = campo; _ocup30 = util == 0 ? 0 : 100.0 * campo / util;
+
+        _semanas = new();
+        var seg = _hoje.AddDays(-(((int)_hoje.DayOfWeek + 6) % 7));       // segunda-feira desta semana
+        for (var w = 0; w < 8; w++)
+        {
+            double at = 0, des = 0, prov = 0; var dias = 0;
+            for (var k = 0; k < 5; k++) { var d = seg.AddDays(7 * w + k); var r = Dia(d); at += r.at; des += r.des; prov += r.prov; dias++; }
+            var tot = (double)(dias * n);
+            _semanas.Add(($"{seg.AddDays(7 * w):dd/MM}", 100 * at / tot, 100 * des / tot, 100 * prov / tot));
+        }
+
+        // viagens e dias de campo por mês
+        _meses = new();
+        var m0 = new DateTime(_hoje.Year, _hoje.Month, 1);
+        var viagensIni = ev.Where(e => e.EhViagem && e.ViagemId != "").GroupBy(e => e.ViagemId).Select(g => g.Min(e => e.Ini)).ToList();
+        for (var m = 0; m < 6; m++)
+        {
+            var ini = m0.AddMonths(m); var fim = ini.AddMonths(1);
+            var (ua, _) = Janela(ini); var (ub, _) = Janela(fim);
+            var nv = viagensIni.Count(i => i >= ua && i < ub);
+            var dm = 0; for (var d = ini; d < fim; d = d.AddDays(1)) if (DiaUtil(d)) { var r = Dia(d); dm += r.at + r.des; }
+            _meses.Add((ini.ToString("MMM/yy", Pt), nv, dm));
+        }
+        _maxViag = Math.Max(1, _meses.Max(x => x.viagens)); _maxDias = Math.Max(1, _meses.Max(x => x.dias));
+
+        // clientes com mais dias de atendimento (90 dias)
+        var lim = Janela(_hoje.AddDays(90)).ini; var h0 = Janela(_hoje).ini;
+        _clientes = ev.Where(e => e.Tipo == Vocab.EvAtendimento && e.ClienteId != "" && e.Fim > h0 && e.Ini < lim)
+            .GroupBy(e => e.ClienteId).Select(g => (Snap.Cliente(g.Key)?.Nome ?? "—", g.Sum(e => (int)Math.Ceiling((Math.Min(e.Fim.Ticks, lim.Ticks) - Math.Max(e.Ini.Ticks, h0.Ticks)) / (double)TimeSpan.TicksPerDay))))
+            .OrderByDescending(x => x.Item2).Take(5).ToList();
+
+        // documentos
+        var linhas = DocEngine.Vencimentos(Snap, _hoje).Where(l => ids.Contains(l.Doc.TecnicoId)).ToList();
+        int C(string s) => linhas.Count(l => l.Status == s);
+        _docs = (linhas.Count, C(Vocab.DocValido), C(Vocab.DocSemVenc), C(Vocab.DocProximo), C(Vocab.DocVencido));
+        _docOk = _docs.Total == 0 ? 100 : 100.0 * (_docs.Valido + _docs.SemVenc) / _docs.Total;
+
+        // transporte
+        var canc = Snap.Viagens.Values.Where(v => v.Status == Vocab.ViagemCancelada).Select(v => v.Id).ToHashSet();
+        var tr = Snap.Trechos.Where(t => !canc.Contains(t.ViagemId) && (AgendaEngine.Janela(t).ini ?? DateTime.MinValue) is var i && i >= h0 && i < lim).ToList();
+        _modais = new() { ("Avião", "#0369a1", tr.Count(t => t.Modal == Vocab.ModalAviao)), ("Carro", "#d9822b", tr.Count(t => t.Modal == Vocab.ModalCarro)), ("Outro", "#6b7a90", tr.Count(t => t.Modal == Vocab.ModalOutro)) };
+        _modais = _modais.Where(x => x.n > 0).ToList();
+    }
+
+    private static string Pct(double v) => Math.Clamp(v, 0, 100).ToString("0.#", CultureInfo.InvariantCulture) + "%";
+    private static string Esc(double v, double max) => (max <= 0 ? 0 : Math.Clamp(100 * v / max, v > 0 ? 3 : 0, 100)).ToString("0.#", CultureInfo.InvariantCulture) + "%";
+
+    private RenderFragment Head(string rot, string valor, string sub, string cor, double? pct) => __builder =>
+    {
+        <div class="gp-head" style="--c:@cor">
+            <div class="gp-head-r">@rot</div><div class="gp-head-v">@valor</div>
+            @if (pct is not null) { <div class="gp-head-t"><span style="width:@Pct(pct.Value)"></span></div> }
+            <div class="gp-head-s">@sub</div>
+        </div>
+    };
+
+    private RenderFragment Donut(List<(string rot, string cor, double n)> itens, string centro, string legenda) => __builder =>
+    {
+        var tot = itens.Sum(x => x.n); const double R = 52, C = 2 * Math.PI * R; double acum = 0;
+        <svg viewBox="0 0 140 140" class="gp-donut" role="img" aria-label="@legenda">
+            <circle cx="70" cy="70" r="@R.ToString(CultureInfo.InvariantCulture)" fill="none" stroke="#e8edf3" stroke-width="20" />
+            @foreach (var x in itens)
+            {
+                var len = tot == 0 ? 0 : C * x.n / tot;
+                <circle cx="70" cy="70" r="@R.ToString(CultureInfo.InvariantCulture)" fill="none" stroke="@x.cor" stroke-width="20" stroke-dasharray="@len.ToString("0.##", CultureInfo.InvariantCulture) @((C - len).ToString("0.##", CultureInfo.InvariantCulture))" stroke-dashoffset="@((-acum).ToString("0.##", CultureInfo.InvariantCulture))" transform="rotate(-90 70 70)"><title>@x.rot: @x.n</title></circle>
+                acum += len;
+            }
+            <text x="70" y="68" text-anchor="middle" class="gp-dn">@centro</text><text x="70" y="86" text-anchor="middle" class="gp-dl">@legenda</text>
+        </svg>
+    };
+}

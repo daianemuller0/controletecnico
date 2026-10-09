@@ -124,3 +124,11 @@ Nenhuma caixa de lista prende o usuário ao que já existe:
 - **Técnico e especialidade** (filtros): seletor com busca.
 - Continuam como lista fechada apenas valores com regra no sistema: status, tipo de evento, meio de transporte, perfil de acesso, ordenação, itens por página e opções da importação.
 - Categorias digitadas à mão aparecem na seção **Documentos** do técnico (só as três categorias de treinamento ficam em Treinamentos).
+
+## Indicadores gerenciais (Visão operacional)
+
+Na parte de baixo da Visão operacional há um painel visual para a diretoria, calculado só a partir da agenda e dos cadastros (respeita a visibilidade de cada perfil e funciona no modo apresentação):
+
+- Cartões: ocupação hoje, ocupação média dos próximos 30 dias, dias de campo previstos e % de documentos em dia.
+- Situação da equipe agora (rosca), ocupação semanal das próximas 8 semanas (atendimento, deslocamento e rascunho), viagens e dias de campo por mês (6 meses), clientes com mais dias de atendimento (90 dias), saúde documental e meio de transporte.
+- A ocupação considera dias úteis (seg–sex); dias de campo = técnico-dias com atendimento ou deslocamento planejado/confirmado. Rascunhos aparecem hachurados e não entram nos cartões.

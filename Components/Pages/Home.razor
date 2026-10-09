@@ -150,6 +150,8 @@ else
     </div>
 }
 
+<PainelGerencial Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
+
 @if (_grupo is not null)
 {
     <div class="modal-backdrop" @onclick="@(() => _grupo = null)">
