@@ -1,0 +1,99 @@
+@* Seletor de planta com busca: feito para milhares de plantas (filtra no servidor, mostra só os melhores resultados). *@
+@inject BuscaPlantas Busca
+
+<div class="sel @(_aberto ? "aberto" : "")">
+    @if (_aberto) { <div class="sel-fundo" @onclick="Fechar"></div> }
+    <div class="sel-campo @(Disabled ? "off" : "")">
+        @Icons.Svg("search")
+        @if (!_aberto && _atual is not null)
+        {
+            <button type="button" class="sel-valor" @onclick="Abrir" disabled="@Disabled" title="Trocar a planta">
+                <strong>@_atual.Nome</strong><span class="muted"> · @Local(_atual)</span>
+            </button>
+        }
+        else if (!_aberto)
+        {
+            <button type="button" class="sel-valor vazio" @onclick="Abrir" disabled="@Disabled">@Placeholder</button>
+        }
+        else
+        {
+            <input class="sel-input" @bind="_texto" @bind:event="oninput" @bind:after="Refiltrar" @onkeydown="Tecla" placeholder="Digite nome, cidade, estado, país ou cliente…" autocomplete="off" autofocus />
+        }
+        @if (_atual is not null && AllowClear && !Disabled) { <button type="button" class="sel-x" @onclick="Limpar" aria-label="Limpar seleção">@Icons.Svg("x")</button> }
+    </div>
+    @if (_aberto)
+    {
+        <div class="sel-painel" role="listbox">
+            @if (!string.IsNullOrEmpty(Vazio)) { <button type="button" class="sel-op sel-vazio" @onclick="Limpar">@Vazio</button> }
+            @for (var i = 0; i < _res.Count; i++)
+            {
+                var r = _res[i]; var idx = i;
+                <button type="button" role="option" class="sel-op @(i == _ativo ? "ativo" : "") @(r.Id == Value ? "sel" : "")" @onclick="() => Escolher(r)" @onmouseover="() => _ativo = idx">
+                    <span class="sel-l1">@Realce(r.Nome)</span>
+                    <span class="sel-l2">@Local(r)@(string.IsNullOrEmpty(r.Cliente) ? "" : " · " + r.Cliente)</span>
+                    <span class="sel-geo g-@r.Geo" title="@GeoTxt(r.Geo)">@Icons.Svg("pin")</span>
+                </button>
+            }
+            @if (_res.Count == 0) { <div class="sel-nada">Nenhuma planta encontrada para "@_texto".</div> }
+            <div class="sel-rodape">@(_total > _res.Count ? $"Mostrando {_res.Count} de {_total:N0} — digite mais para refinar" : $"{_total:N0} planta(s)")</div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Buscar planta…";
+    [Parameter] public string? Vazio { get; set; }
+    [Parameter] public bool AllowClear { get; set; } = true;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool SoAtivas { get; set; } = true;
+    [Parameter] public int Max { get; set; } = 40;
+
+    private bool _aberto; private string _texto = ""; private int _ativo; private int _total; private List<PlantaItem> _res = new(); private PlantaItem? _atual;
+
+    protected override void OnParametersSet() => _atual = string.IsNullOrEmpty(Value) ? null : Busca.Obter(Value);
+
+    private void Abrir() { if (Disabled) return; _aberto = true; _texto = ""; Refiltrar(); }
+    private void Fechar() => _aberto = false;
+
+    private void Refiltrar()
+    {
+        var todos = Busca.Buscar(_texto, SoAtivas, Value).ToList();
+        _total = todos.Count; _res = todos.Take(Max).ToList(); _ativo = 0;
+    }
+
+    private async Task Escolher(PlantaItem r) { _aberto = false; _atual = r; await ValueChanged.InvokeAsync(r.Id); }
+    private async Task Limpar() { _aberto = false; _atual = null; await ValueChanged.InvokeAsync(""); }
+
+    private async Task Tecla(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown": _ativo = Math.Min(_res.Count - 1, _ativo + 1); break;
+            case "ArrowUp": _ativo = Math.Max(0, _ativo - 1); break;
+            case "Enter": if (_res.Count > 0) await Escolher(_res[Math.Clamp(_ativo, 0, _res.Count - 1)]); break;
+            case "Escape": Fechar(); break;
+        }
+    }
+
+    private static string Local(PlantaItem r)
+    {
+        var l = string.Join(", ", new[] { r.Cidade, r.Estado }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        l = string.IsNullOrEmpty(l) ? "sem cidade" : l;
+        return string.IsNullOrWhiteSpace(r.Pais) ? l : $"{l} · {r.Pais}";
+    }
+
+    private static string GeoTxt(string g) => g switch { "ok" => "Localizada no mapa", "manual" => "Posição ajustada manualmente", "aprox" => "Posição aproximada (cidade/estado/país)", _ => "Sem localização no mapa" };
+
+    // destaca no nome o trecho digitado
+    private MarkupString Realce(string nome)
+    {
+        var enc = System.Net.WebUtility.HtmlEncode(nome);
+        var w = DocEngine.Norm(_texto).Split(' ', StringSplitOptions.RemoveEmptyEntries).OrderByDescending(x => x.Length).FirstOrDefault();
+        if (string.IsNullOrEmpty(w)) return new MarkupString(enc);
+        var i = DocEngine.Norm(nome).IndexOf(w, StringComparison.Ordinal);
+        if (i < 0 || DocEngine.Norm(nome).Length != nome.Length) return new MarkupString(enc);      // normalização mudou o tamanho: não arrisca o recorte
+        return new MarkupString(System.Net.WebUtility.HtmlEncode(nome[..i]) + "<mark>" + System.Net.WebUtility.HtmlEncode(nome.Substring(i, w.Length)) + "</mark>" + System.Net.WebUtility.HtmlEncode(nome[(i + w.Length)..]));
+    }
+}

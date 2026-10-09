@@ -6,6 +6,7 @@
 @inject Importador Imp
 @inject Geocoder Geo
 @inject GeocodificacaoJob Job
+@inject BuscaPlantas Busca
 @inject Sessao Sessao
 @inject IJSRuntime JS
 @inject IConfiguration Cfg
@@ -62,45 +63,61 @@
 }
 else if (_aba == "plantas")
 {
-    <div class="toolbar">
-        <input class="field busca" placeholder="Buscar planta, cidade…" @bind="_buscaPl" @bind:event="oninput" aria-label="Buscar planta" />
-        <select class="field w-auto" @bind="_fCli"><option value="">Todos os clientes</option>@foreach (var c in _clientes.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select>
-        <select class="field w-auto" @bind="_fPais"><option value="">Todos os países</option>@foreach (var x in _plantas.Select(p => p.Pais).Distinct().OrderBy(x => x)) {<option>@x</option>}</select>
-        <select class="field w-auto" @bind="_fGeo"><option value="">Qualquer localização</option><option value="ok">Localizada</option><option value="manual">Ajustada manualmente</option><option value="pendente">Localização pendente</option></select>
-        <label class="chk-inline"><input type="checkbox" @bind="_soAtivosPl" />Somente ativas</label>
-        <span class="grow"></span>
-        @if (_pode)
-        {
-            @if (Geo.Configurado && !Job.Rodando && _plantas.Any(p => !p.TemCoord && p.GeoStatus != "manual"))
+    <div class="pl-topo">
+        <div class="pl-busca">
+            @Icons.Svg("search")
+            <input id="busca-plantas" placeholder="Buscar entre @_plantas.Count.ToString("N0") plantas: nome, cidade, estado, país, cliente ou endereço…" @bind="_buscaPl" @bind:event="oninput" @bind:after="Refiltrar" aria-label="Buscar planta" autocomplete="off" />
+            @if (!string.IsNullOrEmpty(_buscaPl)) { <button class="sel-x" @onclick="@(() => { _buscaPl = ""; Refiltrar(); })" aria-label="Limpar busca">@Icons.Svg("x")</button> }
+            <kbd title="Atalho: tecla / para buscar">/</kbd>
+        </div>
+        <div class="pl-acoes">
+            @if (_pode)
             {
-                <button class="btn-ghost" @onclick="IniciarJob">@Icons.Svg("pin")Localizar pendentes (@_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual"))</button>
+                @if (Geo.Configurado && !Job.Rodando && _plantas.Any(p => !p.TemCoord && p.GeoStatus != "manual"))
+                {
+                    <button class="btn-ghost" @onclick="IniciarJob">@Icons.Svg("pin")Localizar pendentes (@_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual"))</button>
+                }
+                <button class="btn-primary" @onclick="NovaPlanta">@Icons.Svg("plus")Nova planta</button>
             }
-            <button class="btn-primary" @onclick="NovaPlanta">@Icons.Svg("plus")Nova planta</button>
+        </div>
+    </div>
+    <div class="pl-chips">
+        @foreach (var (k, r, ic) in Chips)
+        {
+            <button class="pl-chip @(_chip == k ? "on" : "") c-@(k == "" ? "todas" : k)" @onclick="() => { _chip = k; _pagPl = 0; Refiltrar(); }">@Icons.Svg(ic)@r <b>@_cont.GetValueOrDefault(k).ToString("N0")</b></button>
         }
+        <span class="grow"></span>
+        <label class="chk-inline"><input type="checkbox" @bind="_soAtivosPl" @bind:after="Refiltrar" />Somente ativas</label>
+    </div>
+    <div class="pl-filtros">
+        <label class="flt"><span class="flt-label">Cliente</span><select @bind="_fCli" @bind:after="Refiltrar"><option value="">Todos</option>@foreach (var c in _clientes.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
+        <label class="flt"><span class="flt-label">País</span><select @bind="_fPais" @bind:after="Refiltrar"><option value="">Todos</option>@foreach (var x in _paises) {<option>@x</option>}</select></label>
+        <label class="flt"><span class="flt-label">Estado</span><select @bind="_fUf" @bind:after="Refiltrar"><option value="">Todos</option>@foreach (var x in _ufs) {<option>@x</option>}</select></label>
+        <label class="flt"><span class="flt-label">Ordenar por</span><select @bind="_ordem" @bind:after="Refiltrar"><option value="nome">Nome</option><option value="cidade">Cidade</option><option value="pais">País</option><option value="geo">Localização</option></select></label>
+        <label class="flt"><span class="flt-label">Por página</span><select @bind="_tam" @bind:after="@(() => _pagPl = 0)"><option value="50">50</option><option value="100">100</option><option value="200">200</option></select></label>
+        @if (_fCli != "" || _fPais != "" || _fUf != "" || _chip != "" || _buscaPl != "") { <button class="btn-link" @onclick="LimparFiltros">@Icons.Svg("x")Limpar tudo</button> }
+        <span class="grow"></span>
+        <span class="muted sm"><strong>@_lista.Count.ToString("N0")</strong> resultado(s)</span>
     </div>
     @PainelJob()
     @if (!string.IsNullOrEmpty(_msgGeo)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@_msgGeo</div></div> }
-    <div class="table-wrap"><table class="grid-tbl">
-        <thead><tr><th>Cliente</th><th>Planta / unidade</th><th>Local</th><th>Fuso</th><th>Localização</th><th>Situação</th><th></th></tr></thead>
+    <div class="table-wrap"><table class="grid-tbl pl-tbl">
+        <thead><tr><th>Planta</th><th>Local</th><th>País</th><th>Localização no mapa</th><th></th></tr></thead>
         <tbody>
-        @foreach (var p in PlantasFiltradas.Skip(PagPl * TamPag).Take(TamPag))
+        @foreach (var p in _lista.Skip(PagPl * _tam).Take(_tam))
         {
-            <tr>
-                <td>@_clientes.FirstOrDefault(c => c.Id == p.ClienteId)?.Nome</td>
-                <td><strong>@p.Nome</strong></td>
-                <td>@p.Cidade@(string.IsNullOrEmpty(p.Estado) ? "" : "/" + p.Estado) · @p.Pais</td>
-                <td class="muted sm">@p.FusoHorario</td>
-                <td><GeoBadge P="p" /></td>
-                <td><span class="badge @(p.Ativo ? "st-pos" : "st-neutral")">@(p.Ativo ? "Ativa" : "Inativa")</span></td>
-                <td class="right nowrap">
-                    <button class="row-act" title="@(_pode ? "Editar planta e corrigir localização" : "Ver planta")" @onclick="() => EditarPlanta(p)">@Icons.Svg(_pode ? "edit" : "eye")</button>
-                </td>
+            <tr class="@(p.Ativa ? "" : "inativa")" @onclick="() => AbrirPlanta(p.Id)" tabindex="0" @onkeydown="e => TeclaLinha(e, p.Id)">
+                <td><div class="pl-nome">@RealceBusca(p.Nome)</div>@if (!string.IsNullOrEmpty(p.Cliente)) { <div class="muted sm">@p.Cliente</div> }@if (!p.Ativa) { <span class="tag">inativa</span> }</td>
+                <td>@if (string.IsNullOrWhiteSpace(p.Cidade)) { <span class="badge st-warn">sem cidade</span> } else { <span>@p.Cidade@(string.IsNullOrEmpty(p.Estado) ? "" : ", " + p.Estado)</span> }@if (!string.IsNullOrWhiteSpace(p.Rua)) { <div class="muted sm">@Ui.Corte(p.Rua, 60)</div> }</td>
+                <td>@p.Pais</td>
+                <td>@GeoChip(p.Geo)</td>
+                <td class="right nowrap"><span class="row-act" aria-hidden="true">@Icons.Svg(_pode ? "edit" : "eye")</span></td>
             </tr>
         }
         </tbody>
     </table></div>
-    @Paginacao(PlantasFiltradas.Count(), PagPl, n => _pagPl = n)
-    @if (!PlantasFiltradas.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("pin")</div><h3>Nenhuma planta encontrada</h3><p>Cadastre uma planta ou importe uma planilha.</p></div> }
+    @PaginacaoLista()
+    @if (_lista.Count == 0) { <div class="empty-state sm"><div class="ico">@Icons.Svg("pin")</div><h3>Nenhuma planta encontrada</h3><p>@(_plantas.Count == 0 ? "Cadastre uma planta ou importe uma planilha." : "Tente outras palavras ou limpe os filtros.")</p></div> }
 }
 else if (_aba == "importar" && _pode)
 {
@@ -236,7 +253,7 @@ else if (_aba == "importar" && _pode)
 
             <div class="modal-actions">
                 <button class="btn-ghost" @onclick="ReiniciarImport">Nova importação</button>
-                <button class="btn-primary" @onclick="@(() => { _aba = "plantas"; _fGeo = ""; ReiniciarImport(); })">Ver plantas</button>
+                <button class="btn-primary" @onclick="@(() => { _aba = "plantas"; _chip = ""; ReiniciarImport(); Refiltrar(); })">Ver plantas</button>
             </div>
         </div>
     }
@@ -313,7 +330,7 @@ else if (_aba == "importar" && _pode)
     private Ator _ator = new(); private bool _pode;
     private List<Cliente> _clientes = new(); private List<Planta> _plantas = new();
     private string _aba = "plantas";
-    private string _buscaCli = "", _buscaPl = "", _fCli = "", _fPais = "", _fGeo = ""; private bool _soAtivosCli, _soAtivosPl;
+    private string _buscaCli = "", _buscaPl = "", _fCli = "", _fPais = ""; private bool _soAtivosCli, _soAtivosPl;
     private List<string>? _erros; private Cliente? _cli; private Planta? _pl; private bool _salvando, _localizando;
     private string? _msgGeo, _msgGeoPl; private string _lat = "", _lon = "";
     private DotNetObjectReference<Clientes>? _ref; private bool _mapaPlantaPronto; private string? _mapaPlantaId;
@@ -329,19 +346,78 @@ else if (_aba == "importar" && _pode)
 
     private void Carregar()
     {
-        _clientes = Db.Clientes.Todos(); _plantas = Db.Plantas.Todos();
+        _clientes = Db.Clientes.Todos(); _plantas = Db.Plantas.Todos(); Refiltrar();
     }
 
     private IEnumerable<Cliente> ClientesFiltrados => _clientes.Where(c => (!_soAtivosCli || c.Ativo) &&
         (string.IsNullOrWhiteSpace(_buscaCli) || DocEngine.Norm(c.Nome + " " + c.RazaoSocial).Contains(DocEngine.Norm(_buscaCli)))).OrderBy(c => c.Nome);
 
-    private IEnumerable<Planta> PlantasFiltradas => _plantas.Where(p => (!_soAtivosPl || p.Ativo)
-        && (string.IsNullOrEmpty(_fCli) || p.ClienteId == _fCli) && (string.IsNullOrEmpty(_fPais) || p.Pais == _fPais)
-        && (string.IsNullOrEmpty(_fGeo) || (_fGeo == "pendente" ? !p.TemCoord : p.TemCoord && p.GeoStatus == _fGeo))
-        && (string.IsNullOrWhiteSpace(_buscaPl) || DocEngine.Norm($"{p.Nome} {p.Cidade} {p.Estado} {p.Pais} {_clientes.FirstOrDefault(c => c.Id == p.ClienteId)?.Nome}").Contains(DocEngine.Norm(_buscaPl))))
-        .OrderBy(p => _clientes.FirstOrDefault(c => c.Id == p.ClienteId)?.Nome).ThenBy(p => p.Nome);
+    // ---- lista de plantas (milhares): busca por índice, filtros e contagens calculados uma vez por alteração ----
+    private string _chip = "", _fUf = "", _ordem = "nome"; private int _tam = 100;
+    private List<PlantaItem> _lista = new(); private Dictionary<string, int> _cont = new(); private List<string> _paises = new(), _ufs = new();
+    private static readonly (string, string, string)[] Chips =
+        { ("", "Todas", "layers"), ("ok", "Localizadas", "check"), ("aprox", "Aproximadas", "pin"), ("pendente", "Sem localização", "alert"), ("semcidade", "Sem cidade", "help") };
 
-    private void FiltrarPlantas(string cli) { _fCli = cli; _aba = "plantas"; }
+    private void Refiltrar()
+    {
+        var baseQ = Busca.Buscar(_buscaPl, _soAtivosPl).Where(i => (_fCli == "" || i.ClienteId == _fCli) && (_fPais == "" || i.Pais == _fPais) && (_fUf == "" || i.Estado == _fUf)).ToList();
+        _cont = new() { [""] = baseQ.Count, ["ok"] = baseQ.Count(i => i.Geo is "ok" or "manual"), ["aprox"] = baseQ.Count(i => i.Geo == "aprox"),
+                        ["pendente"] = baseQ.Count(i => i.Geo == "pendente"), ["semcidade"] = baseQ.Count(i => string.IsNullOrWhiteSpace(i.Cidade)) };
+        IEnumerable<PlantaItem> q = _chip switch
+        {
+            "ok" => baseQ.Where(i => i.Geo is "ok" or "manual"), "aprox" => baseQ.Where(i => i.Geo == "aprox"), "pendente" => baseQ.Where(i => i.Geo == "pendente"),
+            "semcidade" => baseQ.Where(i => string.IsNullOrWhiteSpace(i.Cidade)), _ => baseQ,
+        };
+        if (string.IsNullOrWhiteSpace(_buscaPl) || _ordem != "nome")   // com texto digitado vale a relevância; senão a ordem escolhida
+            q = _ordem switch
+            {
+                "cidade" => q.OrderBy(i => i.Cidade, StringComparer.OrdinalIgnoreCase).ThenBy(i => i.Nome, StringComparer.OrdinalIgnoreCase),
+                "pais" => q.OrderBy(i => i.Pais, StringComparer.OrdinalIgnoreCase).ThenBy(i => i.Estado).ThenBy(i => i.Nome, StringComparer.OrdinalIgnoreCase),
+                "geo" => q.OrderBy(i => i.Geo == "pendente" ? 0 : i.Geo == "aprox" ? 1 : 2).ThenBy(i => i.Nome, StringComparer.OrdinalIgnoreCase),
+                _ => q,
+            };
+        _lista = q.ToList(); _pagPl = 0;
+        var todas = Busca.Itens();
+        _paises = todas.Select(i => i.Pais).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
+        _ufs = todas.Where(i => _fPais == "" || i.Pais == _fPais).Select(i => i.Estado).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
+    }
+
+    private void LimparFiltros() { _fCli = _fPais = _fUf = _chip = _buscaPl = ""; Refiltrar(); }
+
+    private void TeclaLinha(KeyboardEventArgs e, string id) { if (e.Key == "Enter") AbrirPlanta(id); }
+
+    private void AbrirPlanta(string id) { if (Db.Plantas.Obter(id) is { } p) EditarPlanta(p); }
+
+    private RenderFragment GeoChip(string g) => __builder =>
+    {
+        var (txt, css) = g switch { "ok" => ("Localizada", "st-pos"), "manual" => ("Ajustada manualmente", "st-info"), "aprox" => ("Aproximada", "st-warn"), _ => ("Sem localização", "st-neutral") };
+        <span class="badge @css">@Icons.Svg("pin", "bico")@txt</span>
+    };
+
+    private MarkupString RealceBusca(string nome)
+    {
+        var enc = System.Net.WebUtility.HtmlEncode(nome);
+        var w = DocEngine.Norm(_buscaPl).Split(' ', StringSplitOptions.RemoveEmptyEntries).OrderByDescending(x => x.Length).FirstOrDefault();
+        var n = DocEngine.Norm(nome);
+        if (string.IsNullOrEmpty(w) || n.Length != nome.Length) return new MarkupString(enc);
+        var i = n.IndexOf(w, StringComparison.Ordinal);
+        return i < 0 ? new MarkupString(enc) : new MarkupString(System.Net.WebUtility.HtmlEncode(nome[..i]) + "<mark>" + System.Net.WebUtility.HtmlEncode(nome.Substring(i, w.Length)) + "</mark>" + System.Net.WebUtility.HtmlEncode(nome[(i + w.Length)..]));
+    }
+
+    private RenderFragment PaginacaoLista() => __builder =>
+    {
+        var paginas = Math.Max(1, (int)Math.Ceiling(_lista.Count / (double)_tam));
+        if (paginas <= 1) return;
+        <div class="paginacao">
+            <button class="btn-ghost sm" disabled="@(PagPl <= 0)" @onclick="() => _pagPl = 0" title="Primeira">«</button>
+            <button class="btn-ghost sm" disabled="@(PagPl <= 0)" @onclick="() => _pagPl = PagPl - 1">@Icons.Svg("chevron-left")</button>
+            <span>Página <strong>@(PagPl + 1)</strong> de @paginas.ToString("N0") · @(PagPl * _tam + 1)–@Math.Min(_lista.Count, (PagPl + 1) * _tam) de @_lista.Count.ToString("N0")</span>
+            <button class="btn-ghost sm" disabled="@(PagPl >= paginas - 1)" @onclick="() => _pagPl = PagPl + 1">@Icons.Svg("chevron-right")</button>
+            <button class="btn-ghost sm" disabled="@(PagPl >= paginas - 1)" @onclick="() => _pagPl = paginas - 1" title="Última">»</button>
+        </div>
+    };
+
+    private void FiltrarPlantas(string cli) { _fCli = cli; _aba = "plantas"; Refiltrar(); }
 
     // ------------------------------------------------------ clientes
     private void NovoCliente() { _cli = new Cliente(); _erros = null; }
@@ -437,7 +513,7 @@ else if (_aba == "importar" && _pode)
 
     private const int TamPag = 100;
     private int _pagPl, _pagPrev;
-    private int PagPl => Math.Min(_pagPl, Math.Max(0, (int)Math.Ceiling(PlantasFiltradas.Count() / (double)TamPag) - 1));
+    private int PagPl => Math.Min(_pagPl, Math.Max(0, (int)Math.Ceiling(_lista.Count / (double)_tam) - 1));
     private IEnumerable<LinhaImport> LinhasPrev => _linhas.Where(l => !_soProblemas || l.Rejeitada || l.Existente || l.Avisos.Count > 0);
 
     private RenderFragment Paginacao(int total, int pag, Action<int> ir) => __builder =>

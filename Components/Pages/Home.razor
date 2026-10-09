@@ -61,8 +61,7 @@ else
             <select @bind="FStatus" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var s in Vocab.StatusOp) {<option value="@s.Key">@s.Label</option>}</select></label>
         <label class="flt"><span class="flt-label">Cliente</span>
             <select @bind="FCli" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var c in _snap.Clientes.Values.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
-        <label class="flt"><span class="flt-label">Planta</span>
-            <select @bind="FPlanta" @bind:after="Aplicar"><option value="">Todas</option>@foreach (var p in _snap.Plantas.Values.Where(p => string.IsNullOrEmpty(FCli) || p.ClienteId == FCli).OrderBy(p => p.Nome)) {<option value="@p.Id">@p.Nome</option>}</select></label>
+        <div class="flt flt-planta"><span class="flt-label">Planta</span><SeletorPlanta Value="@FPlanta" ValueChanged="id => { FPlanta = id ?? string.Empty; Aplicar(); }" Vazio="Todas as plantas" Placeholder="Todas" SoAtivas="false" /></div>
         <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">País</span>
             <select @bind="FPais" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var x in Paises) {<option>@x</option>}</select></label>
         <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Estado</span>
@@ -165,9 +164,7 @@ else
     <Dialogo Titulo="@($"Confirmar localização · {_confirmando.Nome}")" OnFechar="@(() => _confirmando = null)" Erros="_errosConf">
         <p class="muted">Registra onde o técnico <strong>está agora</strong>. Fica separado da localização prevista pela agenda e mostra data, hora e quem informou.</p>
         <div class="form-grid">
-            <label class="fld full">Planta
-                <select @bind="_confPlanta"><option value="">— outro local (descrever abaixo) —</option>
-                    @foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
+            <div class="fld full">Planta<SeletorPlanta Value="@_confPlanta" ValueChanged="id => _confPlanta = id ?? string.Empty" Vazio="— outro local (descrever abaixo) —" Placeholder="— outro local (descrever abaixo) —" /></div>
             <label class="fld full">Descrição do local (opcional se escolheu uma planta)
                 <input class="field" @bind="_confTexto" placeholder="Ex.: Hotel Central, Calama" /></label>
             <label class="fld full">Observação

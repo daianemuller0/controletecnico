@@ -773,3 +773,68 @@ public class VolumeTests
     }
     private sealed class CountingFactory : IHttpClientFactory { private readonly HttpMessageHandler _h; public CountingFactory(HttpMessageHandler h) => _h = h; public HttpClient CreateClient(string n) => new(_h); }
 }
+
+public class BuscaEMarcaTests
+{
+    private static byte[] Png() => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+
+    [Fact]
+    public void Busca_acha_6000_plantas_por_qualquer_palavra_sem_acento_e_ordena_por_relevancia()
+    {
+        using var a = new Amb(); var busca = new BuscaPlantas(a.Db);
+        var lote = new List<Planta>();
+        for (var i = 0; i < 6000; i++) lote.Add(new Planta { Nome = $"Planta {i:0000}", Cidade = i % 3 == 0 ? "São José dos Campos" : "Itaú de Minas", Estado = i % 3 == 0 ? "SP" : "MG", Pais = "Brasil", Rua = "Rodovia " + i });
+        lote.Add(new Planta { Nome = "VCimentos Itaú de Minas (Votorantim)", Cidade = "Itaú de Minas", Estado = "MG", Pais = "Brasil", Rua = "Rodovia MG 050 Km 341 - Taboca" });
+        a.Db.Plantas.SalvarVarios(lote);
+        var sw = System.Diagnostics.Stopwatch.StartNew(); busca.Buscar("x").ToList(); var primeira = sw.ElapsedMilliseconds;   // monta o índice
+        sw.Restart();
+        var r1 = busca.Buscar("itau minas votorantim").ToList();                  // sem acento, várias palavras, qualquer ordem
+        var r2 = busca.Buscar("sao jose campos sp").Take(40).ToList();
+        var r3 = busca.Buscar("planta 0042").ToList();
+        sw.Stop();
+        Assert.Single(r1); Assert.Equal("VCimentos Itaú de Minas (Votorantim)", r1[0].Nome);
+        Assert.Equal(40, r2.Count); Assert.All(r2, x => Assert.Equal("SP", x.Estado));
+        Assert.Equal("Planta 0042", r3[0].Nome);                                   // nome exato vem primeiro
+        Assert.True(sw.ElapsedMilliseconds < 500, $"3 buscas em {sw.ElapsedMilliseconds} ms");
+        Assert.True(primeira < 8000, $"índice em {primeira} ms");
+        Assert.Equal(6001, busca.Itens().Count);
+        // cadastro muda -> índice acompanha
+        var nova = a.Db.Plantas.Salvar(new Planta { Nome = "Zeta Nova", Cidade = "Natal", Pais = "Brasil" });
+        Assert.Equal(nova.Id, busca.Buscar("zeta natal").Single().Id);
+        a.Db.Plantas.Apagar(nova.Id); Assert.Empty(busca.Buscar("zeta natal"));
+        // inativas só quando pedido
+        var p = a.Db.Plantas.Obter(r1[0].Id)!; p.Ativo = false; a.Db.Plantas.Salvar(p);
+        Assert.Empty(busca.Buscar("votorantim")); Assert.Single(busca.Buscar("votorantim", soAtivas: false));
+        Assert.Single(busca.Buscar("votorantim", incluirId: p.Id));              // a planta já selecionada continua aparecendo
+    }
+
+    [Fact]
+    public async Task Logos_validacao_substituicao_e_historico()
+    {
+        using var a = new Amb();
+        var png = await a.Svc.DefinirLogoAsync(a.Admin, "login", "logo.png", new MemoryStream(Png()));
+        Assert.Equal("image/png", png.ContentType); Assert.Equal(png.Id, a.Svc.LogoDe("login")!.Id); Assert.Null(a.Svc.LogoDe("menu"));
+        var svg = await a.Svc.DefinirLogoAsync(a.Admin, "menu", "l.svg", new MemoryStream(System.Text.Encoding.UTF8.GetBytes("<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10'/></svg>")));
+        Assert.Equal("image/svg+xml", svg.ContentType);
+        // SVG com script, formato inválido, falso PNG e permissão
+        await Assert.ThrowsAsync<ValidacaoException>(() => a.Svc.DefinirLogoAsync(a.Admin, "menu", "x.svg", new MemoryStream(System.Text.Encoding.UTF8.GetBytes("<svg><script>alert(1)</script></svg>"))));
+        await Assert.ThrowsAsync<ValidacaoException>(() => a.Svc.DefinirLogoAsync(a.Admin, "menu", "x.svg", new MemoryStream(System.Text.Encoding.UTF8.GetBytes("<svg onload=\"x()\"></svg>"))));
+        await Assert.ThrowsAsync<ValidacaoException>(() => a.Svc.DefinirLogoAsync(a.Admin, "menu", "x.gif", new MemoryStream(new byte[] { 1, 2, 3 })));
+        await Assert.ThrowsAsync<ValidacaoException>(() => a.Svc.DefinirLogoAsync(a.Admin, "menu", "x.png", new MemoryStream(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })));
+        await Assert.ThrowsAsync<ValidacaoException>(() => a.Svc.DefinirLogoAsync(a.Admin, "menu", "grande.png", new MemoryStream(new byte[4 * 1024 * 1024])));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => a.Svc.DefinirLogoAsync(a.Gestao, "login", "logo.png", new MemoryStream(Png())));
+        Assert.Equal(svg.Id, a.Svc.LogoDe("menu")!.Id);                                // recusas não alteram o logo atual
+        // troca: o arquivo anterior vai para o histórico e some do cadastro
+        var png2 = await a.Svc.DefinirLogoAsync(a.Admin, "login", "novo.png", new MemoryStream(Png()));
+        Assert.NotEqual(png.Id, png2.Id); Assert.Null(a.Db.Anexos.Obter(png.Id));
+        Assert.NotEmpty(Directory.GetFiles(Path.Combine(a.Dir, "_historico", "arquivos"), "*.bin", SearchOption.AllDirectories));
+        Assert.True(a.Svc.PodeAcessar(new Ator(), png2));                              // marca é pública (tela de login)
+        // voltar ao padrão e nome
+        a.Svc.RemoverLogo(a.Admin, "login"); Assert.Null(a.Svc.LogoDe("login"));
+        a.Svc.SalvarNomeSistema(a.Admin, "Acme Técnica", "Campo"); Assert.Equal("Acme Técnica", a.Svc.NomeSistema);
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarNomeSistema(a.Admin, " ", ""));
+        Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "marca.logo");
+        // persiste ao reabrir
+        Assert.Equal(svg.Id, new Servicos(new Db(new ParquetStore(a.Dir)), a.Arq).LogoDe("menu")!.Id);
+    }
+}

@@ -43,9 +43,7 @@ else
 
     <div class="panel">
         <div class="form-grid">
-            <label class="fld">Planta
-                <select @bind="_v.PlantaId" @bind:after="AoPlanta"><option value="">— selecione —</option>
-                    @foreach (var p in _snap.Plantas.Values.Where(p => p.Ativo || p.Id == _v.PlantaId).OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)@(string.IsNullOrWhiteSpace(p.Cidade) ? "" : " — " + p.Cidade)</option>}</select></label>
+            <div class="fld">Planta <SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" Placeholder="Buscar planta por nome, cidade, estado, país…" /></div>
             <label class="fld">Serviço
                 <select @bind="_v.ServicoId" @bind:after="Validar"><option value="">— selecione —</option>
                     @foreach (var s in _snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
@@ -282,6 +280,8 @@ else
     };
 
     // ---- planta / mapa ----
+    private async Task AoPlantaValor(string id) { _v.PlantaId = id ?? ""; await AoPlanta(); }
+
     private async Task AoPlanta()
     {
         AtualizarPlanta(); Validar(); _redesenhar = true;

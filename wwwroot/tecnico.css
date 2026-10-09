@@ -404,3 +404,58 @@ input[type=checkbox], input[type=radio] { width: auto !important; accent-color: 
 .mais[open] summary svg { transform: rotate(90deg); }
 @media (max-width: 1100px) { .vs-grid { grid-template-columns: 1fr; } .vs-lado { position: static; } }
 @media (max-width: 640px) { .diaria .form-grid { grid-template-columns: 1fr; } }
+
+/* ==========================================================================
+   Seletor de planta com busca
+   ========================================================================== */
+.sel { position: relative; }
+.sel-fundo { position: fixed; inset: 0; z-index: 40; }
+.sel-campo { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--border-strong); border-radius: 10px; padding: 0 10px; min-height: 38px; position: relative; z-index: 41; }
+.sel.aberto .sel-campo { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 71, 133, .12); }
+.sel-campo > svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.sel-input { flex: 1; border: 0 !important; outline: none; box-shadow: none !important; background: none; padding: 8px 0 !important; font-size: 13.5px; min-width: 0; }
+.sel-valor { flex: 1; text-align: left; background: none; border: 0; padding: 8px 0; cursor: pointer; font: inherit; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-valor.vazio { color: var(--muted); }
+.sel-x { background: none; border: 0; cursor: pointer; color: var(--muted); display: grid; place-items: center; padding: 4px; border-radius: 6px; }
+.sel-x:hover { background: var(--panel-2); color: var(--neg); } .sel-x svg { width: 14px; height: 14px; }
+.sel-painel { position: absolute; z-index: 42; left: 0; right: 0; top: calc(100% + 6px); min-width: 340px; background: #fff; border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: var(--shadow-lg); max-height: 380px; overflow-y: auto; padding: 6px; }
+.sel-op { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "l1 geo" "l2 geo"; width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 8px; cursor: pointer; font: inherit; gap: 1px 10px; align-items: center; }
+.sel-op.ativo, .sel-op:hover { background: #eaf2fb; }
+.sel-op.sel { box-shadow: inset 3px 0 0 var(--primary); }
+.sel-l1 { grid-area: l1; font-weight: 600; font-size: 13px; color: var(--text); } .sel-l1 mark { background: #ffe8a3; border-radius: 3px; padding: 0 1px; }
+.sel-l2 { grid-area: l2; font-size: 11.5px; color: var(--muted); }
+.sel-geo { grid-area: geo; display: grid; place-items: center; } .sel-geo svg { width: 15px; height: 15px; }
+.sel-geo.g-ok { color: var(--pos); } .sel-geo.g-manual { color: var(--info); } .sel-geo.g-aprox { color: var(--warn); } .sel-geo.g-pendente { color: var(--muted-2); }
+.sel-vazio { color: var(--muted); font-size: 12.5px; display: block; }
+.sel-nada { padding: 16px; text-align: center; color: var(--muted); font-size: 12.5px; }
+.sel-rodape { padding: 6px 10px 2px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); margin-top: 4px; }
+.fld .sel { font-weight: 400; }
+
+/* ==========================================================================
+   Lista de plantas (milhares): busca grande, chips de situação, filtros
+   ========================================================================== */
+.pl-topo { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.pl-busca { flex: 1; min-width: 280px; display: flex; align-items: center; gap: 10px; background: #fff; border: 1.5px solid var(--border-strong); border-radius: 14px; padding: 4px 14px; box-shadow: var(--shadow-xs); }
+.pl-busca:focus-within { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(0, 71, 133, .10); }
+.pl-busca > svg { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.pl-busca input { flex: 1; border: 0 !important; outline: none; box-shadow: none !important; background: none; font-size: 15px; padding: 11px 0 !important; min-width: 0; }
+.pl-busca kbd { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 6px; padding: 1px 7px; background: var(--panel-2); }
+.pl-acoes { display: flex; gap: 8px; }
+.pl-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.pl-chip { display: inline-flex; align-items: center; gap: 7px; background: #fff; border: 1px solid var(--border-strong); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-2); cursor: pointer; transition: all .12s; }
+.pl-chip svg { width: 14px; height: 14px; } .pl-chip b { background: #eef2f7; border-radius: 999px; padding: 0 8px; font-size: 11px; color: var(--muted); }
+.pl-chip:hover { border-color: var(--primary); }
+.pl-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; } .pl-chip.on b { background: rgba(255,255,255,.2); color: #fff; }
+.pl-filtros { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin-bottom: 12px; }
+.pl-filtros .flt { display: flex; flex-direction: column; gap: 3px; }
+.pl-filtros .flt-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.pl-filtros select { height: 32px; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12.5px; font-weight: 600; background: #fff; max-width: 200px; }
+.pl-tbl tbody tr { cursor: pointer; } .pl-tbl tbody tr:hover td { background: #f3f8fe; } .pl-tbl tbody tr:focus-visible td { background: #e8f1fb; }
+.pl-tbl tr.inativa td { opacity: .6; }
+.pl-nome { font-weight: 700; color: var(--text); } .pl-nome mark { background: #ffe8a3; border-radius: 3px; padding: 0 1px; }
+.paginacao .btn-ghost.sm { min-width: 34px; justify-content: center; }
+.flt-planta { min-width: 260px; display: flex; flex-direction: column; gap: 3px; }
+.op-filtros .sel-campo { min-height: 30px; border-radius: 7px; } .op-filtros .sel-valor, .op-filtros .sel-input { font-size: 12px; padding: 5px 0 !important; }
+.logo-padrao { display: flex; align-items: center; gap: 12px; color: #fff; text-align: left; } .logo-padrao small { opacity: .7; }
+.logo-preview.logo-menu { background: linear-gradient(184deg, var(--sidebar-top), var(--sidebar-bottom)); }
+.brand-logo-img { max-width: 100%; }

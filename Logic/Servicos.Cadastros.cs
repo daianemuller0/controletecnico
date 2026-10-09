@@ -341,6 +341,8 @@ public sealed partial class Servicos
                 return v is not null && ator.Papel == Roles.Tecnico && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId);
             case "tecnico":
                 return ator.VeTecnico(a.DonoId);
+            case "marca":
+                return true;
             default: return false;
         }
     }
@@ -439,5 +441,49 @@ public sealed partial class Servicos
         foreach (var e in Db.Store.Entities().ToList()) if (Db.Store.FileCount(e) > 1) { Db.Store.Compact(e); n++; }
         Auditar(ator, "armazenamento.compactar", "sistema", "", $"{n} entidade(s) compactada(s)");
         return n;
+    }
+}
+
+
+public sealed partial class Servicos
+{
+    public static readonly string[] TiposMarca = { "login", "menu" };
+    /// <summary>Avisa as telas abertas (menu lateral) que o logo ou o nome mudou.</summary>
+    public event Action? MarcaMudou;
+
+    public Anexo? LogoDe(string tipo) => Db.Cfg("marca_" + tipo) is { Length: > 0 } id ? Db.Anexos.Obter(id) : null;
+    public string NomeSistema => Db.Cfg("marca_nome", "Controle Técnico");
+    public string SubtituloSistema => Db.Cfg("marca_sub", "Operação de campo");
+
+    public async Task<Anexo> DefinirLogoAsync(Ator ator, string tipo, string nome, Stream conteudo)
+    {
+        ator.Exigir(Perm.Administrar);
+        if (!TiposMarca.Contains(tipo)) throw new ValidacaoException("Tipo de logo inválido.");
+        var novo = await Arquivos.SalvarMarcaAsync(ator, tipo, nome, conteudo);
+        var antigo = LogoDe(tipo);
+        Db.SetCfg("marca_" + tipo, novo.Id, ator.Login);
+        if (antigo is not null) Arquivos.Remover(antigo);
+        Auditar(ator, "marca.logo", "marca", tipo, $"Logo ({(tipo == "login" ? "página de login" : "menu lateral")}) atualizado: {novo.NomeOriginal}");
+        MarcaMudou?.Invoke();
+        return novo;
+    }
+
+    public void RemoverLogo(Ator ator, string tipo)
+    {
+        ator.Exigir(Perm.Administrar);
+        if (LogoDe(tipo) is { } a) Arquivos.Remover(a);
+        Db.SetCfg("marca_" + tipo, "", ator.Login);
+        Auditar(ator, "marca.logo", "marca", tipo, $"Logo ({(tipo == "login" ? "página de login" : "menu lateral")}) removido: volta ao padrão");
+        MarcaMudou?.Invoke();
+    }
+
+    public void SalvarNomeSistema(Ator ator, string nome, string subtitulo)
+    {
+        ator.Exigir(Perm.Administrar);
+        if (string.IsNullOrWhiteSpace(nome) || nome.Length > 40) throw new ValidacaoException("Informe o nome do sistema (até 40 caracteres).");
+        if (subtitulo.Length > 60) throw new ValidacaoException("Subtítulo com até 60 caracteres.");
+        Db.SetCfg("marca_nome", nome.Trim(), ator.Login); Db.SetCfg("marca_sub", subtitulo.Trim(), ator.Login);
+        Auditar(ator, "marca.nome", "marca", "", $"Nome do sistema: {nome.Trim()}");
+        MarcaMudou?.Invoke();
     }
 }

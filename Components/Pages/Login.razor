@@ -2,14 +2,22 @@
 @layout EmptyLayout
 @attribute [AllowAnonymous]
 @inject Db Db
+@inject Servicos Svc
 
-<PageTitle>Acesso · Controle Técnico</PageTitle>
+<PageTitle>Acesso · @Svc.NomeSistema</PageTitle>
 <div class="cover">
     <div class="cover-left">
         <div class="cover-top">
             <div class="cover-brand">
-                <div class="brand-mark big">CT</div>
-                <div class="cover-brand-text"><strong>Controle Técnico</strong><span>Operação de campo</span></div>
+                @if (Svc.LogoDe("login") is { } logo)
+                {
+                    <img src="/marca/login?v=@logo.Id" alt="@Svc.NomeSistema" class="cover-logo-img" />
+                }
+                else
+                {
+                    <div class="brand-mark big">CT</div>
+                    <div class="cover-brand-text"><strong>@Svc.NomeSistema</strong><span>@Svc.SubtituloSistema</span></div>
+                }
             </div>
             <div class="cover-tags-top"><span>VIAGENS</span><span class="dot">·</span><span>AGENDA</span><span class="dot">·</span><span>DOCUMENTAÇÃO</span></div>
         </div>

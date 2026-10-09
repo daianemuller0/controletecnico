@@ -356,9 +356,7 @@ else
                 <div class="fld full"><span>Técnicos</span>
                     <div class="chk-grid">@foreach (var t in TecnicosVisiveis.Where(t => t.Ativo)) {
                         <label class="chk-inline"><input type="checkbox" checked="@_form.Tecs.Contains(t.Id)" @onchange="e => { if ((bool)e.Value!) _form.Tecs.Add(t.Id); else _form.Tecs.Remove(t.Id); Previa(); }" />@t.Nome</label> }</div></div>
-                <label class="fld">Planta
-                    <select @bind="_form.PlantaId" @bind:after="AoPlantaForm"><option value="">— selecione —</option>
-                        @foreach (var p in _snap.Plantas.Values.Where(p => p.Ativo).OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
+                <div class="fld">Planta<SeletorPlanta Value="@_form.PlantaId" ValueChanged="id => { _form.PlantaId = id ?? string.Empty; AoPlantaForm(); }" /></div>
                 <label class="fld">Serviço
                     <select @bind="_form.ServicoId" @bind:after="Previa"><option value="">— selecione —</option>
                         @foreach (var s in _snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>

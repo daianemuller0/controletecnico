@@ -153,3 +153,10 @@ app.dnd = {
 
 // restaura o modo apresentação (preferência da pessoa neste navegador)
 try { if (localStorage.getItem('ct-apres') === '1') document.body.classList.add('apresentacao'); } catch { }
+
+// atalho "/" foca a busca de plantas (quando a página tem o campo)
+document.addEventListener('keydown', e => {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = document.activeElement; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    const b = document.getElementById('busca-plantas'); if (b) { e.preventDefault(); b.focus(); b.select(); }
+});

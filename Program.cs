@@ -76,6 +76,7 @@ builder.Services.AddDataProtection().SetApplicationName("ControleTecnico")
 builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton<Armazenamento>();
 builder.Services.AddSingleton<Servicos>();
+builder.Services.AddSingleton<BuscaPlantas>();
 builder.Services.AddSingleton<Importador>();
 builder.Services.AddSingleton<ImportadorTecnicos>();
 builder.Services.AddHttpClient("geo", c => c.Timeout = TimeSpan.FromSeconds(15));
@@ -159,6 +160,20 @@ app.MapPost("/auth/logout", async (HttpContext http) =>
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/login");
 }).DisableAntiforgery();
+
+// logos da identidade visual: públicos (a tela de login precisa deles antes da autenticação)
+app.MapGet("/marca/{tipo}", (string tipo, HttpContext http, Servicos svc, Armazenamento arq) =>
+{
+    if (!Servicos.TiposMarca.Contains(tipo)) return Results.NotFound();
+    var a = svc.LogoDe(tipo);
+    var s = a is null ? null : arq.Abrir(a);
+    if (a is null || s is null) return Results.NotFound();
+    http.Response.Headers["Cache-Control"] = "public, max-age=3600";
+    http.Response.Headers["ETag"] = $"\"{a.Id}\"";
+    // SVG servido como imagem isolada: sem script, sem recursos externos, mesmo se aberto direto no navegador
+    http.Response.Headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+    return Results.Stream(s, a.ContentType);
+}).AllowAnonymous();
 
 app.MapGet("/saude", () => Results.Ok("ok")).AllowAnonymous();
 

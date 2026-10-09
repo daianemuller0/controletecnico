@@ -1,10 +1,11 @@
 @implements IDisposable
 @inject Sessao Sessao
+@inject Servicos Svc
 @inject IJSRuntime JS
 
 <header class="topbar no-print">
     <div>
-        <div class="topbar-title">@Icons.Svg("wrench", "nav-ico")Controle Técnico</div>
+        <div class="topbar-title">@Icons.Svg("wrench", "nav-ico")@Svc.NomeSistema</div>
         <div class="topbar-sub">Viagens, agenda, disponibilidade e documentação dos técnicos</div>
     </div>
     <div class="topbar-right">
@@ -30,7 +31,7 @@
 </header>
 
 @code {
-    protected override void OnInitialized() => Sessao.Mudou += Ao;
+    protected override void OnInitialized() { Sessao.Mudou += Ao; Svc.MarcaMudou += Ao; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -38,7 +39,7 @@
         try { Sessao.Apresentacao = await JS.InvokeAsync<bool>("app.apresentacaoAtual"); } catch { }
     }
     private void Ao() => InvokeAsync(StateHasChanged);
-    public void Dispose() => Sessao.Mudou -= Ao;
+    public void Dispose() { Sessao.Mudou -= Ao; Svc.MarcaMudou -= Ao; }
 
     private async Task Alternar()
     {

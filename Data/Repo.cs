@@ -41,6 +41,9 @@ public sealed class Repo<T> where T : Entity, new()
 
     public string Entidade => _entity;
 
+    /// <summary>Muda a cada recarga ou gravação: serve para invalidar índices derivados (ex.: busca de plantas).</summary>
+    public long Versao { get; private set; }
+
     private Dictionary<string, T> Cache()
     {
         var agora = Environment.TickCount64;
@@ -53,7 +56,7 @@ public sealed class Repo<T> where T : Entity, new()
             try { atual = _store.Assinatura(_entity); } catch { return _cache; }   // rede oscilou: segue com o que há em memória
             if (atual == _assinatura) return _cache;
         }
-        _ultimaChecagem = agora;
+        _ultimaChecagem = agora; Versao++;
         _assinatura = _store.Assinatura(_entity);
         var d = new Dictionary<string, T>();
         foreach (var row in _store.ReadAll(_entity))
@@ -75,6 +78,9 @@ public sealed class Repo<T> where T : Entity, new()
         if (string.IsNullOrEmpty(id)) return null;
         lock (_lock) return Cache().TryGetValue(id, out var e) ? e.Copia<T>() : null;
     }
+
+    /// <summary>Confere a pasta compartilhada (se outra máquina gravou) e atualiza o cache, sem copiar nada.</summary>
+    public void Sincronizar() { lock (_lock) Cache(); }
 
     public bool Existe(string? id) { lock (_lock) return !string.IsNullOrEmpty(id) && Cache().ContainsKey(id); }
 
@@ -107,7 +113,7 @@ public sealed class Repo<T> where T : Entity, new()
                 Props.Select(p => new KeyValuePair<string, string?>(p.Name, Get(p, e))).ToList()).ToList();
             _store.WriteBatch(_entity, rows);   // primeiro a pasta compartilhada; só então o cache
             foreach (var e in lista) cache[e.Id] = e.Copia<T>();
-            _ultimaChecagem = 0;                 // na próxima leitura confere se mais alguém gravou junto
+            Versao++; _ultimaChecagem = 0;       // na próxima leitura confere se mais alguém gravou junto
         }
         return lista;
     }
@@ -121,7 +127,7 @@ public sealed class Repo<T> where T : Entity, new()
             var rows = new List<IReadOnlyList<KeyValuePair<string, string?>>>
                 { Props.Select(p => new KeyValuePair<string, string?>(p.Name, Get(p, e))).ToList() };
             _store.WriteBatch(_entity, rows, deleted: true);
-            cache.Remove(id);
+            cache.Remove(id); Versao++;
         }
     }
 

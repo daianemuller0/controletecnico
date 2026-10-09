@@ -69,6 +69,12 @@ Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSen
 * **Planta sem cidade:** pode ser importada; ao selecionar a planta numa viagem ou compromisso, o sistema **pede a cidade** (e estado/país/endereço) e já grava no cadastro, localizando em seguida. Viagem com planta sem cidade não pode ser confirmada.
 * O e-mail de contato da geocodificação pode ser definido em *Administração → Configurações e integrações*.
 
+## Buscar entre milhares de plantas
+
+* **Seletor de planta com busca** (em viagem, agenda, filtros e requisitos): digite nome, cidade, estado, país, cliente ou endereço, em qualquer ordem e sem acento; mostra as 40 melhores correspondências com destaque, cidade/UF·país, situação no mapa, navegação por setas/Enter. Testado com 6.000 plantas (resposta em milissegundos; o índice só é refeito quando o cadastro muda).
+* **Lista de plantas** (Clientes e plantas): busca grande (atalho `/`), chips com contagem (Todas, Localizadas, Aproximadas, Sem localização, Sem cidade), filtros por cliente/país/estado, ordenação, 50/100/200 por página e abertura da planta com um clique.
+* **Identidade visual** (Administração → Identidade visual): logo da página de login e do menu lateral (PNG, JPG, SVG ou WebP até 3 MB; SVG com script é recusado), nome e subtítulo do sistema. Vale na hora para todos; o logo anterior vai para `_historico`; "Remover" volta ao padrão.
+
 ## Nova viagem (tela enxuta)
 
 Planta + serviço + técnicos e **três blocos de diárias**: *deslocamento de ida*, *serviço* e *deslocamento de volta* (início/fim de cada um; a tela conta as diárias de cada etapa e o total). Ao escolher a planta, o **mapa mostra onde o técnico vai estar** (e o deslocamento desde a origem do técnico, quando cadastrada). Por baixo, a viagem continua sendo gravada como trechos de ida/retorno e atendimento, então agenda, mapa e conflitos funcionam igual. Viagens antigas com itinerário complexo (vários trechos, trechos por técnico, entre plantas) abrem automaticamente no **modo avançado** (`/viagens/{id}/avancado`), sem perder dados.

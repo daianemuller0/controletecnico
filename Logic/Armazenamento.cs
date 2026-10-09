@@ -81,6 +81,51 @@ public sealed class Armazenamento
         }, ator.Login);
     }
 
+    public const long TamanhoMaxMarca = 3L * 1024 * 1024;
+    private static readonly Dictionary<string, string> TiposMarca = new(StringComparer.OrdinalIgnoreCase)
+        { [".png"] = "image/png", [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg", [".svg"] = "image/svg+xml", [".webp"] = "image/webp" };
+
+    /// <summary>Valida uma imagem de identidade visual (PNG, JPG, WebP ou SVG, até 3 MB). SVG não pode conter script nem eventos.</summary>
+    public static string ValidarMarca(string nome, byte[] b)
+    {
+        var ext = Path.GetExtension(nome ?? "");
+        if (!TiposMarca.TryGetValue(ext, out var tipo)) throw new ValidacaoException("Formato não aceito. Use PNG, JPG, SVG ou WebP.");
+        if (b.Length == 0) throw new ValidacaoException("O arquivo está vazio.");
+        if (b.Length > TamanhoMaxMarca) throw new ValidacaoException("A imagem excede 3 MB.");
+        bool ok;
+        switch (ext.ToLowerInvariant())
+        {
+            case ".png": ok = b.Length > 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47; break;
+            case ".webp": ok = b.Length > 12 && b[0] == (byte)'R' && b[1] == (byte)'I' && b[8] == (byte)'W' && b[9] == (byte)'E'; break;
+            case ".svg":
+                var t = System.Text.Encoding.UTF8.GetString(b);
+                ok = t.Contains("<svg", StringComparison.OrdinalIgnoreCase);
+                if (ok && (System.Text.RegularExpressions.Regex.IsMatch(t, @"<\s*(script|foreignObject|iframe|object|embed)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                    || System.Text.RegularExpressions.Regex.IsMatch(t, @"\son[a-z]+\s*=", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                    || t.Contains("javascript:", StringComparison.OrdinalIgnoreCase)))
+                    throw new ValidacaoException("O SVG contém script ou conteúdo ativo e foi recusado por segurança. Exporte um SVG simples ou use PNG.");
+                break;
+            default: ok = b.Length > 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF; break;
+        }
+        if (!ok) throw new ValidacaoException($"O conteúdo de \"{nome}\" não corresponde ao formato {ext}.");
+        return tipo;
+    }
+
+    public async Task<Anexo> SalvarMarcaAsync(Ator ator, string tipoMarca, string nome, Stream conteudo)
+    {
+        nome = Path.GetFileName(nome ?? "logo");
+        using var ms = new MemoryStream(); await conteudo.CopyToAsync(ms);
+        var bytes = ms.ToArray(); var ct = ValidarMarca(nome, bytes);
+        var chave = $"marca/{Guid.NewGuid():N}.bin";
+        var caminho = Path.Combine(_dir, chave.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(caminho)!);
+        var tmp = caminho + ".tmp";
+        await File.WriteAllBytesAsync(tmp, bytes);
+        ParquetStore.ComRetentativa(() => { File.Move(tmp, caminho, true); return 0; });
+        return _db.Anexos.Salvar(new Anexo { DonoTipo = "marca", DonoId = tipoMarca, NomeOriginal = nome, ContentType = ct, Tamanho = bytes.Length, Chave = chave,
+            Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), EnviadoPor = ator.Login }, ator.Login);
+    }
+
     public Stream? Abrir(Anexo a)
     {
         var caminho = Path.GetFullPath(Path.Combine(_dir, a.Chave.Replace('/', Path.DirectorySeparatorChar)));

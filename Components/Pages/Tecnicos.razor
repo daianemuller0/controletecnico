@@ -211,7 +211,7 @@ else if (_aba == "apt")
                 <div class="panel-head"><div class="panel-title">Quem pode atender?</div></div>
                 <p class="muted sm">Mostra, separadamente, a <strong>disponibilidade de agenda</strong> e a <strong>aptidão documental</strong> no período, considerando a validade durante todo o atendimento.</p>
                 <div class="form-grid g3">
-                    <label class="fld">Planta<select @bind="_aPlanta"><option value="">— qualquer —</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
+                    <div class="fld">Planta<SeletorPlanta Value="@_aPlanta" ValueChanged="id => _aPlanta = id ?? string.Empty" Vazio="— qualquer —" Placeholder="— qualquer —" /></div>
                     <label class="fld">Serviço<select @bind="_aServ"><option value="">— qualquer —</option>@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
                     <label class="fld chk"><input type="checkbox" @bind="_aSo" />Só livres e aptos</label>
                     <label class="fld">Início<input type="date" value="@Ui.DataInput(_aDe)" @onchange="e => _aDe = Ui.DoDataInput(e.Value?.ToString()) ?? _aDe" /></label>
@@ -245,10 +245,7 @@ else if (_aba == "apt")
     <Dialogo Titulo="@(string.IsNullOrEmpty(_req.Id) ? "Novo requisito" : "Editar requisito")" OnFechar="@(() => _req = null)" Erros="_erros">
         <div class="form-grid">
             <label class="fld">Vale para<select @bind="_req.Escopo" @bind:after="@(() => _req.EscopoId = "")"><option value="servico">Serviço</option><option value="planta">Planta</option></select></label>
-            <label class="fld">@(_req.Escopo == "servico" ? "Serviço" : "Planta")
-                <select @bind="_req.EscopoId"><option value="">— selecione —</option>
-                    @if (_req.Escopo == "servico") { @foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>} }
-                    else { @foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>} }</select></label>
+            <div class="fld">@(_req.Escopo == "servico" ? "Serviço" : "Planta")@if (_req.Escopo == "servico") { <select @bind="_req.EscopoId"><option value="">— selecione —</option>@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select> } else { <SeletorPlanta Value="@_req.EscopoId" ValueChanged="id => _req.EscopoId = id ?? string.Empty" /> }</div>
             <label class="fld full">Documento / treinamento exigido *<input @bind="_req.Nome" /><span class="hint">O técnico atende se tiver um registro atual com este nome ou com a norma abaixo.</span></label>
             <label class="fld">Norma <span class="hint">opcional</span><input @bind="_req.Norma" /></label>
             <label class="fld">Categoria<select @bind="_req.Categoria"><option value=""></option>@foreach (var c in Vocab.CategoriasDoc) {<option>@c</option>}</select></label>

@@ -48,7 +48,7 @@ else
     <div class="panel-head"><div class="panel-title">Dados da viagem</div></div>
     <div class="form-grid g3">
         <label class="fld">Cliente<select @bind="_v.ClienteId" @bind:after="AoCliente"><option value="">— selecione —</option>@foreach (var c in _snap.Clientes.Values.Where(c => c.Ativo).OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
-        <label class="fld">Planta de destino<select @bind="_v.PlantaId" @bind:after="AoPlanta"><option value="">— selecione —</option>@foreach (var p in _snap.Plantas.Values.Where(p => p.Ativo && (string.IsNullOrEmpty(_v.ClienteId) || p.ClienteId == _v.ClienteId)).OrderBy(p => p.Nome)) {<option value="@p.Id">@p.Nome (@p.Cidade, @p.Pais)</option>}</select></label>
+        <div class="fld">Planta de destino<SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" /></div>
         <label class="fld">Serviço previsto<select @bind="_v.ServicoId" @bind:after="Validar"><option value="">— selecione —</option>@foreach (var s in _snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
         <label class="fld">Origem <span class="hint">resumo</span><input @bind="_v.Origem" /></label>
         <label class="fld">Destino <span class="hint">resumo</span><input @bind="_v.Destino" /></label>
@@ -92,9 +92,9 @@ else
                 <div class="fld full-2"><span>Quem faz este trecho <span class="hint">nenhum marcado = todos</span></span>
                     <div class="chips-tec">@foreach (var tid in _tecs) { var tt = _snap.Tecnico(tid); <label class="chk-inline"><input type="checkbox" checked="@x.Tecs.Contains(tid)" @onchange="e => { if ((bool)e.Value!) x.Tecs.Add(tid); else x.Tecs.Remove(tid); Validar(); }" />@tt?.Nome</label> }</div></div>
                 <label class="fld">Origem<input @bind="x.T.Origem" @bind:after="Validar" list="sug-origens" /></label>
-                <label class="fld">Planta de origem <span class="hint">opcional</span><select @bind="x.T.OrigemPlantaId" @bind:after="@(() => { Validar(); PedirCidade(x.T.OrigemPlantaId); })"><option value="">—</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => p.Nome)) {<option value="@p.Id">@p.Nome</option>}</select></label>
+                <div class="fld">Planta de origem <span class="hint">opcional</span><SeletorPlanta Value="@x.T.OrigemPlantaId" ValueChanged="id => { x.T.OrigemPlantaId = id ?? string.Empty; Validar(); PedirCidade(x.T.OrigemPlantaId); }" Vazio="— nenhuma —" /></div>
                 <label class="fld">Destino<input @bind="x.T.Destino" @bind:after="Validar" list="sug-origens" /></label>
-                <label class="fld">Planta de destino <span class="hint">opcional</span><select @bind="x.T.DestPlantaId" @bind:after="@(() => AoPlantaTrecho(x))"><option value="">—</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => p.Nome)) {<option value="@p.Id">@p.Nome</option>}</select></label>
+                <div class="fld">Planta de destino <span class="hint">opcional</span><SeletorPlanta Value="@x.T.DestPlantaId" ValueChanged="id => { x.T.DestPlantaId = id ?? string.Empty; AoPlantaTrecho(x); }" Vazio="— nenhuma —" /></div>
                 <label class="fld">Fuso da saída<select @bind="x.FusoOri" @bind:after="Validar">@foreach (var z in FusosCom(x.FusoOri)) {<option>@z</option>}</select></label>
                 <label class="fld">Saída prevista <span class="hint">@Tempo.Offset(x.FusoOri, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Partida" @onchange="e => { x.Partida = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
                 <label class="fld">Fuso da chegada<select @bind="x.FusoDes" @bind:after="Validar">@foreach (var z in FusosCom(x.FusoDes)) {<option>@z</option>}</select></label>
@@ -136,7 +136,7 @@ else
             <div class="trecho-cab"><span class="trecho-n">@(i + 1)</span><strong>@(string.IsNullOrEmpty(a.A.PlantaId) ? "Atendimento" : _snap.NomePlanta(a.A.PlantaId))</strong><span class="grow"></span>
                 @if (_pode) { <button class="row-act del" title="Remover" @onclick="() => { _at.RemoveAt(idx); Validar(); }">@Icons.Svg("trash")</button> }</div>
             <div class="form-grid g4">
-                <label class="fld">Planta<select @bind="a.A.PlantaId" @bind:after="@(() => { Validar(); PedirCidade(a.A.PlantaId); })"><option value="">—</option>@foreach (var p in _snap.Plantas.Values.OrderBy(p => _snap.NomePlanta(p.Id))) {<option value="@p.Id">@_snap.NomePlanta(p.Id)</option>}</select></label>
+                <div class="fld">Planta<SeletorPlanta Value="@a.A.PlantaId" ValueChanged="id => { a.A.PlantaId = id ?? string.Empty; Validar(); PedirCidade(a.A.PlantaId); }" /></div>
                 <label class="fld">Serviço<select @bind="a.A.ServicoId" @bind:after="Validar"><option value="">(o da viagem)</option>@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
                 <div class="fld full-2"><span>Técnicos <span class="hint">nenhum marcado = todos</span></span>
                     <div class="chips-tec">@foreach (var tid in _tecs) { var tt = _snap.Tecnico(tid); <label class="chk-inline"><input type="checkbox" checked="@a.Tecs.Contains(tid)" @onchange="e => { if ((bool)e.Value!) a.Tecs.Add(tid); else a.Tecs.Remove(tid); Validar(); }" />@tt?.Nome</label> }</div></div>
@@ -289,7 +289,7 @@ else
         return (null, null);
     }
 
-    private IEnumerable<string> Sugestoes() => _tecs.Select(t => _snap.Tecnico(t)?.OrigemHabitual ?? "").Concat(_snap.Plantas.Values.Select(p => p.Nome)).Where(x => x != "").Distinct();
+    private IEnumerable<string> Sugestoes() => _tecs.Select(t => _snap.Tecnico(t)?.OrigemHabitual ?? "").Where(x => x != "").Distinct();
 
     private (Viagem v, List<Trecho> tr, List<Atendimento> at) Montar()
     {
@@ -378,6 +378,8 @@ else
     // ---- edição ----
     private void AlternarTec(string id, bool on) { if (on) _tecs.Add(id); else { _tecs.Remove(id); foreach (var x in _tr) x.Tecs.Remove(id); foreach (var a in _at) a.Tecs.Remove(id); } Validar(); }
     private void AoCliente() { if (!string.IsNullOrEmpty(_v.PlantaId) && _snap.Planta(_v.PlantaId)?.ClienteId != _v.ClienteId) _v.PlantaId = ""; Validar(); }
+    private void AoPlantaValor(string id) { _v.PlantaId = id ?? ""; AoPlanta(); }
+
     private void AoPlanta()
     {
         var p = _snap.Planta(_v.PlantaId);

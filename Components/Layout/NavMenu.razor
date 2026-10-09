@@ -1,14 +1,22 @@
 @implements IDisposable
 @inject NavigationManager Nav
 @inject Sessao Sessao
+@inject Servicos Svc
 
 <aside class="sidebar no-print">
     <div class="brand">
-        <div class="brand-mark">CT</div>
-        <div class="brand-text">
-            <div class="brand-name">Controle Técnico</div>
-            <div class="brand-sub">Operação de campo</div>
-        </div>
+        @if (Svc.LogoDe("menu") is { } logo)
+        {
+            <img src="/marca/menu?v=@logo.Id" alt="@Svc.NomeSistema" class="brand-logo-img" />
+        }
+        else
+        {
+            <div class="brand-mark">@Sigla(Svc.NomeSistema)</div>
+            <div class="brand-text">
+                <div class="brand-name">@Svc.NomeSistema</div>
+                <div class="brand-sub">@Svc.SubtituloSistema</div>
+            </div>
+        }
     </div>
     <nav class="nav" aria-label="Navegação principal">
         <div class="nav-section">Operação</div>
@@ -26,7 +34,7 @@
             </a>
         }
     </nav>
-    <div class="sidebar-footer"><div class="version">Controle Técnico · v1.0</div></div>
+    <div class="sidebar-footer"><div class="version">@Svc.NomeSistema · v1.0</div></div>
 </aside>
 
 @code {
@@ -44,10 +52,12 @@
     protected override async Task OnInitializedAsync()
     {
         _ator = await Sessao.AtorAsync();
-        Nav.LocationChanged += Ao;
+        Nav.LocationChanged += Ao; Svc.MarcaMudou += AoMarca;
     }
+    private void AoMarca() => InvokeAsync(StateHasChanged);
+    private static string Sigla(string n) => string.Concat(n.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
     private void Ao(object? s, LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
-    public void Dispose() => Nav.LocationChanged -= Ao;
+    public void Dispose() { Nav.LocationChanged -= Ao; Svc.MarcaMudou -= AoMarca; }
 
     private bool Visivel(Item i) => !i.SoEquipe || _ator.VeTodaEquipe;
 
