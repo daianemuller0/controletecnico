@@ -18,6 +18,22 @@ app.autoTela = (on, ref) => {
     setTimeout(() => { for (const id in app.mapa._m) app.mapa._m[id].map.invalidateSize(); }, 250);
 };
 
+// rola a página lentamente de cima para baixo durante `ms` (apresentação automática da agenda)
+app.autoRolar = (ms) => {
+    const el = document.scrollingElement || document.documentElement;
+    el.scrollTop = 0;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max <= 8) return;
+    const t0 = performance.now(), dur = Math.max(1000, ms * 0.7), ini = ms * 0.1;
+    const passo = (t) => {
+        if (!document.body.classList.contains('auto-on')) return;
+        const f = Math.min(1, Math.max(0, (t - t0 - ini) / dur));
+        el.scrollTop = max * f;
+        if (t - t0 < ms) requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+};
+
 app.apresentacaoAtual = () => document.body.classList.contains('apresentacao');
 
 app.baixarTexto = (nome, mime, texto, bom) => {
@@ -64,7 +80,7 @@ app.mapa = {
     destruir(id) {
         const o = this._m[id];
         if (!o) return;
-        try { if (o.ro) o.ro.disconnect(); o.map.remove(); } catch { }
+        try { if (o.ro) o.ro.disconnect(); o.map.stop(); o.map.off(); o.map.remove(); } catch { }
         delete this._m[id];
     },
 

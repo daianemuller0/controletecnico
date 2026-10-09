@@ -9,6 +9,8 @@
 
 <PageTitle>Agenda · Controle Técnico</PageTitle>
 
+@if (Sessao.AutoAtivo && Sessao.AutoFase == "agenda") { <div class="auto-agenda-tit">@Icons.Svg("calendar")<span>@_autoTitulo</span></div> }
+
 <div class="page-head compacto">
     <div>
         <h1>Agenda</h1>
@@ -435,6 +437,28 @@ else
         if (!string.IsNullOrEmpty(TecQuery)) _tecSel.Add(TecQuery);
         Sessao.Mudou += Ao;
         await Recarregar();
+        if (Sessao.AutoAtivo && Sessao.AutoFase == "agenda" && !_carregando) { _autoCts = new CancellationTokenSource(); _ = LoopAuto(_autoCts.Token); }
+    }
+
+    // ---- modo automático: a Agenda é a última etapa do ciclo e devolve o comando ao mapa
+    private CancellationTokenSource? _autoCts; private string _autoTitulo = "";
+    private async Task LoopAuto(CancellationToken ct)
+    {
+        try
+        {
+            _tecSel.Clear(); _tiposOcultos.Clear();
+            Sessao.AutoEtapa = AutoEtapas.IndiceAgenda; Sessao.NotificarAuto();
+            foreach (var (vista, dias, titulo, ms) in new[] { ("linha", 7, "Agenda · próximos 7 dias", 10000), ("linha", 30, "Agenda · próximos 30 dias", 12000), ("mes", 0, "Agenda · visão do mês", 8000) })
+            {
+                _view = vista; if (dias > 0) _dias = dias; _ref = L(DateTime.UtcNow).Date; Montar(); _autoTitulo = titulo;
+                await InvokeAsync(StateHasChanged);
+                try { await JS.InvokeVoidAsync("app.autoRolar", (int)(ms * (Sessao.AutoVel switch { "lenta" => 2.8, "rapida" => 1.0, _ => 1.8 }))); } catch { }
+                await Sessao.AutoEspera(ms, ct);
+            }
+            Sessao.AutoFase = "mapa"; Nav.NavigateTo("/");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { Sessao.Avisar("Modo automático interrompido: " + ex.Message, true); Sessao.PararAuto(); }
     }
     private void Ao() => InvokeAsync(StateHasChanged);
 
@@ -713,5 +737,9 @@ else
         catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
     }
 
-    public void Dispose() { Sessao.Mudou -= Ao; _ref2?.Dispose(); }
+    public void Dispose()
+    {
+        Sessao.Mudou -= Ao; _ref2?.Dispose(); _autoCts?.Cancel();
+        if (Sessao.AutoAtivo && Sessao.AutoFase == "agenda") Sessao.PararAuto();      // saiu da página no meio do ciclo
+    }
 }

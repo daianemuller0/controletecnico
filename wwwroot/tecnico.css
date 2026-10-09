@@ -532,3 +532,8 @@ body.auto-on .toast-area, body.auto-on .toaster { z-index: 3500; }
 @keyframes autoPop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (max-width: 760px) { .auto-card { width: auto; right: 18px; bottom: 80px; top: auto; max-height: 55vh; } }
 body.auto-on .leaflet-control-zoom, body.auto-on .mapa-aviso { display: none; }
+/* agenda dentro do modo automático */
+body.auto-on .topbar, body.auto-on .demo-banner, body.auto-on .ag-barra, body.auto-on .page-head { display: none; }
+body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
+.auto-agenda-tit { position: fixed; top: 14px; left: 18px; z-index: 3100; display: flex; align-items: center; gap: 12px; background: #2a7f62; color: #fff; padding: 12px 22px; border-radius: 14px; font-size: 24px; font-weight: 800; box-shadow: 0 6px 22px rgba(0,30,70,.3); }
+.auto-agenda-tit svg { width: 28px; height: 28px; }

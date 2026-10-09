@@ -1,0 +1,45 @@
+@implements IDisposable
+@inject Sessao Sessao
+@inject IJSRuntime JS
+
+@if (Sessao.AutoAtivo)
+{
+    <div class="auto-ctl">
+        <button class="btn-ghost sm" @onclick="@(() => { Sessao.AutoPausa = !Sessao.AutoPausa; })">@Icons.Svg(Sessao.AutoPausa ? "play" : "clock")@(Sessao.AutoPausa ? "Continuar" : "Pausar")</button>
+        <span class="auto-vel" role="group" aria-label="Velocidade">
+            @foreach (var v in new[] { ("lenta", "Lenta"), ("normal", "Normal"), ("rapida", "Rápida") }) { <button class="@(Sessao.AutoVel == v.Item1 ? "on" : "")" @onclick="@(() => { Sessao.AutoVel = v.Item1; })">@v.Item2</button> }
+        </span>
+        <button class="btn-ghost sm" @onclick="Sessao.PararAuto">@Icons.Svg("x")Parar (Esc)</button>
+    </div>
+    <div class="auto-passos">
+        @for (var i = 0; i < AutoEtapas.Todas.Length; i++)
+        {
+            var e = AutoEtapas.Todas[i];
+            <span class="@(i == Sessao.AutoEtapa ? "on" : i < Sessao.AutoEtapa ? "ok" : "")" title="@e.Titulo"><i style="background:@e.Cor"></i>@e.Curto</span>
+        }
+    </div>
+}
+
+@code {
+    private DotNetObjectReference<AutoBarra>? _ref; private bool _jsLigado;
+
+    protected override void OnInitialized() { _ref = DotNetObjectReference.Create(this); Sessao.Mudou += Ao; }
+    private void Ao() => InvokeAsync(StateHasChanged);
+
+    [JSInvokable] public Task PararAutoJs() => InvokeAsync(Sessao.PararAuto);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // sincroniza o navegador (classe do corpo, tecla Esc, modo apresentação) com o estado da sessão
+        if (Sessao.AutoAtivo == _jsLigado) return;
+        _jsLigado = Sessao.AutoAtivo;
+        try
+        {
+            await JS.InvokeVoidAsync("app.apresentacao", Sessao.Apresentacao);
+            await JS.InvokeVoidAsync("app.autoTela", _jsLigado, _jsLigado ? _ref : null);
+        }
+        catch { }
+    }
+
+    public void Dispose() { Sessao.Mudou -= Ao; _ref?.Dispose(); }
+}

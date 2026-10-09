@@ -5,6 +5,7 @@
 @inject Db Db
 @inject Sessao Sessao
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @inject IConfiguration Cfg
 
 <PageTitle>Visão operacional · Controle Técnico</PageTitle>
@@ -137,13 +138,6 @@ else
             <div id="mapa-op" class="mapa" role="application" aria-label="Mapa de localização da equipe" tabindex="0"></div>
             @if (_auto)
             {
-                <div class="auto-ctl">
-                    <button class="btn-ghost sm" @onclick="@(() => _autoPausa = !_autoPausa)">@Icons.Svg(_autoPausa ? "play" : "clock")@(_autoPausa ? "Continuar" : "Pausar")</button>
-                    <span class="auto-vel" role="group" aria-label="Velocidade">
-                        @foreach (var v in new[] { ("lenta", "Lenta"), ("normal", "Normal"), ("rapida", "Rápida") }) { <button class="@(_autoVel == v.Item1 ? "on" : "")" @onclick="@(() => _autoVel = v.Item1)">@v.Item2</button> }
-                    </span>
-                    <button class="btn-ghost sm" @onclick="PararAuto">@Icons.Svg("x")Parar (Esc)</button>
-                </div>
                 <div class="auto-card" style="--c:@_autoCor" aria-live="polite">
                     <div class="auto-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub</div></div></div>
                     @if (_autoMostraQtd) { <div class="auto-qtd">@_autoQtd</div> }
@@ -156,7 +150,6 @@ else
                         @if (_autoMostraQtd && _autoItens.Count == 0) { <li class="vazio">Nenhum no momento</li> }
                     </ul>
                 </div>
-                <div class="auto-passos">@for (var i = 0; i < _etapas.Length; i++) { <span class="@(i == _autoEtapa ? "on" : i < _autoEtapa ? "ok" : "")" title="@_etapas[i].titulo"><i style="background:@_etapas[i].cor"></i>@_etapas[i].curto</span> }</div>
             }
             @if (_semMapa.Count > 0)
             {
@@ -264,9 +257,15 @@ else
         Sessao.Mudou += AoMudarSessao;
         _ref = DotNetObjectReference.Create(this);
         await Recarregar(false);
+        // voltando da Agenda dentro do modo automático: recomeça o ciclo
+        if (Sessao.AutoAtivo && Sessao.AutoFase == "mapa" && !_carregando) { if (!_agora) VoltarAgora(); ComecarCiclo(); }
     }
 
-    private void AoMudarSessao() => InvokeAsync(StateHasChanged);
+    private void AoMudarSessao()
+    {
+        if (_auto && !Sessao.AutoAtivo) { _autoCts?.Cancel(); FimAuto(); }
+        InvokeAsync(StateHasChanged);
+    }
 
     private async Task Recarregar(bool aviso)
     {
@@ -428,73 +427,52 @@ else
     }
 
     // ---------------------------------------------------------------- modo automático
-    private bool _auto, _autoPausa, _apresAntes, _autoMostraQtd, _autoAjustar = true; private string _autoVel = "normal";
-    private int? _revelar; private int _autoEtapa, _autoQtd; private CancellationTokenSource? _autoCts;
+    private bool _auto, _autoMostraQtd, _autoAjustar = true;
+    private int? _revelar; private int _autoQtd; private CancellationTokenSource? _autoCts;
     private string _autoTitulo = "", _autoSub = "", _autoCor = "#004785", _autoIcone = "map";
     private List<(string nome, string det, string cor)> _autoItens = new();
-    private static readonly (string chave, string titulo, string curto, string cor, string icone, string sub)[] _etapas =
-    {
-        ("mapa", "Onde está cada técnico", "Mapa", "#004785", "map", "A equipe aparece no mapa, um local por vez"),
-        ("disponivel", "Disponíveis", "Disponíveis", "#1f9254", "check", "Sem compromisso neste momento (inclui quem não tem programação)"),
-        ("atendimento", "Em atendimento", "Atendimento", "#0369a1", "customers", "Na planta do cliente"),
-        ("viagem", "Em viagem", "Viagem", "#d9822b", "plane", "Em deslocamento"),
-        ("ferias", "Em férias", "Férias", "#7b4fc0", "sun", "Férias vigentes"),
-        ("viagens", "Viagens previstas", "Previstas", "#004785", "route", "Viagens ainda não iniciadas"),
-        ("conflitos", "Conflitos de agenda", "Conflitos", "#c0392b", "alert", "Sobreposição ou deslocamento a verificar"),
-        ("docs", "Documentos a vencer / vencidos", "Docs", "#b7791f", "clock", "Técnicos com documento próximo do vencimento ou vencido"),
-        ("pend", "Pendências documentais", "Pendências", "#c0392b", "shield", "Escalados sem todos os requisitos para o atendimento programado"),
-    };
 
     private async Task IniciarAuto()
     {
         if (_auto || _carregando) return;
-        _apresAntes = Sessao.Apresentacao; Sessao.Apresentacao = true;
-        try { await JS.InvokeVoidAsync("app.apresentacao", true); await JS.InvokeVoidAsync("app.autoTela", true, _ref); } catch { }
+        Sessao.IniciarAuto();
         if (!_agora) VoltarAgora();
-        Limpar(); _auto = true; _autoPausa = false; _autoCts = new CancellationTokenSource();
+        ComecarCiclo();
+        await Task.CompletedTask;
+    }
+
+    private void ComecarCiclo()
+    {
+        Limpar(); _auto = true; _autoCts = new CancellationTokenSource();
         StateHasChanged(); _ = LoopAuto(_autoCts.Token);
     }
 
-    [JSInvokable] public Task PararAutoJs() => InvokeAsync(PararAuto);
+    private Task Espera(int ms, CancellationToken ct) => Sessao.AutoEspera(ms, ct);
 
-    private async Task PararAuto()
+    private void FimAuto()
     {
-        if (!_auto) return;
-        _autoCts?.Cancel(); _auto = false; _revelar = null; _autoAjustar = true; _kpi = ""; _autoItens = new();
-        Aplicar();
-        try
-        {
-            await JS.InvokeVoidAsync("app.autoTela", false, _ref);
-            if (!_apresAntes) { Sessao.Apresentacao = false; await JS.InvokeVoidAsync("app.apresentacao", false); }
-        }
-        catch { }
-        StateHasChanged();
-    }
-
-    private async Task Espera(int ms, CancellationToken ct)
-    {
-        var rest = ms * (_autoVel switch { "lenta" => 1.7, "rapida" => 0.55, _ => 1.0 });
-        while (rest > 0) { await Task.Delay(100, ct); if (!_autoPausa) rest -= 100; }
+        _auto = false; _revelar = null; _autoAjustar = true; _kpi = ""; _autoItens = new();
+        Aplicar(); StateHasChanged();
     }
 
     private void Etapa(int i)
     {
-        _autoEtapa = i; var e = _etapas[i]; _autoTitulo = e.titulo; _autoCor = e.cor; _autoIcone = e.icone; _autoSub = e.sub;
+        Sessao.AutoEtapa = i; Sessao.NotificarAuto();
+        var e = AutoEtapas.Todas[i]; _autoTitulo = e.Titulo; _autoCor = e.Cor; _autoIcone = e.Icone; _autoSub = e.Sub;
     }
 
     private async Task LoopAuto(CancellationToken ct)
     {
         try
         {
-            while (!ct.IsCancellationRequested)
-            {
-                if (_agora) await Recarregar(false);
-                await EtapaMapa(ct);
-                for (var i = 1; i < _etapas.Length; i++) await EtapaIndicador(i, ct);
-            }
+            if (_agora) await Recarregar(false);
+            await EtapaMapa(ct);
+            for (var i = 1; i < AutoEtapas.IndiceAgenda; i++) await EtapaIndicador(i, ct);
+            // próxima etapa do ciclo: a Agenda (ela devolve para cá ao terminar)
+            Sessao.AutoFase = "agenda"; Sessao.AutoEtapa = AutoEtapas.IndiceAgenda; FimAuto(); Nav.NavigateTo("/agenda");
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { Sessao.Avisar("Modo automático interrompido: " + ex.Message, true); await PararAuto(); }
+        catch (OperationCanceledException) { FimAuto(); }
+        catch (Exception ex) { Sessao.Avisar("Modo automático interrompido: " + ex.Message, true); Sessao.PararAuto(); FimAuto(); }
     }
 
     private async Task EtapaMapa(CancellationToken ct)
@@ -503,7 +481,7 @@ else
         var grupos = _grupos.Values.ToList(); var n = grupos.Count;
         _revelar = 0; _autoAjustar = true; _redesenhar = true; StateHasChanged();
         await Espera(1500, ct);
-        var passo = n > 20 ? 800 : 1500;
+        var passo = n > 20 ? 900 : 1500;
         for (var i = 1; i <= n; i++)
         {
             var g = grupos[i - 1]; _revelar = i; _autoAjustar = false; _redesenhar = true;
@@ -524,7 +502,7 @@ else
 
     private async Task EtapaIndicador(int idx, CancellationToken ct)
     {
-        Etapa(idx); var chave = _etapas[idx].chave;
+        Etapa(idx); var chave = AutoEtapas.Todas[idx].Chave;
         _revelar = null; _autoAjustar = true; _kpi = chave; Aplicar();
         _autoItens = ItensDe(chave); _autoMostraQtd = true;
         _autoQtd = chave == "viagens" ? _kViagensPrev.Count : _visiveis.Count;
@@ -534,7 +512,7 @@ else
 
     private List<(string nome, string det, string cor)> ItensDe(string chave)
     {
-        var cor = _etapas.First(x => x.chave == chave).cor;
+        var cor = AutoEtapas.Todas.First(x => x.Chave == chave).Cor;
         if (chave == "viagens")
             return _kViagensPrev.Select(id => _snap.Viagem(id)).Where(v => v is not null).OrderBy(v => _prevIni[v!.Id])
                 .Select(v => ($"{v!.Codigo} · {(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)}",
@@ -672,7 +650,7 @@ else
     {
         Sessao.Mudou -= AoMudarSessao;
         _autoCts?.Cancel();
-        if (_auto) { try { _ = JS.InvokeVoidAsync("app.autoTela", false, null); } catch { } }
+        if (Sessao.AutoAtivo && Sessao.AutoFase == "mapa") Sessao.PararAuto();      // saiu da página no meio do ciclo
         try { _ = JS.InvokeVoidAsync("app.mapa.destruir", "mapa-op"); } catch { }
         _ref?.Dispose();
     }
