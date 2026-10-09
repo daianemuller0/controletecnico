@@ -39,7 +39,7 @@
 {
     <div class="toolbar">
         <input class="field busca" placeholder="Buscar técnico, cidade…" @bind="_busca" @bind:event="oninput" aria-label="Buscar técnico" />
-        <select class="field w-auto" @bind="_fEsp"><option value="">Todas as especialidades</option>@foreach (var e in _snap.Especialidades.Values.OrderBy(e => e.Nome)) {<option value="@e.Id">@e.Nome</option>}</select>
+        <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@_fEsp" ValueChanged="@(async (string v) => { _fEsp = v; })" Placeholder="Todas as especialidades" />
         <label class="chk-inline"><input type="checkbox" @bind="_soAtivos" />Somente ativos</label>
     </div>
     <div class="table-wrap"><table class="grid-tbl">
@@ -163,9 +163,9 @@ else if (_aba == "venc")
         <div class="imp-n pos"><b>@_venc.Count(v => v.Status is Vocab.DocValido or Vocab.DocSemVenc)</b>válidos</div>
     </div>
     <div class="toolbar">
-        <select class="field w-auto" @bind="_vTec"><option value="">Todos os técnicos</option>@foreach (var t in _tecs.OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select>
-        <select class="field w-auto" @bind="_vCat"><option value="">Todas as categorias</option>@foreach (var c in Vocab.CategoriasDoc) {<option>@c</option>}</select>
-        <select class="field w-auto" @bind="_vNorma"><option value="">Todas as normas</option>@foreach (var n in _venc.Select(v => v.Doc.Norma).Where(n => n != "").Distinct().OrderBy(n => n)) {<option>@n</option>}</select>
+        <SeletorLista Itens="@(_tecs.OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_vTec" ValueChanged="@(async (string v) => { _vTec = v; })" Placeholder="Todos os técnicos" />
+        <CampoLista Value="@_vCat" ValueChanged="@((string v) => { _vCat = v; })" Opcoes="@(Vocab.CategoriasDoc)" Placeholder="Todas as categorias" Class="field w-auto" />
+        <CampoLista Value="@_vNorma" ValueChanged="@((string v) => { _vNorma = v; })" Opcoes="@(_venc.Select(v => v.Doc.Norma))" Placeholder="Todas as normas" Class="field w-auto" />
         <select class="field w-auto" @bind="_vSt"><option value="">Todas as situações</option>@foreach (var s in Vocab.StatusDoc.Where(s => s.Key != Vocab.DocAusente)) {<option value="@s.Key">@s.Label</option>}</select>
         <label class="fld-i">Vence de <input type="date" class="field" value="@Ui.DataInput(_vDe)" @onchange="e => _vDe = Ui.DoDataInput(e.Value?.ToString())" /></label>
         <label class="fld-i">até <input type="date" class="field" value="@Ui.DataInput(_vAte)" @onchange="e => _vAte = Ui.DoDataInput(e.Value?.ToString())" /></label>
@@ -212,7 +212,7 @@ else if (_aba == "apt")
                 <p class="muted sm">Mostra, separadamente, a <strong>disponibilidade de agenda</strong> e a <strong>aptidão documental</strong> no período, considerando a validade durante todo o atendimento.</p>
                 <div class="form-grid g3">
                     <div class="fld">Planta<SeletorPlanta Value="@_aPlanta" ValueChanged="id => _aPlanta = id ?? string.Empty" Vazio="— qualquer —" Placeholder="— qualquer —" /></div>
-                    <label class="fld">Serviço<select @bind="_aServ"><option value="">— qualquer —</option>@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
+                    <label class="fld">Serviço<SeletorLista Itens="@(_snap.Servicos.Values.OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_aServ" ValueChanged="@(async (string v) => { _aServ = v; })" Placeholder="— qualquer —" /></label>
                     <label class="fld chk"><input type="checkbox" @bind="_aSo" />Só livres e aptos</label>
                     <label class="fld">Início<input type="date" value="@Ui.DataInput(_aDe)" @onchange="e => _aDe = Ui.DoDataInput(e.Value?.ToString()) ?? _aDe" /></label>
                     <label class="fld">Término<input type="date" value="@Ui.DataInput(_aAte)" @onchange="e => _aAte = Ui.DoDataInput(e.Value?.ToString()) ?? _aAte" /></label>
@@ -245,10 +245,10 @@ else if (_aba == "apt")
     <Dialogo Titulo="@(string.IsNullOrEmpty(_req.Id) ? "Novo requisito" : "Editar requisito")" OnFechar="@(() => _req = null)" Erros="_erros">
         <div class="form-grid">
             <label class="fld">Vale para<select @bind="_req.Escopo" @bind:after="@(() => _req.EscopoId = "")"><option value="servico">Serviço</option><option value="planta">Planta</option></select></label>
-            <div class="fld">@(_req.Escopo == "servico" ? "Serviço" : "Planta")@if (_req.Escopo == "servico") { <select @bind="_req.EscopoId"><option value="">— selecione —</option>@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select> } else { <SeletorPlanta Value="@_req.EscopoId" ValueChanged="id => _req.EscopoId = id ?? string.Empty" /> }</div>
+            <div class="fld">@(_req.Escopo == "servico" ? "Serviço" : "Planta")@if (_req.Escopo == "servico") { <SeletorLista Itens="@(_snap.Servicos.Values.OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_req.EscopoId" ValueChanged="@(async (string v) => { _req.EscopoId = v; })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /> } else { <SeletorPlanta Value="@_req.EscopoId" ValueChanged="id => _req.EscopoId = id ?? string.Empty" /> }</div>
             <label class="fld full">Documento / treinamento exigido *<input @bind="_req.Nome" /><span class="hint">O técnico atende se tiver um registro atual com este nome ou com a norma abaixo.</span></label>
             <label class="fld">Norma <span class="hint">opcional</span><input @bind="_req.Norma" /></label>
-            <label class="fld">Categoria<select @bind="_req.Categoria"><option value=""></option>@foreach (var c in Vocab.CategoriasDoc) {<option>@c</option>}</select></label>
+            <label class="fld">Categoria<CampoLista Value="@_req.Categoria" ValueChanged="@((string v) => { _req.Categoria = v; })" Opcoes="@(Vocab.CategoriasDoc)" Placeholder="" /></label>
             <label class="fld chk full"><input type="checkbox" @bind="_req.Bloqueia" />Bloqueia a confirmação quando ausente, vencido ou vencendo antes do fim do atendimento (desmarcado: só alerta)</label>
             <label class="fld full">Observações<input @bind="_req.Obs" /></label>
         </div>
@@ -257,6 +257,7 @@ else if (_aba == "apt")
 }
 
 @code {
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private List<Tecnico> _tecs = new(); private List<Evento> _eventos = new();
     private Dictionary<string, Estado> _estados = new(); private List<DocEngine.Linha> _venc = new();
     private string _aba = "equipe", _busca = "", _fEsp = ""; private bool _soAtivos;
@@ -289,7 +290,7 @@ else if (_aba == "apt")
         && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{t.Nome} {t.Cidade} {t.Estado} {t.Matricula}").Contains(DocEngine.Norm(_busca)))).OrderBy(t => t.Nome);
 
     private IEnumerable<DocEngine.Linha> VencFiltrados => _venc.Where(v =>
-        (_vTec == "" || v.Doc.TecnicoId == _vTec) && (_vCat == "" || v.Doc.Categoria == _vCat) && (_vNorma == "" || v.Doc.Norma == _vNorma)
+        (_vTec == "" || v.Doc.TecnicoId == _vTec) && (_vCat == "" || Ui.Contem(v.Doc.Categoria, _vCat)) && (_vNorma == "" || Ui.Contem(v.Doc.Norma, _vNorma))
         && (_vSt == "" || v.Status == _vSt) && (_vDe is null || (v.Doc.Vencimento is { } d && d >= _vDe)) && (_vAte is null || (v.Doc.Vencimento is { } d2 && d2 <= _vAte)))
         .OrderBy(v => v.Dias ?? int.MaxValue);
 

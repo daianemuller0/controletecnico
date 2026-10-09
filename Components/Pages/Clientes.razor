@@ -90,9 +90,9 @@ else if (_aba == "plantas")
         <label class="chk-inline"><input type="checkbox" @bind="_soAtivosPl" @bind:after="Refiltrar" />Somente ativas</label>
     </div>
     <div class="pl-filtros">
-        <label class="flt"><span class="flt-label">Cliente</span><select @bind="_fCli" @bind:after="Refiltrar"><option value="">Todos</option>@foreach (var c in _clientes.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
-        <label class="flt"><span class="flt-label">País</span><select @bind="_fPais" @bind:after="Refiltrar"><option value="">Todos</option>@foreach (var x in _paises) {<option>@x</option>}</select></label>
-        <label class="flt"><span class="flt-label">Estado</span><select @bind="_fUf" @bind:after="Refiltrar"><option value="">Todos</option>@foreach (var x in _ufs) {<option>@x</option>}</select></label>
+        <label class="flt"><span class="flt-label">Cliente</span><SeletorLista Itens="@(_clientes.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; Refiltrar(); })" Placeholder="Todos" /></label>
+        <label class="flt"><span class="flt-label">País</span><CampoLista Value="@_fPais" ValueChanged="@((string v) => { _fPais = v; Refiltrar(); })" Opcoes="@(_paises)" Placeholder="Todos" /></label>
+        <label class="flt"><span class="flt-label">Estado</span><CampoLista Value="@_fUf" ValueChanged="@((string v) => { _fUf = v; Refiltrar(); })" Opcoes="@(_ufs)" Placeholder="Todos" /></label>
         <label class="flt"><span class="flt-label">Ordenar por</span><select @bind="_ordem" @bind:after="Refiltrar"><option value="nome">Nome</option><option value="cidade">Cidade</option><option value="pais">País</option><option value="geo">Localização</option></select></label>
         <label class="flt"><span class="flt-label">Por página</span><select @bind="_tam" @bind:after="@(() => _pagPl = 0)"><option value="50">50</option><option value="100">100</option><option value="200">200</option></select></label>
         @if (_fCli != "" || _fPais != "" || _fUf != "" || _chip != "" || _buscaPl != "") { <button class="btn-link" @onclick="LimparFiltros">@Icons.Svg("x")Limpar tudo</button> }
@@ -284,7 +284,7 @@ else if (_aba == "importar" && _pode)
         <div class="pl-grid">
             <div>
                 <div class="form-grid">
-                    <label class="fld">Cliente <span class="hint">opcional</span><select @bind="_pl.ClienteId"><option value="">— sem cliente —</option>@foreach (var c in _clientes.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
+                    <label class="fld">Cliente <span class="hint">opcional</span><SeletorLista Itens="@(_clientes.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_pl.ClienteId" ValueChanged="@(async (string v) => { _pl.ClienteId = v; })" Placeholder="— sem cliente —" Criar="CriarCli" RotuloCriar="cliente" /></label>
                     <label class="fld">Nome da planta / unidade *<input @bind="_pl.Nome" /></label>
                     <label class="fld">País<input list="lista-paises" @bind="_pl.Pais" /></label>
                     <label class="fld">Estado / região<input @bind="_pl.Estado" /></label>
@@ -294,7 +294,7 @@ else if (_aba == "importar" && _pode)
                     <label class="fld">Número<input @bind="_pl.Numero" /></label>
                     <label class="fld full">Complemento<input @bind="_pl.Complemento" /></label>
                     <label class="fld full">Endereço completo <span class="hint">vazio = montado a partir dos campos acima; use para formatos internacionais</span><input @bind="_pl.EnderecoCompleto" placeholder="@Servicos.MontarEndereco(_pl)" /></label>
-                    <label class="fld">Fuso horário *<select @bind="_pl.FusoHorario">@foreach (var f in Vocab.Fusos.Concat(new[] { _pl.FusoHorario }).Distinct()) {<option>@f</option>}</select></label>
+                    <label class="fld">Fuso horário *<CampoLista Value="@_pl.FusoHorario" ValueChanged="@((string v) => { _pl.FusoHorario = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" /></label>
                     <label class="fld">Contato local<input @bind="_pl.ContatoLocal" /></label>
                     <label class="fld full">Informações de acesso<input @bind="_pl.Acesso" placeholder="Portaria, EPIs, integração…" /></label>
                     <label class="fld full">Observações<textarea @bind="_pl.Obs"></textarea></label>
@@ -327,6 +327,7 @@ else if (_aba == "importar" && _pode)
 }
 
 @code {
+    private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); Carregar(); return Task.FromResult<string?>(c.Id); }
     private Ator _ator = new(); private bool _pode;
     private List<Cliente> _clientes = new(); private List<Planta> _plantas = new();
     private string _aba = "plantas";
@@ -360,7 +361,7 @@ else if (_aba == "importar" && _pode)
 
     private void Refiltrar()
     {
-        var baseQ = Busca.Buscar(_buscaPl, _soAtivosPl).Where(i => (_fCli == "" || i.ClienteId == _fCli) && (_fPais == "" || i.Pais == _fPais) && (_fUf == "" || i.Estado == _fUf)).ToList();
+        var baseQ = Busca.Buscar(_buscaPl, _soAtivosPl).Where(i => (_fCli == "" || i.ClienteId == _fCli) && (_fPais == "" || Ui.Contem(i.Pais, _fPais)) && (_fUf == "" || Ui.Contem(i.Estado, _fUf))).ToList();
         _cont = new() { [""] = baseQ.Count, ["ok"] = baseQ.Count(i => i.Geo is "ok" or "manual"), ["aprox"] = baseQ.Count(i => i.Geo == "aprox"),
                         ["pendente"] = baseQ.Count(i => i.Geo == "pendente"), ["semcidade"] = baseQ.Count(i => string.IsNullOrWhiteSpace(i.Cidade)) };
         IEnumerable<PlantaItem> q = _chip switch

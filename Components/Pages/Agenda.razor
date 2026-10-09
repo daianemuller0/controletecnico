@@ -358,8 +358,7 @@ else
                         <label class="chk-inline"><input type="checkbox" checked="@_form.Tecs.Contains(t.Id)" @onchange="e => { if ((bool)e.Value!) _form.Tecs.Add(t.Id); else _form.Tecs.Remove(t.Id); Previa(); }" />@t.Nome</label> }</div></div>
                 <div class="fld">Planta<SeletorPlanta Value="@_form.PlantaId" ValueChanged="id => { _form.PlantaId = id ?? string.Empty; AoPlantaForm(); }" /></div>
                 <label class="fld">Serviço
-                    <select @bind="_form.ServicoId" @bind:after="Previa"><option value="">— selecione —</option>
-                        @foreach (var s in _snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
+                    <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_form.ServicoId" ValueChanged="@(async (string v) => { _form.ServicoId = v; Previa(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
                 <label class="fld">Início <span class="hint">hora local da planta (@FusoForm)</span><input type="datetime-local" @bind="_form.Ini" @bind:after="Previa" /></label>
                 <label class="fld">Término <span class="hint">hora local da planta</span><input type="datetime-local" @bind="_form.Fim" @bind:after="Previa" /></label>
                 <label class="fld">Horas de atendimento previstas <span class="hint">opcional · não é calculado a partir dos dias</span><input type="number" step="0.5" min="0" @bind="_form.Horas" /></label>
@@ -367,8 +366,7 @@ else
             else
             {
                 <label class="fld">Técnico
-                    <select @bind="_form.TecnicoId" @bind:after="Previa"><option value="">— selecione —</option>
-                        @foreach (var t in TecnicosVisiveis.Where(t => t.Ativo)) {<option value="@t.Id">@t.Nome</option>}</select></label>
+                    <SeletorLista Itens="@(TecnicosVisiveis.Where(t => t.Ativo).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_form.TecnicoId" ValueChanged="@(async (string v) => { _form.TecnicoId = v; Previa(); })" Placeholder="— selecione —" /></label>
                 <label class="fld chk"><input type="checkbox" @bind="_form.DiaInteiro" @bind:after="Previa" />Dia(s) inteiro(s)</label>
                 @if (_form.DiaInteiro)
                 {
@@ -405,6 +403,7 @@ else
 
     private static readonly (string, string)[] Vistas = { ("linha", "Linha do tempo"), ("mes", "Mês"), ("semana", "Semana"), ("dia", "Dia") };
 
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Ator _ator = new(); private Snapshot _snap = new();
     private List<Evento> _eventos = new(), _visiveis = new(); private List<Conflito> _conflitos = new();
     private HashSet<string> _confIds = new();

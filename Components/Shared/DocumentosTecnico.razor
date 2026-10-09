@@ -96,7 +96,7 @@ else
         @if (_renovando is not null) { <div class="alert-box alert-info">@Icons.Svg("info")<div>Renovando <strong>@_renovando.Nome</strong> (v@_renovando.Versao, vencimento @Tempo.Dia(_renovando.Vencimento)). A versão atual passa para o histórico, com seus arquivos.</div></div> }
         <div class="form-grid">
             <label class="fld full">Nome do documento / treinamento / certificação *<input @bind="_f.Nome" /></label>
-            <label class="fld">Categoria *<select @bind="_f.Categoria">@foreach (var c in Categorias) {<option>@c</option>}</select></label>
+            <label class="fld">Categoria *<CampoLista Value="@_f.Categoria" ValueChanged="@((string v) => { _f.Categoria = v; })" Opcoes="@(Categorias)" Placeholder="" /></label>
             <label class="fld">Norma relacionada <span class="hint">ex.: NR-10, ISO 18436-2</span><input @bind="_f.Norma" /></label>
             <label class="fld">Identificação / versão da norma<input @bind="_f.NormaVersao" placeholder="ex.: 2014, Rev. 3" /></label>
             <label class="fld">Instituição / responsável pela emissão<input @bind="_f.Emissor" /></label>
@@ -124,6 +124,7 @@ else
     private static readonly string[] CatDocs = { "Documento pessoal", "Exame / saúde", "Outro" };
     private static readonly string[] CatTrein = { "Treinamento", "Certificação", "Norma / comprovação" };
     private string[] Categorias => Modo == "docs" ? CatDocs : CatTrein;
+    private bool NaSecao(string cat) => Modo == "docs" ? !CatTrein.Contains(cat) : CatTrein.Contains(cat);
 
     private List<Documento> _todos = new(), _atuais = new(); private List<Anexo> _anexos = new();
     private DateTime _hoje;
@@ -142,7 +143,7 @@ else
     {
         _hoje = DocEngine.Hoje(Db.FusoPadrao);
         _todos = Db.Documentos.Onde(d => d.TecnicoId == TecnicoId);
-        _atuais = _todos.Where(d => d.Atual && Categorias.Contains(d.Categoria)).OrderBy(d => d.Vencimento ?? DateTime.MaxValue).ToList();
+        _atuais = _todos.Where(d => d.Atual && NaSecao(d.Categoria)).OrderBy(d => d.Vencimento ?? DateTime.MaxValue).ToList();
         var ids = _todos.Select(d => d.Id).ToHashSet();
         _anexos = Db.Anexos.Onde(a => a.DonoTipo == "documento" && ids.Contains(a.DonoId)).OrderBy(a => a.CriadoEm).ToList();
     }

@@ -45,8 +45,7 @@ else
         <div class="form-grid">
             <div class="fld">Planta <SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" Placeholder="Buscar planta por nome, cidade, estado, país…" /></div>
             <label class="fld">Serviço
-                <select @bind="_v.ServicoId" @bind:after="Validar"><option value="">— selecione —</option>
-                    @foreach (var s in _snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome)) {<option value="@s.Id">@s.Nome</option>}</select></label>
+                <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
             <div class="fld full"><span>Técnicos</span>
                 <div class="chips-tec">@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo || _tecs.Contains(t.Id)).OrderBy(t => t.Nome)) {
                     <label class="chk-inline"><input type="checkbox" checked="@_tecs.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome</label> }</div></div>
@@ -146,6 +145,8 @@ else
 
     private sealed class Faixa { public string Ini = "", Fim = "", Modal = Vocab.ModalAviao; public Trecho? T; public Atendimento? A; }
 
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
+    private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(c.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verAnexos, _maisAberto, _cancelando, _localizando;
     private Viagem _v = new(); private HashSet<string> _tecs = new(); private Faixa _ida = new(), _serv = new(), _volta = new();
     private double? _horasPrev, _horasReal; private ResultadoViagem _res = new(); private List<string>? _erros; private Planta? _planta;

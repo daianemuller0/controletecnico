@@ -41,7 +41,7 @@ public sealed partial class Servicos
 
     public Servico SalvarServico(Ator ator, Servico s)
     {
-        ator.Exigir(Perm.EditarTecnicos);
+        if (!ator.Pode(Perm.EditarTecnicos)) ator.Exigir(Perm.EditarViagens);      // quem planeja viagens também cadastra serviços
         if (string.IsNullOrWhiteSpace(s.Nome)) throw new ValidacaoException("Informe o nome do serviço.");
         if (Db.Servicos.Onde(x => x.Id != s.Id && DocEngine.Norm(x.Nome) == DocEngine.Norm(s.Nome)).Count > 0)
             throw new ValidacaoException("Esse serviço já existe.");
@@ -485,5 +485,37 @@ public sealed partial class Servicos
         Db.SetCfg("marca_nome", nome.Trim(), ator.Login); Db.SetCfg("marca_sub", subtitulo.Trim(), ator.Login);
         Auditar(ator, "marca.nome", "marca", "", $"Nome do sistema: {nome.Trim()}");
         MarcaMudou?.Invoke();
+    }
+}
+
+
+public sealed partial class Servicos
+{
+    private static string Limpo(string? t) => string.Join(" ", (t ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>Valor digitado à mão numa caixa: devolve o item existente de mesmo nome ou cria um novo. Nunca duplica.</summary>
+    public Servico CriarServicoRapido(Ator ator, string nome)
+    {
+        nome = Limpo(nome); if (nome.Length < 2 || nome.Length > 80) throw new ValidacaoException("Informe o nome do serviço (2 a 80 caracteres).");
+        return Db.Servicos.Onde(x => DocEngine.Norm(x.Nome) == DocEngine.Norm(nome)).FirstOrDefault() ?? SalvarServico(ator, new Servico { Nome = nome });
+    }
+
+    public Cliente CriarClienteRapido(Ator ator, string nome)
+    {
+        nome = Limpo(nome); if (nome.Length < 2 || nome.Length > 120) throw new ValidacaoException("Informe o nome do cliente (2 a 120 caracteres).");
+        return Db.Clientes.Onde(x => DocEngine.Norm(x.Nome) == DocEngine.Norm(nome)).FirstOrDefault() ?? SalvarCliente(ator, new Cliente { Nome = nome });
+    }
+
+    /// <summary>Planta digitada à mão: cria só com o nome; a cidade (e o resto) é pedida em seguida e gravada no cadastro.</summary>
+    public Planta CriarPlantaRapida(Ator ator, string nome)
+    {
+        ator.Exigir(Perm.EditarClientes);
+        nome = Limpo(nome); if (nome.Length < 2 || nome.Length > 120) throw new ValidacaoException("Informe o nome da planta (2 a 120 caracteres).");
+        var ex = Db.Plantas.Onde(x => DocEngine.Norm(x.Nome) == DocEngine.Norm(nome) && x.ClienteId == "").FirstOrDefault();
+        if (ex is not null) return ex;
+        var p = new Planta { Nome = nome, Pais = "", GeoStatus = "pendente" };
+        ValidarPlanta(p); Db.Plantas.Salvar(p, ator.Login);
+        Auditar(ator, "planta.criar", "planta", p.Id, $"{p.Nome} (criada ao digitar numa caixa de seleção)");
+        return p;
     }
 }

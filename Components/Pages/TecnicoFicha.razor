@@ -61,7 +61,7 @@ else
                     <label class="fld">Estado<input @bind="_f.Estado" /></label>
                     <label class="fld">País<input list="paises-t" @bind="_f.Pais" /></label>
                     <label class="fld">Origem habitual para viagens <span class="hint">vazio = cidade/UF</span><input @bind="_f.OrigemHabitual" /></label>
-                    <label class="fld">Fuso horário<select @bind="_f.FusoHorario">@foreach (var z in Vocab.Fusos.Concat(new[] { _f.FusoHorario }).Distinct()) {<option>@z</option>}</select></label>
+                    <label class="fld">Fuso horário<CampoLista Value="@_f.FusoHorario" ValueChanged="@((string v) => { _f.FusoHorario = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" /></label>
                     <div class="fld"></div>
                     <label class="fld">Jornada — início<input type="time" value="@_f.JornadaInicio" @onchange="e => _f.JornadaInicio = e.Value?.ToString() ?? string.Empty" /></label>
                     <label class="fld">Jornada — fim<input type="time" value="@_f.JornadaFim" @onchange="e => _f.JornadaFim = e.Value?.ToString() ?? string.Empty" /></label>

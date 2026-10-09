@@ -113,3 +113,14 @@ Planta + serviço + técnicos e **três blocos de diárias**: *deslocamento de i
 * Gravações simultâneas de máquinas diferentes no *mesmo registro* resolvem por "a última vence" (pelo relógio das máquinas); não há bloqueio otimista. Mantenha os relógios sincronizados.
 * Notificações por e-mail de vencimento não foram implementadas (os alertas aparecem na ficha, na visão operacional e em *Técnicos → Vencimentos*, com exportação CSV).
 * Sem renderização automática de testes de interface em CI; os testes automatizados cobrem regras de negócio e persistência (39 testes).
+
+## Caixas com opção manual
+
+Nenhuma caixa de lista prende o usuário ao que já existe:
+
+- **Fuso, categoria de documento, norma, país, estado e cidade** (formulários e filtros): campo com sugestões que aceita qualquer texto digitado. Nos filtros, o texto casa por "contém", sem acento e sem diferenciar maiúsculas.
+- **Serviço e cliente** (viagem, agenda, planta, requisitos): seletor com busca. Se o texto não existe, aparece **“Criar serviço/cliente «texto»”** e o item é cadastrado na hora (sem duplicar nomes iguais; exige a permissão de edição correspondente).
+- **Planta**: ao digitar um nome que não existe, **“Usar «texto» como nova planta”** cria a planta e o sistema pede a cidade em seguida, gravando no cadastro.
+- **Técnico e especialidade** (filtros): seletor com busca.
+- Continuam como lista fechada apenas valores com regra no sistema: status, tipo de evento, meio de transporte, perfil de acesso, ordenação, itens por página e opções da importação.
+- Categorias digitadas à mão aparecem na seção **Documentos** do técnico (só as três categorias de treinamento ficam em Treinamentos).

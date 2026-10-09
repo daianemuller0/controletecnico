@@ -1,0 +1,19 @@
+@* Caixa com sugestões, mas que aceita QUALQUER texto digitado (opção manual). *@
+<input class="@Class" list="@_id" value="@Value" @onchange="Mudou" placeholder="@Placeholder" autocomplete="off" disabled="@Disabled" />
+<datalist id="@_id">@foreach (var o in _opcoes) {<option value="@o"></option>}</datalist>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public IEnumerable<string>? Opcoes { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "";
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public bool Disabled { get; set; }
+    private readonly string _id = "dl" + Guid.NewGuid().ToString("N")[..8];
+    private List<string> _opcoes = new();
+
+    protected override void OnParametersSet() =>
+        _opcoes = (Opcoes ?? Array.Empty<string>()).Where(o => !string.IsNullOrWhiteSpace(o)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(o => o, StringComparer.OrdinalIgnoreCase).Take(1000).ToList();
+
+    private Task Mudou(ChangeEventArgs e) => ValueChanged.InvokeAsync((e.Value?.ToString() ?? "").Trim());
+}

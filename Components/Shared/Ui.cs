@@ -5,6 +5,9 @@ namespace ControleTecnico.Components.Shared;
 
 public static class Ui
 {
+    /// <summary>Filtro por texto digitado: sem acento/caixa, basta conter.</summary>
+    public static bool Contem(string? valor, string? filtro) => string.IsNullOrWhiteSpace(filtro) || DocEngine.Norm(valor ?? "").Contains(DocEngine.Norm(filtro));
+
     public static Item Op(string key) => Vocab.Get(Vocab.StatusOp, key);
     public static Item TipoEv(string key) => Vocab.Get(Vocab.TiposEvento, key);
     public static Item StViagem(string key) => Vocab.Get(Vocab.StatusViagem, key);

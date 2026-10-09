@@ -54,20 +54,20 @@ else
 
     <div class="filterbar op-filtros" role="search">
         <label class="flt"><span class="flt-label">Técnico</span>
-            <select @bind="FTec" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select></label>
+            <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@FTec" ValueChanged="@(async (string v) => { FTec = v; Aplicar(); })" Placeholder="Todos" /></label>
         <label class="flt"><span class="flt-label">Especialidade</span>
-            <select @bind="FEsp" @bind:after="Aplicar"><option value="">Todas</option>@foreach (var e in _snap.Especialidades.Values.OrderBy(e => e.Nome)) {<option value="@e.Id">@e.Nome</option>}</select></label>
+            <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@FEsp" ValueChanged="@(async (string v) => { FEsp = v; Aplicar(); })" Placeholder="Todas" /></label>
         <label class="flt"><span class="flt-label">Status</span>
             <select @bind="FStatus" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var s in Vocab.StatusOp) {<option value="@s.Key">@s.Label</option>}</select></label>
         <label class="flt"><span class="flt-label">Cliente</span>
-            <select @bind="FCli" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var c in _snap.Clientes.Values.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select></label>
+            <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@FCli" ValueChanged="@(async (string v) => { FCli = v; Aplicar(); })" Placeholder="Todos" /></label>
         <div class="flt flt-planta"><span class="flt-label">Planta</span><SeletorPlanta Value="@FPlanta" ValueChanged="id => { FPlanta = id ?? string.Empty; Aplicar(); }" Vazio="Todas as plantas" Placeholder="Todas" SoAtivas="false" /></div>
         <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">País</span>
-            <select @bind="FPais" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var x in Paises) {<option>@x</option>}</select></label>
+            <CampoLista Value="@FPais" ValueChanged="@((string v) => { FPais = v; Aplicar(); })" Opcoes="@(Paises)" Placeholder="Todos" /></label>
         <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Estado</span>
-            <select @bind="FUf" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var x in Estados) {<option>@x</option>}</select></label>
+            <CampoLista Value="@FUf" ValueChanged="@((string v) => { FUf = v; Aplicar(); })" Opcoes="@(Estados)" Placeholder="Todos" /></label>
         <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Cidade</span>
-            <select @bind="FCidade" @bind:after="Aplicar"><option value="">Todas</option>@foreach (var x in Cidades) {<option>@x</option>}</select></label>
+            <CampoLista Value="@FCidade" ValueChanged="@((string v) => { FCidade = v; Aplicar(); })" Opcoes="@(Cidades)" Placeholder="Todas" /></label>
         <label class="flt" title="Técnicos com compromisso no período"><span class="flt-label">Período de</span>
             <input type="date" class="flt-date" value="@Ui.DataInput(FDe)" @onchange="e => { FDe = Ui.DoDataInput(e.Value?.ToString()); Aplicar(); }" /></label>
         <label class="flt"><span class="flt-label">até</span>
@@ -304,9 +304,9 @@ else
         if (!string.IsNullOrEmpty(FStatus)) q = q.Where(e => e.Status == FStatus);
         if (!string.IsNullOrEmpty(FCli)) q = q.Where(e => Assoc(e)?.ClienteId == FCli || EventosDe(e).Any(x => x.ClienteId == FCli && x.Fim >= _instante));
         if (!string.IsNullOrEmpty(FPlanta)) q = q.Where(e => Assoc(e)?.PlantaId == FPlanta || EventosDe(e).Any(x => x.PlantaId == FPlanta && x.Fim >= _instante));
-        if (!string.IsNullOrEmpty(FPais)) q = q.Where(e => LocalGeo(e).pais == FPais);
-        if (!string.IsNullOrEmpty(FUf)) q = q.Where(e => LocalGeo(e).uf == FUf);
-        if (!string.IsNullOrEmpty(FCidade)) q = q.Where(e => LocalGeo(e).cid == FCidade);
+        if (!string.IsNullOrEmpty(FPais)) q = q.Where(e => Ui.Contem(LocalGeo(e).pais, FPais));
+        if (!string.IsNullOrEmpty(FUf)) q = q.Where(e => Ui.Contem(LocalGeo(e).uf, FUf));
+        if (!string.IsNullOrEmpty(FCidade)) q = q.Where(e => Ui.Contem(LocalGeo(e).cid, FCidade));
         if (FDe.HasValue || FAte.HasValue)
         {
             var de = FDe.HasValue ? Tempo.ParaUtc(FDe.Value, _snap.FusoPadrao) : DateTime.MinValue;

@@ -459,3 +459,7 @@ input[type=checkbox], input[type=radio] { width: auto !important; accent-color: 
 .logo-padrao { display: flex; align-items: center; gap: 12px; color: #fff; text-align: left; } .logo-padrao small { opacity: .7; }
 .logo-preview.logo-menu { background: linear-gradient(184deg, var(--sidebar-top), var(--sidebar-bottom)); }
 .brand-logo-img { max-width: 100%; }
+.sel-criar { background: #f3fbf6; border: 1px dashed #9fd3b4; margin-bottom: 4px; }
+.sel-criar .sel-l1 { color: var(--pos); display: flex; align-items: center; gap: 6px; } .sel-criar .sel-l1 svg { width: 14px; height: 14px; }
+.sel-criar.ativo, .sel-criar:hover { background: #e3f6ea; }
+.sel-op.sel-criar { grid-template-columns: 1fr; grid-template-areas: "l1" "l2"; }

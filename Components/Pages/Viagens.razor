@@ -26,8 +26,8 @@
 
 <div class="toolbar">
     <input class="field busca" placeholder="Buscar código, cliente, destino…" @bind="_busca" @bind:event="oninput" aria-label="Buscar viagem" />
-    <select class="field w-auto" @bind="_fTec"><option value="">Todos os técnicos</option>@foreach (var t in _snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select>
-    <select class="field w-auto" @bind="_fCli"><option value="">Todos os clientes</option>@foreach (var c in _snap.Clientes.Values.OrderBy(c => c.Nome)) {<option value="@c.Id">@c.Nome</option>}</select>
+    <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_fTec" ValueChanged="@(async (string v) => { _fTec = v; })" Placeholder="Todos os técnicos" />
+    <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; })" Placeholder="Todos os clientes" />
     <select class="field w-auto" @bind="_fModal"><option value="">Carro e avião</option><option value="carro">Com trecho de carro</option><option value="aviao">Com trecho de avião</option></select>
     <label class="chk-inline"><input type="checkbox" @bind="_futuras" />Só a partir de hoje</label>
 </div>

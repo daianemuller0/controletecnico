@@ -54,7 +54,7 @@ else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
             <div class="panel-head"><div class="panel-title">Parâmetros</div></div>
             <div class="form-grid">
                 <label class="fld full">Alertas antecipados de vencimento (dias, separados por vírgula)<input @bind="_alertas" /></label>
-                <label class="fld">Fuso horário padrão da agenda<select @bind="_fuso">@foreach (var f in Vocab.Fusos.Concat(new[] { _fuso }).Distinct()) {<option>@f</option>}</select></label>
+                <label class="fld">Fuso horário padrão da agenda<CampoLista Value="@_fuso" ValueChanged="@((string v) => { _fuso = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" Class="field" /></label>
                 <label class="fld">Validade da localização confirmada (horas)<input type="number" min="1" @bind="_horas" /></label>
                 <label class="fld full">E-mail de contato da geocodificação <span class="hint">opcional, recomendado pela política do serviço de mapas (Nominatim/OpenStreetMap)</span><input type="email" @bind="_contatoGeo" placeholder="ti@suaempresa.com" /></label>
             </div>

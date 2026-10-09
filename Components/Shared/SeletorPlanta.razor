@@ -1,5 +1,7 @@
 @* Seletor de planta com busca: feito para milhares de plantas (filtra no servidor, mostra só os melhores resultados). *@
 @inject BuscaPlantas Busca
+@inject Servicos Svc
+@inject Sessao Sessao
 
 <div class="sel @(_aberto ? "aberto" : "")">
     @if (_aberto) { <div class="sel-fundo" @onclick="Fechar"></div> }
@@ -25,6 +27,12 @@
     {
         <div class="sel-painel" role="listbox">
             @if (!string.IsNullOrEmpty(Vazio)) { <button type="button" class="sel-op sel-vazio" @onclick="Limpar">@Vazio</button> }
+            @if (PodeCriar)
+            {
+                <button type="button" class="sel-op sel-criar @(_ativo == -1 ? "ativo" : "")" @onclick="CriarNova">
+                    <span class="sel-l1">@Icons.Svg("plus")Usar “@_texto.Trim()” como nova planta</span><span class="sel-l2">Planta que ainda não está cadastrada: depois você informa a cidade</span>
+                </button>
+            }
             @for (var i = 0; i < _res.Count; i++)
             {
                 var r = _res[i]; var idx = i;
@@ -34,7 +42,7 @@
                     <span class="sel-geo g-@r.Geo" title="@GeoTxt(r.Geo)">@Icons.Svg("pin")</span>
                 </button>
             }
-            @if (_res.Count == 0) { <div class="sel-nada">Nenhuma planta encontrada para "@_texto".</div> }
+            @if (_res.Count == 0 && !PodeCriar) { <div class="sel-nada">Nenhuma planta encontrada para "@_texto".</div> }
             <div class="sel-rodape">@(_total > _res.Count ? $"Mostrando {_res.Count} de {_total:N0} — digite mais para refinar" : $"{_total:N0} planta(s)")</div>
         </div>
     }
@@ -50,6 +58,17 @@
     [Parameter] public bool SoAtivas { get; set; } = true;
     [Parameter] public int Max { get; set; } = 40;
 
+    [Parameter] public bool PermitirCriar { get; set; } = true;
+    private Ator _ator = new();
+    protected override async Task OnInitializedAsync() => _ator = await Sessao.AtorAsync();
+    private bool PodeCriar => PermitirCriar && _ator.Pode(Perm.EditarClientes) && _texto.Trim().Length >= 2 && !Busca.Itens().Any(i => i.NomeNorm == DocEngine.Norm(_texto));
+
+    private async Task CriarNova()
+    {
+        try { var p = Svc.CriarPlantaRapida(_ator, _texto); _aberto = false; await ValueChanged.InvokeAsync(p.Id); }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
+
     private bool _aberto; private string _texto = ""; private int _ativo; private int _total; private List<PlantaItem> _res = new(); private PlantaItem? _atual;
 
     protected override void OnParametersSet() => _atual = string.IsNullOrEmpty(Value) ? null : Busca.Obter(Value);
@@ -60,7 +79,7 @@
     private void Refiltrar()
     {
         var todos = Busca.Buscar(_texto, SoAtivas, Value).ToList();
-        _total = todos.Count; _res = todos.Take(Max).ToList(); _ativo = 0;
+        _total = todos.Count; _res = todos.Take(Max).ToList(); _ativo = PodeCriar && _res.Count == 0 ? -1 : 0;
     }
 
     private async Task Escolher(PlantaItem r) { _aberto = false; _atual = r; await ValueChanged.InvokeAsync(r.Id); }
@@ -71,8 +90,8 @@
         switch (e.Key)
         {
             case "ArrowDown": _ativo = Math.Min(_res.Count - 1, _ativo + 1); break;
-            case "ArrowUp": _ativo = Math.Max(0, _ativo - 1); break;
-            case "Enter": if (_res.Count > 0) await Escolher(_res[Math.Clamp(_ativo, 0, _res.Count - 1)]); break;
+            case "ArrowUp": _ativo = Math.Max(PodeCriar ? -1 : 0, _ativo - 1); break;
+            case "Enter": if (_ativo == -1 || (_res.Count == 0 && PodeCriar)) await CriarNova(); else if (_res.Count > 0) await Escolher(_res[Math.Clamp(_ativo, 0, _res.Count - 1)]); break;
             case "Escape": Fechar(); break;
         }
     }
