@@ -311,7 +311,7 @@ else
         {
             var de = FDe.HasValue ? Tempo.ParaUtc(FDe.Value, _snap.FusoPadrao) : DateTime.MinValue;
             var ate = FAte.HasValue ? Tempo.ParaUtc(FAte.Value.AddDays(1), _snap.FusoPadrao) : DateTime.MaxValue;
-            q = q.Where(e => EventosDe(e).Any(x => x.Bloqueia && x.Cruza(de, ate)));
+            q = q.Where(e => EventosDe(e).Any(x => (x.Bloqueia || x.Provisorio) && x.Cruza(de, ate)));
         }
         q = _kpi switch
         {
