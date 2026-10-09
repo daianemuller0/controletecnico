@@ -63,11 +63,11 @@ else
             <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@FCli" ValueChanged="@(async (string v) => { FCli = v; Aplicar(); })" Placeholder="Todos" /></label>
         <div class="flt flt-planta"><span class="flt-label">Planta</span><SeletorPlanta Value="@FPlanta" ValueChanged="id => { FPlanta = id ?? string.Empty; Aplicar(); }" Vazio="Todas as plantas" Placeholder="Todas" SoAtivas="false" /></div>
         <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">País</span>
-            <CampoLista Value="@FPais" ValueChanged="@((string v) => { FPais = v; Aplicar(); })" Opcoes="@(Paises)" Placeholder="Todos" /></label>
+            <CampoLista Value="@FPais" ValueChanged="@((string v) => { FPais = v; Aplicar(); })" Opcoes="@(Paises)" Placeholder="Todos" Class="field" /></label>
         <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Estado</span>
-            <CampoLista Value="@FUf" ValueChanged="@((string v) => { FUf = v; Aplicar(); })" Opcoes="@(Estados)" Placeholder="Todos" /></label>
+            <CampoLista Value="@FUf" ValueChanged="@((string v) => { FUf = v; Aplicar(); })" Opcoes="@(Estados)" Placeholder="Todos" Class="field" /></label>
         <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Cidade</span>
-            <CampoLista Value="@FCidade" ValueChanged="@((string v) => { FCidade = v; Aplicar(); })" Opcoes="@(Cidades)" Placeholder="Todas" /></label>
+            <CampoLista Value="@FCidade" ValueChanged="@((string v) => { FCidade = v; Aplicar(); })" Opcoes="@(Cidades)" Placeholder="Todas" Class="field" /></label>
         <label class="flt" title="Técnicos com compromisso no período"><span class="flt-label">Período de</span>
             <input type="date" class="flt-date" value="@Ui.DataInput(FDe)" @onchange="e => { FDe = Ui.DoDataInput(e.Value?.ToString()); Aplicar(); }" /></label>
         <label class="flt"><span class="flt-label">até</span>
@@ -77,6 +77,23 @@ else
     @if (!string.IsNullOrEmpty(_kpi))
     {
         <div class="chips-ativos">Indicador: <span class="chip active">@NomeKpi(_kpi) <button class="chip-x" @onclick="@(() => { _kpi = ""; Aplicar(); })" aria-label="Remover filtro do indicador">×</button></span></div>
+    }
+
+    @if (_kpi == "viagens")
+    {
+        <section class="panel" aria-label="Viagens previstas" style="margin-bottom:12px">
+            <div class="panel-head"><div class="panel-title">Viagens previstas <span class="hint">@_kViagensPrev.Count viagem(ns) — a lista de técnicos abaixo pode ter menos linhas, pois um técnico pode ter várias viagens</span></div></div>
+            <div class="table-wrap"><table class="grid-tbl">
+                <thead><tr><th>Viagem</th><th>Destino</th><th>Início</th><th>Técnicos</th><th>Status</th></tr></thead>
+                <tbody>
+                @foreach (var v in _kViagensPrev.Select(id => _snap.Viagem(id)).Where(v => v is not null).OrderBy(v => _prevIni[v!.Id]))
+                {
+                    var nomes = Ui.Ids(v!.TecnicoIds).Select(t => _snap.Tecnicos.TryGetValue(t, out var tc) ? tc.Nome : "?").ToList();
+                    <tr><td><a href="/viagens/@v.Id">@v.Codigo</a></td><td>@(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)</td><td>@Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)</td>
+                        <td>@(nomes.Count == 0 ? "sem técnico" : string.Join(", ", nomes))</td><td>@(Vocab.StatusViagem.FirstOrDefault(x => x.Key == v.Status)?.Label ?? v.Status)</td></tr>
+                }
+                </tbody></table></div>
+        </section>
     }
 
     <div class="op-grid">
@@ -189,6 +206,7 @@ else
     private List<Estado> _visiveis = new();
     private List<Estado> _semMapa = new();
     private bool _carregando = true; private string? _erro;
+    private Dictionary<string, DateTime> _prevIni = new();
     private DateTime _instante = DateTime.UtcNow; private bool _agora = true; private string _dataStr = "";
 
     public string FTec { get; set; } = ""; public string FEsp { get; set; } = ""; public string FStatus { get; set; } = "";
@@ -254,13 +272,13 @@ else
         _kFer = De(Vocab.OpFerias); _kInd = De(Vocab.OpIndisponivel); _kSem = De(Vocab.OpSemProg);
 
         // viagens previstas: ainda não iniciadas
-        _viagensPrevPorTec = new();
+        _viagensPrevPorTec = new(); _prevIni = new();
         var prev = new HashSet<string>();
         foreach (var v in _snap.Viagens.Values.Where(v => v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada or Vocab.ViagemConfirmada))
         {
             var ini = _eventos.Where(e => e.ViagemId == v.Id).Select(e => (DateTime?)e.Ini).Min();
             if (ini is null || ini < _instante) continue;
-            prev.Add(v.Id);
+            prev.Add(v.Id); _prevIni[v.Id] = ini.Value;
             foreach (var t in Ui.Ids(v.TecnicoIds).Where(ids.Contains))
             { if (!_viagensPrevPorTec.TryGetValue(t, out var l)) _viagensPrevPorTec[t] = l = new(); l.Add(v.Id); }
         }

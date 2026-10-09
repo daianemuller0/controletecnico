@@ -91,8 +91,8 @@ else if (_aba == "plantas")
     </div>
     <div class="pl-filtros">
         <label class="flt"><span class="flt-label">Cliente</span><SeletorLista Itens="@(_clientes.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; Refiltrar(); })" Placeholder="Todos" /></label>
-        <label class="flt"><span class="flt-label">País</span><CampoLista Value="@_fPais" ValueChanged="@((string v) => { _fPais = v; Refiltrar(); })" Opcoes="@(_paises)" Placeholder="Todos" /></label>
-        <label class="flt"><span class="flt-label">Estado</span><CampoLista Value="@_fUf" ValueChanged="@((string v) => { _fUf = v; Refiltrar(); })" Opcoes="@(_ufs)" Placeholder="Todos" /></label>
+        <label class="flt"><span class="flt-label">País</span><CampoLista Value="@_fPais" ValueChanged="@((string v) => { _fPais = v; Refiltrar(); })" Opcoes="@(_paises)" Placeholder="Todos" Class="field" /></label>
+        <label class="flt"><span class="flt-label">Estado</span><CampoLista Value="@_fUf" ValueChanged="@((string v) => { _fUf = v; Refiltrar(); })" Opcoes="@(_ufs)" Placeholder="Todos" Class="field" /></label>
         <label class="flt"><span class="flt-label">Ordenar por</span><select @bind="_ordem" @bind:after="Refiltrar"><option value="nome">Nome</option><option value="cidade">Cidade</option><option value="pais">País</option><option value="geo">Localização</option></select></label>
         <label class="flt"><span class="flt-label">Por página</span><select @bind="_tam" @bind:after="@(() => _pagPl = 0)"><option value="50">50</option><option value="100">100</option><option value="200">200</option></select></label>
         @if (_fCli != "" || _fPais != "" || _fUf != "" || _chip != "" || _buscaPl != "") { <button class="btn-link" @onclick="LimparFiltros">@Icons.Svg("x")Limpar tudo</button> }
