@@ -156,9 +156,9 @@ Técnico **sem programação** agora conta como **Disponível** (a ficha avisa q
 - **Número do projeto e equipamentos**: obrigatórios na nova viagem (simples e avançada) e no novo compromisso da agenda; equipamentos aceitam 1 ou mais (Enter ou "Adicionar", com sugestões dos já usados). O projeto aparece **sempre**: primeira coluna da lista de viagens, título da viagem, todos os blocos da agenda/mapa ("Proj. 1234 · …"), painel de viagens previstas, apresentação e histórico. A busca da lista procura por projeto e equipamento.
 - **Em casa / na Howden**: quem não está em viagem nem em atendimento aparece **em casa** (endereço residencial da ficha, localizado em cascata endereço → cidade → estado → país) ou, se marcado no painel do técnico, **na Howden South America**. Os dois contam como **disponíveis**. O endereço da empresa é configurado em **Administração → Configurações → Endereço da empresa** (pode informar latitude/longitude ou deixar localizar pelo endereço).
 
-## Identidade visual (menu lateral)
+## Identidade visual
 
-Item **Identidade visual** no menu lateral (seção Sistema, só para o administrador), como no projeto axiaisvent: troca o **logo da página de entrada** (tela de login) e o **logo do sistema** (barra lateral), além do nome/subtítulo usados quando não há logo. PNG, JPG, SVG ou WebP até 3 MB; vale para todos na hora e "Remover" volta ao padrão.
+Aba **Identidade visual** dentro de **Administração** (só para o administrador): troca o **logo da página de entrada** (tela de login) e o **logo do sistema** (barra lateral), além do nome/subtítulo usados quando não há logo. PNG, JPG, SVG ou WebP até 3 MB; vale para todos na hora e "Remover" volta ao padrão.
 
 ## Controle das viagens pela equipe de serviços (e-mail de outubro/2026)
 
@@ -173,3 +173,7 @@ Item **Identidade visual** no menu lateral (seção Sistema, só para o administ
 ## Histórico da viagem
 
 Cada viagem tem a aba **Histórico da viagem** (ao lado de "Viagem"): a equipe escreve tudo o que aconteceu — ocorrência, cliente, técnico, logística (voo/hotel/carro), financeiro ou anotação — com a data/hora em que aconteceu. Fica registrado quem escreveu; só a autora (ou o administrador) edita ou exclui. Na mesma linha do tempo aparecem, se quiser, as alterações automáticas (status, responsável, lista de verificação, e-mail da OS, documentos). Há busca e filtro por tipo. Técnicos veem o histórico das próprias viagens, sem editar.
+
+### Viagem nova já completa
+
+Ao criar uma viagem, a tela já traz a **lista de verificação**, os **documentos da viagem**, a aba **Histórico da viagem** e o botão **E-mail da OS**. O que for marcado, anexado ou escrito antes de salvar é gravado junto com a viagem ao clicar em Salvar; o botão do e-mail salva a viagem e abre o e-mail em seguida.

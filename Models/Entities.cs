@@ -263,7 +263,7 @@ public class NotaViagem : Entity
     public string Texto { get; set; } = "";
     /// <summary>Quando aconteceu (pode ser diferente de quando foi escrito).</summary>
     public DateTime Quando { get; set; }
-    public DateTime CriadoEm { get; set; }
+    public DateTime EscritoEm { get; set; }
     public string Autor { get; set; } = "";
     public string AutorNome { get; set; } = "";
     public DateTime? EditadoEm { get; set; }

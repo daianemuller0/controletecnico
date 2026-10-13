@@ -331,7 +331,7 @@ public sealed partial class Servicos
     {
         var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         if (!(ator.VeTodaEquipe || (ator.Papel == Roles.Tecnico && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId)))) throw new UnauthorizedAccessException("Sem acesso a esta viagem.");
-        return Db.NotasViagem.Onde(n => n.ViagemId == viagemId).OrderByDescending(n => n.Quando).ThenByDescending(n => n.CriadoEm).ToList();
+        return Db.NotasViagem.Onde(n => n.ViagemId == viagemId).OrderByDescending(n => n.Quando).ThenByDescending(n => n.EscritoEm).ToList();
     }
 
     public NotaViagem SalvarNota(Ator ator, NotaViagem n)
@@ -347,9 +347,9 @@ public sealed partial class Servicos
         if (ant is not null)
         {
             if (ant.Autor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu (ou o administrador) altera este registro.");
-            n.CriadoEm = ant.CriadoEm; n.Autor = ant.Autor; n.AutorNome = ant.AutorNome; n.EditadoEm = DateTime.UtcNow;
+            n.EscritoEm = ant.EscritoEm; n.Autor = ant.Autor; n.AutorNome = ant.AutorNome; n.EditadoEm = DateTime.UtcNow;
         }
-        else { n.CriadoEm = DateTime.UtcNow; n.Autor = ator.Login; n.AutorNome = Db.Usuarios.Obter(ator.Login)?.Nome is { Length: > 0 } nm ? nm : ator.Login; }
+        else { n.EscritoEm = DateTime.UtcNow; n.Autor = ator.Login; n.AutorNome = Db.Usuarios.Obter(ator.Login)?.Nome is { Length: > 0 } nm ? nm : ator.Login; }
         Db.NotasViagem.Salvar(n, ator.Login);
         var resumo = n.Texto.Length > 120 ? n.Texto[..120] + "…" : n.Texto;
         Auditar(ator, ant is null ? "viagem.historico" : "viagem.historico.editar", "viagem", v.Id, $"{v.Codigo}: {resumo}");

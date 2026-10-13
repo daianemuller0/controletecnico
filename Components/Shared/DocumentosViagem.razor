@@ -21,7 +21,18 @@
         }
         @if (_enviando) { <div class="muted sm mt8">Enviando…</div> }
         @if (!string.IsNullOrEmpty(_msg)) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@_msg</div></div> }
-        @if (_anexos.Count == 0) { <div class="dv-vazio">Nenhum documento ainda. Use os botões acima para anexar passagem, reserva de hotel, carro…</div> }
+        @if (Local && Pendentes.Count > 0)
+        {
+            <div class="dv-grupo"><div class="dv-gtit">@Icons.Svg("clock")Serão anexados ao salvar a viagem</div>
+                @foreach (var pd in Pendentes.ToList())
+                {
+                    var info = Cats.First(c => c.cat == Cat(pd.Categoria));
+                    <div class="anexo">@Icons.Svg(info.ico)<span>@pd.Nome</span><span class="muted sm">@info.rot · @(pd.Dados.Length / 1024) KB</span>
+                        <button class="row-act del" @onclick="() => { Pendentes.Remove(pd); }" title="Tirar">@Icons.Svg("x")</button></div>
+                }
+            </div>
+        }
+        @if (_anexos.Count == 0 && !(Local && Pendentes.Count > 0)) { <div class="dv-vazio">Nenhum documento ainda. Use os botões acima para anexar passagem, reserva de hotel, carro…</div> }
         @foreach (var g in _anexos.GroupBy(a => Cat(a.Categoria)).OrderBy(g => Array.FindIndex(Cats, c => c.cat == g.Key)))
         {
             var info = Cats.First(c => c.cat == g.Key);
@@ -43,23 +54,38 @@
     [Parameter] public bool Pode { get; set; }
     [Parameter] public bool VerAnexos { get; set; }
     [Parameter] public EventCallback OnMudou { get; set; }
+    /// <summary>Viagem ainda não salva: os arquivos ficam aqui e são anexados logo depois de salvar.</summary>
+    [Parameter] public List<Pendente> Pendentes { get; set; } = new();
+    public sealed record Pendente(string Nome, string Categoria, byte[] Dados);
+    private bool Local => string.IsNullOrEmpty(ViagemId);
 
     private static readonly (string cat, string rot, string ico)[] Cats = { ("voo", "Voo / passagem", "plane"), ("hotel", "Hotel", "customers"), ("carro", "Carro", "car"), ("outro", "Outros", "paperclip") };
     private static string Cat(string c) => Cats.Any(x => x.cat == c) ? c : "outro";
     private List<Anexo> _anexos = new(); private string? _msg; private bool _enviando;
 
     protected override void OnParametersSet() => Carregar();
-    private void Carregar() => _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == ViagemId);
+    private void Carregar() => _anexos = Local ? new() : Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == ViagemId);
 
     private async Task Enviar(InputFileChangeEventArgs e, string cat)
     {
         _msg = null; _enviando = true; var falhas = new List<string>(); var n = 0;
         foreach (var f in e.GetMultipleFiles(20))
-            try { await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(Ator, "viagem", ViagemId, f.Name, s, cat); n++; }
+            try
+            {
+                await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo);
+                if (Local)
+                {
+                    using var ms = new MemoryStream(); await s.CopyToAsync(ms); var b = ms.ToArray();
+                    Armazenamento.Validar(f.Name, b.Length, b.AsSpan(0, Math.Min(8, b.Length)), aceitaEmail: true);
+                    Pendentes.Add(new Pendente(f.Name, cat, b));
+                }
+                else await Svc.AnexarAsync(Ator, "viagem", ViagemId, f.Name, s, cat);
+                n++;
+            }
             catch (Exception ex) { falhas.Add($"{f.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
         _enviando = false; Carregar();
         if (falhas.Count > 0) _msg = string.Join(" | ", falhas);
-        if (n > 0) Sessao.Avisar($"{n} documento(s) anexado(s).");
+        if (n > 0) Sessao.Avisar(Local ? $"{n} documento(s) pronto(s): serão anexados ao salvar a viagem." : $"{n} documento(s) anexado(s).");
         await OnMudou.InvokeAsync();
     }
     private async Task Remover(Anexo a)

@@ -28,7 +28,7 @@ else
             <button class="btn-ghost" @onclick="@(() => Salvar(null))">@Icons.Svg("check")Salvar</button>
             @if (_v.Status is Vocab.ViagemRascunho) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemPlanejada))">Salvar como planejada</button> }
             @if (_v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConfirmada))" disabled="@(!_res.PodeConfirmar)" title="@(_res.PodeConfirmar ? "" : "Há pendências que impedem a confirmação (veja ao lado)")">@Icons.Svg("check")Confirmar viagem</button> }
-            @if (!_novo) { <button class="btn-ghost os-btn" @onclick="@(() => _email = true)">@Icons.Svg("mail")<span>E-mail da OS</span>@if (_v.OsGeradoEm is not null) { <span class="tag ok">enviado</span> }</button> }
+            <button class="btn-ghost os-btn" @onclick="AbrirEmail">@Icons.Svg("mail")<span>E-mail da OS</span>@if (_v.OsGeradoEm is not null) { <span class="tag ok">enviado</span> }</button>
             @if (_v.Status == Vocab.ViagemConfirmada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemAndamento))">@Icons.Svg("play")Iniciar</button> }
             @if (_v.Status == Vocab.ViagemAndamento) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConcluida))">@Icons.Svg("flag")Concluir</button> }
             @if (!_novo && _v.Status != Vocab.ViagemCancelada && _v.Status != Vocab.ViagemConcluida) { <button class="btn-danger-ghost" @onclick="@(() => _cancelando = true)">@Icons.Svg("x")Cancelar viagem</button> }
@@ -41,7 +41,7 @@ else
 @if (_v.Status == Vocab.ViagemCancelada) { <div class="alert-box alert-erro">@Icons.Svg("x")<div><strong>Cancelada:</strong> os eventos saíram da agenda e do mapa e a viagem não bloqueia mais a disponibilidade dos técnicos.</div></div> }
 @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro" role="alert">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
 
-@if (!_novo)
+@if (true)
 {
     <div class="tabs vg-abas" role="tablist">
         <button role="tab" class="tab @(_abaV != "historico" ? "active" : "")" @onclick="@(() => _abaV = "viagem")">@Icons.Svg("plane")Viagem</button>
@@ -169,15 +169,12 @@ else
 
 </fieldset>
 
-@if (!_novo)
-{
-    <div class="mt16"><DocumentosViagem ViagemId="@Id" Ator="@_ator" Pode="@_pode" VerAnexos="@_verAnexos" /></div>
-}
+<div class="mt16"><DocumentosViagem ViagemId="@(_novo ? "" : Id)" Pendentes="_docsPend" Ator="@_ator" Pode="@_pode" VerAnexos="@_verAnexos" /></div>
 </div>
 
 <aside class="vg-lado">
-    @if (!_novo) { <ChecklistViagem ViagemId="@Id" Itens="@Checklist.Ler(_v.Checklist)" Pode="@_pode" Sessao_Fuso="@_snap.FusoPadrao" OnMudou="@((List<Checklist.Item> l) => { _v.Checklist = Checklist.Gravar(l); })" /> }
-    <div class="panel @(_novo ? "" : "mt16")">
+    @if (true) { <ChecklistViagem ViagemId="@(_novo ? "" : Id)" Itens="@Checklist.Ler(_v.Checklist)" Pode="@_pode" Sessao_Fuso="@_snap.FusoPadrao" OnMudou="@((List<Checklist.Item> l) => { _v.Checklist = Checklist.Gravar(l); })" /> }
+    <div class="panel mt16">
         <div class="panel-head"><div class="panel-title">Controle dos tempos</div></div>
         <table class="tempos">
             <tr><th>Deslocamento de ida</th><td>@Tmp(_tIda)</td></tr>
@@ -219,7 +216,7 @@ else
 }
 }
 
-@if (!_novo && _abaV == "historico") { <HistoricoViagem ViagemId="@Id" Ator="@_ator" Pode="@_pode" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nNotas = n)" /> }
+@if (_abaV == "historico") { <HistoricoViagem ViagemId="@(_novo ? "" : Id)" Pendentes="_notasPend" Ator="@_ator" Pode="@_pode" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nNotas = n)" /> }
 @if (_email) { <EmailOsDialogo ViagemId="@Id" Ator="@_ator" OnFechar="@(() => _email = false)" OnGerado="@(() => { var x = Svc.Foto().Viagem(Id); if (x is not null) { _v.Checklist = x.Checklist; _v.OsGeradoEm = x.OsGeradoEm; } })" /> }
 
 @code {
@@ -235,6 +232,22 @@ else
     private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(c.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verReserva, _verAnexos, _email;
     private string _abaV = "viagem"; private int _nNotas;
+    // ---- itens preparados antes de salvar a viagem nova: documentos e histórico
+    private List<DocumentosViagem.Pendente> _docsPend = new(); private List<NotaViagem> _notasPend = new();
+    [SupplyParameterFromQuery(Name = "email")] public bool? EmailQuery { get; set; }
+    private async Task GravarPendentes(string viagemId)
+    {
+        var falhas = new List<string>();
+        foreach (var d in _docsPend)
+            try { await Svc.AnexarAsync(_ator, "viagem", viagemId, d.Nome, new MemoryStream(d.Dados), d.Categoria); } catch (Exception ex) { falhas.Add($"{d.Nome}: {string.Join(" ", Ui.Erros(ex))}"); }
+        foreach (var n in _notasPend.OrderBy(n => n.Quando))
+            try { n.ViagemId = viagemId; n.Id = ""; Svc.SalvarNota(_ator, n); } catch (Exception ex) { falhas.Add(string.Join(" ", Ui.Erros(ex))); }
+        _docsPend.Clear(); _notasPend.Clear();
+        if (falhas.Count > 0) Sessao.Avisar("Viagem salva, mas: " + string.Join(" | ", falhas), true);
+    }
+    private bool _emailAberto;
+    private Task AbrirEmail() { if (_novo) return Salvar(null, abrirEmail: true); _email = true; return Task.CompletedTask; }
+
     private int ContarNotas() { try { return Svc.NotasDaViagem(_ator, Id).Count; } catch { return 0; } }
     private List<Usuario> _equipe = new();
     private void AoResponsavel(ChangeEventArgs e)
@@ -266,13 +279,14 @@ else
         _pode = _ator.Pode(Perm.EditarViagens);
         if (_novo)
         {
-            _ok = _pode; _v = new Viagem(); if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); _tr = new(); _at = new();
+            _ok = _pode; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()) }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); _tr = new(); _at = new();
         }
         else
         {
             var v = _snap.Viagem(Id);
             if (v is null || !(_ator.VeTodaEquipe || (_ator.Papel == Roles.Tecnico && Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId)))) { _ok = false; return; }
             _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet(); _nNotas = ContarNotas();
+            if (EmailQuery == true && !_emailAberto) { _email = true; _emailAberto = true; }
             _tr = _snap.Trechos.Where(t => t.ViagemId == Id).OrderBy(t => t.Ordem).Select(Vm).ToList();
             _at = _snap.Atendimentos.Where(a => a.ViagemId == Id).OrderBy(a => a.IniPrev).Select(Vm).ToList();
             _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == Id);
@@ -459,7 +473,7 @@ else
         _erros = null; x.T.DistanciaKm = Math.Round(r.Km!.Value, 1); x.T.DuracaoMin = r.Minutos; x.T.DuracaoFonte = "estimada"; Validar();
     }
 
-    private void Salvar(string? status)
+    private async Task Salvar(string? status, bool abrirEmail = false)
     {
         _erros = null;
         try
@@ -469,7 +483,8 @@ else
             var (v, tr, at) = Montar();
             var salvo = Svc.SalvarViagem(_ator, v, tr, at);
             Sessao.Avisar(status == Vocab.ViagemConfirmada ? "Viagem confirmada." : "Viagem salva.");
-            if (_novo) Nav.NavigateTo($"/viagens/{salvo.Id}"); else { Id = salvo.Id; Carregar(); }
+            if (_novo) { await GravarPendentes(salvo.Id); Nav.NavigateTo($"/viagens/{salvo.Id}" + (abrirEmail ? "?email=true" : "")); }
+            else { Id = salvo.Id; Carregar(); }
         }
         catch (Exception ex) { _erros = Ui.Erros(ex); if (status is not null && !_novo) _v.Status = _snap.Viagem(Id)?.Status ?? _v.Status; }
     }

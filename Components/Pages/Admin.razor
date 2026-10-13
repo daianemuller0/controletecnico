@@ -17,6 +17,7 @@
         <button class="tab @(_aba == "cfg" ? "active" : "")" @onclick='() => _aba = "cfg"'>Configurações e integrações</button>
     }
     @if (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.EditarTecnicos)) { <button class="tab @(_aba == "apres" ? "active" : "")" @onclick='() => _aba = "apres"'>Apresentação</button> }
+    @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "marca" ? "active" : "")" @onclick='() => _aba = "marca"'>Identidade visual</button> }
     @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "arm" ? "active" : "")" @onclick='() => _aba = "arm"'>Armazenamento</button> }
     <button class="tab @(_aba == "aud" ? "active" : "")" @onclick='() => _aba = "aud"'>Histórico de alterações</button>
     @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "demo" ? "active" : "")" @onclick='() => _aba = "demo"'>Dados</button> }
@@ -147,6 +148,10 @@ else if (_aba == "apres" && (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.Edi
         <a class="btn-ghost" href="/">@Icons.Svg("monitor")Ir para a Visão operacional</a>
     </div>
 }
+else if (_aba == "marca" && _ator.Pode(Perm.Administrar))
+{
+    <IdentidadeVisualPainel />
+}
 else if (_aba == "arm" && _ator.Pode(Perm.Administrar))
 {
     var d = Svc.DiagnosticoArmazenamento(_ator);
@@ -202,6 +207,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
 }
 
 @code {
+    [SupplyParameterFromQuery(Name = "aba")] public string? AbaQuery { get; set; }
     private Ator _ator = new(); private string _aba = "aud"; private List<Usuario> _usuarios = new(); private List<Auditoria> _aud = new();
     private List<string>? _erros; private Usuario? _u; private bool _novoU; private string _senha = "", _alertas = "", _fuso = "", _buscaAud = "", _fAcao = "", _confirma = ""; private int _horas; private string _contatoGeo = "";
 
@@ -218,6 +224,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     {
         _ator = await Sessao.AtorAsync();
         _aba = _ator.Pode(Perm.Administrar) ? "usr" : "aud"; Carregar();
+        if (AbaQuery is "marca" or "apres" or "cfg" or "usr" or "aud" or "arm" or "demo") _aba = AbaQuery;
         ApCarregar(); HowdenCarregar(); _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _contatoGeo = Db.Cfg("geocoding_contato");
     }
     private void Carregar() { _usuarios = Db.Usuarios.Todos().OrderBy(u => u.Id).ToList(); _aud = Db.Auditorias.Todos().OrderByDescending(a => a.Quando).ToList(); }

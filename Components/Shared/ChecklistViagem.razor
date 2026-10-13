@@ -59,9 +59,22 @@
         try { var l = f(); Itens = l; await OnMudou.InvokeAsync(l); }
         catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
     }
-    private Task Marcar(int i, bool feito) => Executar(() => Svc.MarcarItem(Sessao_Ator!, ViagemId, i, feito));
-    private Task Remover(int i) => Executar(() => Svc.RemoverItemChecklist(Sessao_Ator!, ViagemId, i));
-    private async Task Adicionar() { var t = _novo; _novo = ""; await Executar(() => Svc.AdicionarItemChecklist(Sessao_Ator!, ViagemId, t)); }
+    // viagem ainda não salva (ViagemId vazio): a lista fica na tela e é gravada junto com a viagem
+    private bool Local => string.IsNullOrEmpty(ViagemId);
+    private Task Marcar(int i, bool feito) => Executar(() => Local ? MarcarLocal(i, feito) : Svc.MarcarItem(Sessao_Ator!, ViagemId, i, feito));
+    private Task Remover(int i) => Executar(() => { if (!Local) return Svc.RemoverItemChecklist(Sessao_Ator!, ViagemId, i); var l = Itens.ToList(); l.RemoveAt(i); return l; });
+    private async Task Adicionar() { var t = _novo; _novo = ""; await Executar(() => Local ? AdicionarLocal(t) : Svc.AdicionarItemChecklist(Sessao_Ator!, ViagemId, t)); }
+    private List<Checklist.Item> MarcarLocal(int i, bool feito)
+    {
+        var l = Itens.ToList(); l[i].Feito = feito; l[i].Por = feito ? Sessao_Ator?.Nome ?? "" : ""; l[i].Em = feito ? DateTime.UtcNow : null; return l;
+    }
+    private List<Checklist.Item> AdicionarLocal(string t)
+    {
+        t = string.Join(" ", (t ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        if (t.Length is < 2 or > 80) throw new ValidacaoException("Descreva o item (2 a 80 caracteres).");
+        if (Itens.Any(i => DocEngine.Norm(i.Texto) == DocEngine.Norm(t))) throw new ValidacaoException("Este item já está na lista.");
+        var l = Itens.ToList(); l.Add(new Checklist.Item { Texto = t }); return l;
+    }
     private async Task Tecla(KeyboardEventArgs e) { if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_novo)) await Adicionar(); }
 
     private Ator? Sessao_Ator;

@@ -76,6 +76,9 @@
     [Parameter] public bool Pode { get; set; }
     [Parameter] public string Fuso { get; set; } = "America/Sao_Paulo";
     [Parameter] public EventCallback<int> OnContagem { get; set; }
+    /// <summary>Viagem ainda não salva: os registros ficam aqui e são gravados ao salvar a viagem.</summary>
+    [Parameter] public List<NotaViagem> Pendentes { get; set; } = new();
+    private bool Local => string.IsNullOrEmpty(ViagemId);
 
     private List<NotaViagem> _notas = new(); private List<Auditoria> _eventos = new(); private List<string>? _erros;
     private NotaViagem _f = new(); private NotaViagem? _edit, _excluir; private string _quando = "", _busca = "", _fTipo = ""; private bool _auto = true;
@@ -83,6 +86,7 @@
     protected override void OnParametersSet() { Carregar(); Limpar(); }
     private void Carregar()
     {
+        if (Local) { _notas = Pendentes.OrderByDescending(n => n.Quando).ToList(); _eventos = new(); return; }
         try { _notas = Svc.NotasDaViagem(Ator, ViagemId); _eventos = Ator.VeTodaEquipe ? Svc.EventosDaViagem(ViagemId) : new(); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
@@ -102,7 +106,14 @@
         try
         {
             _f.Quando = DateTime.TryParse(_quando, out var d) ? Tempo.ParaUtc(d, Fuso) : DateTime.UtcNow;
-            Svc.SalvarNota(Ator, _f); Sessao.Avisar(_edit is null ? "Registrado no histórico da viagem." : "Registro alterado.");
+            if (Local)
+            {
+                if (string.IsNullOrWhiteSpace(_f.Texto) || _f.Texto.Trim().Length < 2) throw new ValidacaoException("Escreva o que aconteceu.");
+                _f.Texto = _f.Texto.Trim(); _f.Autor = Ator.Login; _f.AutorNome = Ator.Nome; _f.EscritoEm = DateTime.UtcNow;
+                if (_edit is not null) Pendentes.Remove(_edit);
+                Pendentes.Add(_f);
+            }
+            else Svc.SalvarNota(Ator, _f); Sessao.Avisar(_edit is null ? "Registrado no histórico da viagem." : "Registro alterado.");
             Carregar(); Limpar(); await OnContagem.InvokeAsync(_notas.Count);
         }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
@@ -111,7 +122,7 @@
     private void Cancelar() => Limpar();
     private async Task Excluir()
     {
-        try { Svc.ExcluirNota(Ator, _excluir!.Id); _excluir = null; Carregar(); Sessao.Avisar("Registro excluído."); await OnContagem.InvokeAsync(_notas.Count); }
+        try { if (Local) Pendentes.Remove(_excluir!); else Svc.ExcluirNota(Ator, _excluir!.Id); _excluir = null; Carregar(); Sessao.Avisar("Registro excluído."); await OnContagem.InvokeAsync(_notas.Count); }
         catch (Exception ex) { _excluir = null; Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
     }
 }
