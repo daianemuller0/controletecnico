@@ -211,7 +211,7 @@ public static class Seed
         };
         Viagem V(string id, string cod, string status, string cli, string planta, string serv, string tecs, string origem, string destino, string resp = "Paulo Controladoria", string obs = "") => new()
         {
-            Id = id, Codigo = cod, Status = status, ClienteId = cli, PlantaId = planta, ServicoId = serv, TecnicoIds = tecs,
+            Id = id, Codigo = cod, Projeto = "45000" + cod[^4..], Equipamentos = "Ventilador VA-" + cod[^2..] + "\nMotor M-" + cod[^2..], Status = status, ClienteId = cli, PlantaId = planta, ServicoId = serv, TecnicoIds = tecs,
             Origem = origem, Destino = destino, Responsavel = resp, Obs = obs,
         };
 
@@ -278,7 +278,7 @@ public static class Seed
         atends.Add(At("v5a1", "v5", "tec_thi", "cli_sid", "pl_pec", "srv_part", H(8, 8), H(10, 17), 24));
         atends.Add(new Atendimento
         {
-            Id = "av1", TecnicoIds = "tec_thi", ClienteId = "cli_cim", PlantaId = "pl_sor", ServicoId = "srv_prev", IniPrev = H(9, 8), FimPrev = H(9, 17),
+            Id = "av1", Projeto = "4500009001", Equipamentos = "Compressor C-2", TecnicoIds = "tec_thi", ClienteId = "cli_cim", PlantaId = "pl_sor", ServicoId = "srv_prev", IniPrev = H(9, 8), FimPrev = H(9, 17),
             HorasPrev = 8, Status = Vocab.ViagemPlanejada, Obs = "Visita técnica solicitada pelo cliente — conflita com a viagem a Pecém (demonstração).",
         });
 

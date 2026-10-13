@@ -72,6 +72,22 @@ else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
             </tbody></table>
         </div></div>
     </div>
+    <div class="panel mt16" style="max-width:900px">
+        <div class="panel-head"><div class="panel-title">@Icons.Svg("customers")Endereço da empresa (técnicos "na Howden")</div></div>
+        <p class="muted sm">Quando um técnico não está em viagem ele aparece <strong>em casa</strong> (endereço da ficha) ou, se marcado, <strong>neste endereço</strong>. Em ambos os casos fica disponível.</p>
+        <div class="form-grid g3">
+            <label class="fld">Nome do local<input @bind="_hNome" maxlength="80" /></label>
+            <label class="fld full">Endereço (rua, número, bairro)<input @bind="_hRua" /></label>
+            <label class="fld">Cidade<input @bind="_hCidade" /></label>
+            <label class="fld">Estado<input @bind="_hEstado" /></label>
+            <label class="fld">País<input @bind="_hPais" /></label>
+            <label class="fld">Latitude <span class="hint">opcional · vazio = localizar pelo endereço</span><input @bind="_hLat" placeholder="-19.9" /></label>
+            <label class="fld">Longitude<input @bind="_hLon" placeholder="-43.9" /></label>
+            <div class="fld">@if (Svc.Howden().lat is { } la) { <span class="tag ok">@Icons.Svg("pin")No mapa: @la.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture), @Svc.Howden().lon?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)</span> } else { <span class="tag neg">Sem coordenadas — os técnicos "na Howden" não aparecem no mapa</span> }</div>
+        </div>
+        @if (_errosH is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosH) { <div>@e</div> }</div></div> }
+        <div class="modal-actions"><button class="btn-primary" @onclick="SalvarHowden">@Icons.Svg("check")Salvar endereço da empresa</button></div>
+    </div>
 }
 else if (_aba == "aud")
 {
@@ -245,10 +261,33 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     {
         _ator = await Sessao.AtorAsync();
         _aba = _ator.Pode(Perm.Administrar) ? "usr" : "aud"; Carregar();
-        ApCarregar(); _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _nome = Svc.NomeSistema; _sub = Svc.SubtituloSistema; _contatoGeo = Db.Cfg("geocoding_contato");
+        ApCarregar(); HowdenCarregar(); _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _nome = Svc.NomeSistema; _sub = Svc.SubtituloSistema; _contatoGeo = Db.Cfg("geocoding_contato");
     }
     private void Carregar() { _usuarios = Db.Usuarios.Todos().OrderBy(u => u.Id).ToList(); _aud = Db.Auditorias.Todos().OrderByDescending(a => a.Quando).ToList(); }
     private IEnumerable<Auditoria> AudFiltrada => _aud.Where(a => (_fAcao == "" || a.Acao.StartsWith(_fAcao)) && (string.IsNullOrWhiteSpace(_buscaAud) || DocEngine.Norm($"{a.Usuario} {a.Acao} {a.Resumo}").Contains(DocEngine.Norm(_buscaAud))));
+
+    // ---- endereço da Howden
+    private string _hNome = "", _hRua = "", _hCidade = "", _hEstado = "", _hPais = "", _hLat = "", _hLon = ""; private List<string>? _errosH;
+    private void HowdenCarregar()
+    {
+        var h = Svc.Howden(); var ci = System.Globalization.CultureInfo.InvariantCulture;
+        _hNome = h.nome; _hRua = Db.Cfg("howden_end_rua"); _hCidade = Db.Cfg("howden_end_cidade"); _hEstado = Db.Cfg("howden_end_estado"); _hPais = Db.Cfg("howden_end_pais", "Brasil");
+        _hLat = h.lat?.ToString(ci) ?? ""; _hLon = h.lon?.ToString(ci) ?? "";
+    }
+    private static double? Num(string s) => double.TryParse(s.Replace(',', '.').Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+    private async Task SalvarHowden()
+    {
+        _errosH = null;
+        try
+        {
+            var la = Num(_hLat); var lo = Num(_hLon);
+            if ((_hLat.Trim() != "" && la is null) || (_hLon.Trim() != "" && lo is null)) throw new ValidacaoException("Latitude/longitude inválidas (use ponto ou vírgula decimal).");
+            var r = await Svc.SalvarHowdenAsync(_ator, _hNome, _hRua, _hCidade, _hEstado, _hPais, la, lo, Geo);
+            HowdenCarregar();
+            Sessao.Avisar(r is { Ok: false } ? "Endereço salvo, mas não foi possível localizá-lo: " + r.Mensagem : r is { Ok: true } ? $"Endereço salvo e localizado (nível: {r.Nivel})." : "Endereço salvo.", r is { Ok: false });
+        }
+        catch (Exception ex) { _errosH = Ui.Erros(ex); }
+    }
 
     // ---- apresentação automática
     private AutoEtapas.Cfg _ap = new(); private List<AutoEtapas.Etapa> _apOrdem = new();

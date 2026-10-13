@@ -5,6 +5,20 @@ namespace ControleTecnico.Components.Shared;
 
 public static class Ui
 {
+    /// <summary>Lista guardada como texto, um item por linha (equipamentos).</summary>
+    public static List<string> Linhas(string? s) => (s ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    public static IEnumerable<string> ProjetosUsados(Snapshot s) =>
+        s.Viagens.Values.Select(v => v.Projeto).Concat(s.Atendimentos.Select(a => a.Projeto)).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase);
+    public static IEnumerable<string> EquipamentosUsados(Snapshot s) =>
+        s.Viagens.Values.SelectMany(v => Linhas(v.Equipamentos)).Concat(s.Atendimentos.SelectMany(a => Linhas(a.Equipamentos))).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x);
+    /// <summary>Formulários de viagem e compromisso: o número do projeto é obrigatório.</summary>
+    public static void ExigirProjeto(string? projeto)
+    {
+        if (string.IsNullOrWhiteSpace(projeto)) throw new ValidacaoException("Informe o número do projeto: é por ele que a equipe controla as viagens.");
+        if (projeto.Trim().Length > 40) throw new ValidacaoException("Número do projeto com até 40 caracteres.");
+    }
+    public static string JuntarLinhas(IEnumerable<string> l) => string.Join("\n", l.Select(x => x.Trim()).Where(x => x != "").Distinct(StringComparer.OrdinalIgnoreCase));
+
     /// <summary>Filtro por texto digitado: sem acento/caixa, basta conter.</summary>
     public static bool Contem(string? valor, string? filtro) => string.IsNullOrWhiteSpace(filtro) || DocEngine.Norm(valor ?? "").Contains(DocEngine.Norm(filtro));
 

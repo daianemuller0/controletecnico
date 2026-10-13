@@ -1,0 +1,40 @@
+@* Lista de equipamentos (1 ou mais): digite e tecle Enter (ou "Adicionar"); sugere os já usados em outras viagens. *@
+<div class="eqp">
+    <div class="eqp-chips">
+        @foreach (var e in _itens)
+        {
+            <span class="chip eqp-chip">@Icons.Svg("wrench")@e<button type="button" class="chip-x" @onclick="() => Remover(e)" aria-label="Remover @e" disabled="@Disabled">×</button></span>
+        }
+        @if (_itens.Count == 0) { <span class="muted sm">Nenhum equipamento informado.</span> }
+    </div>
+    @if (!Disabled)
+    {
+        <div class="eqp-add">
+            <input list="@_id" @bind="_novo" @bind:event="oninput" @onkeydown="Tecla" placeholder="Ex.: Ventilador VA-101, Compressor C-2…" autocomplete="off" aria-label="Novo equipamento" />
+            <datalist id="@_id">@foreach (var o in Sugestoes.Where(o => !_itens.Contains(o, StringComparer.OrdinalIgnoreCase)).Take(300)) {<option value="@o"></option>}</datalist>
+            <button type="button" class="btn-ghost sm" @onclick="Adicionar" disabled="@string.IsNullOrWhiteSpace(_novo)">@Icons.Svg("plus")Adicionar</button>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Itens separados por quebra de linha.</summary>
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public IEnumerable<string> Sugestoes { get; set; } = Array.Empty<string>();
+    [Parameter] public bool Disabled { get; set; }
+    private readonly string _id = "eq" + Guid.NewGuid().ToString("N")[..8];
+    private List<string> _itens = new(); private string _novo = "";
+
+    protected override void OnParametersSet() => _itens = Ui.Linhas(Value);
+
+    private async Task Adicionar()
+    {
+        // aceita vários de uma vez, separados por ; ou quebra de linha
+        foreach (var x in _novo.Split(new[] { ';', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (!_itens.Contains(x, StringComparer.OrdinalIgnoreCase)) _itens.Add(x);
+        _novo = ""; await ValueChanged.InvokeAsync(Ui.JuntarLinhas(_itens));
+    }
+    private async Task Remover(string e) { _itens.Remove(e); await ValueChanged.InvokeAsync(Ui.JuntarLinhas(_itens)); }
+    private async Task Tecla(KeyboardEventArgs e) { if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_novo)) await Adicionar(); }
+}

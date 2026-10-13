@@ -50,6 +50,9 @@ else
     <div class="kpi-aux muted">
         <span>@Icons.Svg("ban")@_kInd.Count indisponível(is)</span>
         <span class="sep">·</span>
+        <span title="Fora de viagem, no endereço do cadastro">@Icons.Svg("user")@_estados.Count(e => e.LocalFonte == "casa" && e.Status == Vocab.OpDisponivel) em casa</span>
+        <span title="Fora de viagem, na empresa">@Icons.Svg("customers")@_estados.Count(e => e.LocalFonte == "howden") na @_snap.HowdenNome</span>
+        <span class="sep">·</span>
         <span>@_estados.Count técnico(s) ativos @(_estados.Count == 0 ? "" : "na visão")</span>
     </div>
 
@@ -85,12 +88,12 @@ else
         <section class="panel" aria-label="Viagens previstas" style="margin-bottom:12px">
             <div class="panel-head"><div class="panel-title">Viagens previstas <span class="hint">@_kViagensPrev.Count viagem(ns) — a lista de técnicos abaixo pode ter menos linhas, pois um técnico pode ter várias viagens</span></div></div>
             <div class="table-wrap"><table class="grid-tbl">
-                <thead><tr><th>Viagem</th><th>Destino</th><th>Início</th><th>Técnicos</th><th>Status</th></tr></thead>
+                <thead><tr><th>Projeto</th><th>Viagem</th><th>Destino</th><th>Início</th><th>Técnicos</th><th>Status</th></tr></thead>
                 <tbody>
                 @foreach (var v in _kViagensPrev.Select(id => _snap.Viagem(id)).Where(v => v is not null).OrderBy(v => _prevIni[v!.Id]))
                 {
                     var nomes = Ui.Ids(v!.TecnicoIds).Select(t => _snap.Tecnicos.TryGetValue(t, out var tc) ? tc.Nome : "?").ToList();
-                    <tr><td><a href="/viagens/@v.Id">@v.Codigo</a></td><td>@(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)</td><td>@Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)</td>
+                    <tr><td>@if (string.IsNullOrWhiteSpace(v.Projeto)) { <span class="proj-tag vazio">sem projeto</span> } else { <span class="proj-tag">@v.Projeto</span> }</td><td><a href="/viagens/@v.Id">@v.Codigo</a></td><td>@(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)</td><td>@Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)</td>
                         <td>@(nomes.Count == 0 ? "sem técnico" : string.Join(", ", nomes))</td><td>@(Vocab.StatusViagem.FirstOrDefault(x => x.Key == v.Status)?.Label ?? v.Status)</td></tr>
                 }
                 </tbody></table></div>
@@ -198,7 +201,7 @@ else
 
 @if (_painel is not null)
 {
-    <PainelTecnico E="@_painel" Snap="@_snap" Eventos="@_eventos" Ator="@_ator" Instante="@_instante" OnFechar="FecharPainel" OnConfirmar="AbrirConfirmar" />
+    <PainelTecnico E="@_painel" Snap="@_snap" Eventos="@_eventos" Ator="@_ator" Instante="@_instante" OnFechar="FecharPainel" OnConfirmar="AbrirConfirmar" OnMudou="@(() => Recarregar(false))" />
 }
 
 @if (_confirmando is not null)
@@ -420,7 +423,9 @@ else
                 chave = g.Chave, lat = pos.lat, lon = pos.lon, titulo = g.Titulo, novo = _revelar is int r2 && g == lista[^1] && r2 > 0,
                 cor = cores.Count == 1 ? cores[0] : "#004785", tracejado = !todosConf, viagem,
                 iniciais = Avatar.Iniciais(g.Estados[0].Tecnico.Nome),
-                rotulo = viagem ? "Em deslocamento (posição no trajeto não rastreada)" : todosConf ? "Localização confirmada" : "Localização prevista pela agenda",
+                rotulo = viagem ? "Em deslocamento (posição no trajeto não rastreada)" : todosConf ? "Localização confirmada"
+                    : g.Estados.All(e => e.LocalFonte == "howden") ? $"Na {_snap.HowdenNome} — disponível"
+                    : g.Estados.All(e => e.LocalFonte == "casa") ? "Em casa (endereço do cadastro)" : "Localização prevista pela agenda",
                 tecnicos = g.Estados.Select(e => new { nome = $"{e.Tecnico.Nome} — {Ui.Op(e.Status).Label} ({(Posicao(e)!.Value.conf ? "confirmada" : "prevista")})", cor = Ui.Op(e.Status).Color }),
             });
         }
@@ -545,7 +550,7 @@ else
         var cor = AutoEtapas.Todas.First(x => x.Chave == chave).Cor;
         if (chave == "viagens")
             return _kViagensPrev.Select(id => _snap.Viagem(id)).Where(v => v is not null).OrderBy(v => _prevIni[v!.Id])
-                .Select(v => ($"{v!.Codigo} · {(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)}",
+                .Select(v => ($"{AgendaEngine.ComProjeto(v!.Projeto, v.Codigo)} · {(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)}",
                     $"{string.Join(", ", Ui.Ids(v.TecnicoIds).Select(t => _snap.Tecnicos.TryGetValue(t, out var tc) ? tc.Nome : "?"))} · {Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)}", cor)).ToList();
         var hoje = DocEngine.Hoje(_snap.FusoPadrao);
         return _visiveis.Select(e =>
@@ -608,6 +613,7 @@ else
     private string LinhaLocal(Estado e)
     {
         if (e.LocalFonte == "nenhum") return "Sem localização definida";
+        if (!e.ConfirmacaoVigente && e.LocalFonte is "casa" or "howden") return Ui.Corte(e.LocalTexto, 44);
         var tipo = e.ConfirmacaoVigente ? "confirmada" : "prevista";
         return $"{Ui.Corte(e.ConfirmacaoVigente && e.Confirmacao is { } c ? c.Texto : e.LocalTexto, 40)} ({tipo})";
     }

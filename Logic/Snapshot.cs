@@ -22,6 +22,11 @@ public sealed class Snapshot
     public string FusoPadrao { get; init; } = "America/Sao_Paulo";
     public int[] DiasAlerta { get; init; } = { 30, 60, 90 };
     public int ConfirmacaoHoras { get; init; } = 24;
+    /// <summary>Local da empresa usado quando o técnico está "na Howden" (Administração → Configurações).</summary>
+    public string HowdenNome { get; init; } = "Howden South America";
+    public string HowdenEndereco { get; init; } = "";
+    public double? HowdenLat { get; init; }
+    public double? HowdenLon { get; init; }
 
     public static Snapshot Carregar(Db db) => new()
     {
@@ -40,6 +45,10 @@ public sealed class Snapshot
         FusoPadrao = db.FusoPadrao,
         DiasAlerta = db.DiasAlerta,
         ConfirmacaoHoras = db.ConfirmacaoValidadeHoras,
+        HowdenNome = db.Cfg("howden_nome", "Howden South America"),
+        HowdenEndereco = db.Cfg("howden_endereco"),
+        HowdenLat = double.TryParse(db.Cfg("howden_lat"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hl) ? hl : null,
+        HowdenLon = double.TryParse(db.Cfg("howden_lon"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ho) ? ho : null,
     };
 
     public static string[] Ids(string? csv) =>

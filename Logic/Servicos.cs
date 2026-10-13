@@ -202,9 +202,10 @@ public sealed partial class Servicos
 
         var acao = anterior is null ? "viagem.criar" : anterior.Status != v.Status
             ? (v.Status == Vocab.ViagemCancelada ? "viagem.cancelar" : "viagem.status") : "viagem.alterar";
+        var pj = string.IsNullOrWhiteSpace(v.Projeto) ? "" : $" [proj. {v.Projeto}]";
         Auditar(ator, acao, "viagem", v.Id,
-            anterior is null ? $"{v.Codigo} criada ({Vocab.Get(Vocab.StatusViagem, v.Status).Label})"
-            : $"{v.Codigo}: {Vocab.Get(Vocab.StatusViagem, anterior.Status).Label} → {Vocab.Get(Vocab.StatusViagem, v.Status).Label}; {trechos.Count} trecho(s), {atends.Count} atendimento(s)");
+            anterior is null ? $"{v.Codigo}{pj} criada ({Vocab.Get(Vocab.StatusViagem, v.Status).Label})"
+            : $"{v.Codigo}{pj}: {Vocab.Get(Vocab.StatusViagem, anterior.Status).Label} → {Vocab.Get(Vocab.StatusViagem, v.Status).Label}; {trechos.Count} trecho(s), {atends.Count} atendimento(s)");
         return v;
     }
 
@@ -223,16 +224,17 @@ public sealed partial class Servicos
         return SalvarViagem(ator, v, trechos, atends);
     }
 
-    public void ExcluirRascunho(Ator ator, string viagemId)
+    /// <summary>Exclui a viagem (qualquer status) com trechos, atendimentos e anexos. A ação fica no histórico.</summary>
+    public void ExcluirViagem(Ator ator, string viagemId)
     {
         ator.Exigir(Perm.EditarViagens);
         var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
-        if (v.Status != Vocab.ViagemRascunho) throw new ValidacaoException("Só rascunhos podem ser excluídos; cancele as demais viagens.");
         foreach (var t in Db.Trechos.Onde(t => t.ViagemId == viagemId)) Db.Trechos.Apagar(t.Id);
         foreach (var a in Db.Atendimentos.Onde(a => a.ViagemId == viagemId)) Db.Atendimentos.Apagar(a.Id);
         foreach (var an in Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == viagemId)) Arquivos.Remover(an);
         Db.Viagens.Apagar(viagemId);
-        Auditar(ator, "viagem.excluir", "viagem", viagemId, $"Rascunho {v.Codigo} excluído");
+        var proj = string.IsNullOrWhiteSpace(v.Projeto) ? "" : $" · projeto {v.Projeto}";
+        Auditar(ator, "viagem.excluir", "viagem", viagemId, $"Viagem {v.Codigo}{proj} excluída (status {Vocab.Get(Vocab.StatusViagem, v.Status).Label})");
     }
 
     // ---------------------------------------------------- atendimento avulso

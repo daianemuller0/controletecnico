@@ -18,6 +18,9 @@ public sealed record Evento
     /// <summary>provisorio | planejado | confirmado | cancelado</summary>
     public string Status { get; init; } = "confirmado";
     public string ViagemId { get; init; } = "";
+    /// <summary>Número do projeto (sempre exibido junto do título).</summary>
+    public string Projeto { get; init; } = "";
+    public string Equipamentos { get; init; } = "";
     public string PlantaId { get; init; } = "";
     public string ClienteId { get; init; } = "";
     public string Titulo { get; init; } = "";
@@ -80,6 +83,9 @@ public static class AgendaEngine
         _ => "confirmado",
     };
 
+    /// <summary>Prefixo do projeto nos títulos: "Proj. 1234 · …" — o projeto aparece em toda a agenda, mapa e listas.</summary>
+    public static string ComProjeto(string projeto, string titulo) => string.IsNullOrWhiteSpace(projeto) ? titulo : $"Proj. {projeto.Trim()} · {titulo}";
+
     public static (DateTime? ini, DateTime? fim) Janela(Trecho t)
     {
         var ini = t.PartidaReal ?? t.PartidaPrev;
@@ -112,9 +118,9 @@ public static class AgendaEngine
                 lista.Add(new Evento
                 {
                     Id = $"t:{t.Id}:{tec}", Fonte = "trecho", FonteId = t.Id, TecnicoId = tec, Tipo = tipo,
-                    Ini = ini.Value, Fim = fim.Value, Status = st, ViagemId = v.Id,
+                    Ini = ini.Value, Fim = fim.Value, Status = st, ViagemId = v.Id, Projeto = v.Projeto, Equipamentos = v.Equipamentos,
                     PlantaId = t.DestPlantaId, ClienteId = pDest?.ClienteId ?? v.ClienteId,
-                    Titulo = $"{(t.Modal == Vocab.ModalAviao ? "Voo" : "Viagem")} {t.Origem} → {t.Destino}",
+                    Titulo = ComProjeto(v.Projeto, $"{(t.Modal == Vocab.ModalAviao ? "Voo" : "Viagem")} {t.Origem} → {t.Destino}"),
                     LocalIni = t.Origem, LocalFim = t.Destino,
                     LatIni = t.OrigemLat ?? pOri?.Lat, LonIni = t.OrigemLon ?? pOri?.Lon,
                     LatFim = t.DestLat ?? pDest?.Lat, LonFim = t.DestLon ?? pDest?.Lon,
@@ -142,15 +148,17 @@ public static class AgendaEngine
             var tecs = Snapshot.Ids(a.TecnicoIds);
             if (tecs.Length == 0 && v is not null) tecs = Snapshot.Ids(v.TecnicoIds);
             var serv = s.Servico(string.IsNullOrEmpty(a.ServicoId) ? v?.ServicoId : a.ServicoId)?.Nome ?? "Atendimento";
+            var proj = !string.IsNullOrWhiteSpace(a.Projeto) ? a.Projeto : v?.Projeto ?? "";
+            var equip = !string.IsNullOrWhiteSpace(a.Equipamentos) ? a.Equipamentos : v?.Equipamentos ?? "";
             foreach (var tec in tecs)
             {
                 if (tecnicoId is not null && tec != tecnicoId) continue;
                 lista.Add(new Evento
                 {
                     Id = $"a:{a.Id}:{tec}", Fonte = "atend", FonteId = a.Id, TecnicoId = tec, Tipo = Vocab.EvAtendimento,
-                    Ini = ini, Fim = fim, Status = st, ViagemId = a.ViagemId, PlantaId = a.PlantaId,
+                    Ini = ini, Fim = fim, Status = st, ViagemId = a.ViagemId, PlantaId = a.PlantaId, Projeto = proj, Equipamentos = equip,
                     ClienteId = string.IsNullOrEmpty(a.ClienteId) ? (p?.ClienteId ?? "") : a.ClienteId,
-                    Titulo = serv, LocalIni = s.NomePlanta(a.PlantaId), LocalFim = s.NomePlanta(a.PlantaId),
+                    Titulo = ComProjeto(proj, serv), LocalIni = s.NomePlanta(a.PlantaId), LocalFim = s.NomePlanta(a.PlantaId),
                     LatIni = p?.Lat, LonIni = p?.Lon, LatFim = p?.Lat, LonFim = p?.Lon,
                     PlantaIniId = a.PlantaId, PlantaFimId = a.PlantaId,
                     Fuso = p?.FusoHorario ?? "", Obs = a.Obs,
@@ -285,15 +293,22 @@ public static class AgendaEngine
         }
         else
         {
-            // Última localização conhecida pela agenda: onde terminou o último compromisso com local.
-            var ultimo = bloq.LastOrDefault(e => !e.EhIndisp && e.Fim <= instante);
-            if (ultimo is not null)
+            // Fora de viagem e de atendimento: em casa (endereço do cadastro) ou na Howden, conforme marcado.
+            // Férias/afastamento contam como "em casa".
+            var naHowden = t.LocalBase == Vocab.BaseHowden && status == Vocab.OpDisponivel;
+            if (naHowden)
             {
-                texto = ultimo.LocalFim; fonte = "ultimo"; lat = ultimo.LatFim; lon = ultimo.LonFim;
-                planta = s.Planta(ultimo.PlantaFimId);
+                texto = s.HowdenNome; fonte = "howden"; lat = s.HowdenLat; lon = s.HowdenLon;
+            }
+            else
+            {
+                var cid = string.Join("/", new[] { t.Cidade, t.Estado }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                texto = "Em casa" + (cid == "" ? "" : $" · {cid}"); fonte = "casa";
+                lat = t.CasaLat ?? t.OrigemLat; lon = t.CasaLon ?? t.OrigemLon;
             }
         }
         if (string.IsNullOrWhiteSpace(texto) && !lat.HasValue) fonte = "nenhum";
+        var emCasa = fonte == "casa"; var naEmpresa = fonte == "howden";
 
         // ---- localização confirmada ----
         ConfirmacaoLocal? conf = s.Confirmacoes.Where(c => c.TecnicoId == t.Id && c.Quando <= (instante > agora ? agora : instante))
@@ -317,8 +332,9 @@ public static class AgendaEngine
         var motivo = status switch
         {
             Vocab.OpSemProg => "Nenhum compromisso cadastrado perto desta data: não há informação para afirmar que está livre.",
-            Vocab.OpDisponivel when !mantidaFinal => "Sem compromissos neste momento (sem programação cadastrada perto desta data): considerado disponível.",
-            Vocab.OpDisponivel => "Sem compromissos neste momento, com agenda mantida.",
+            Vocab.OpDisponivel when naEmpresa => $"Disponível na {s.HowdenNome}.",
+            Vocab.OpDisponivel when emCasa && !mantidaFinal => "Disponível, em casa (sem programação cadastrada perto desta data).",
+            Vocab.OpDisponivel => "Disponível, em casa.",
             _ => atual?.Titulo ?? "",
         };
 

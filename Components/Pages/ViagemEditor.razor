@@ -47,6 +47,8 @@ else
 <div class="panel">
     <div class="panel-head"><div class="panel-title">Dados da viagem</div></div>
     <div class="form-grid g3">
+        <label class="fld">Nº do projeto *<CampoLista Value="@_v.Projeto" ValueChanged="@((string x) => { _v.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
+        <div class="fld full"><span>Equipamentos <span class="hint">um ou mais</span></span><CampoEquipamentos Value="@_v.Equipamentos" ValueChanged="@((string x) => { _v.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" Disabled="@(!_pode)" /></div>
         <label class="fld">Cliente<SeletorLista Itens="@(_snap.Clientes.Values.Where(c => c.Ativo).OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_v.ClienteId" ValueChanged="@(async (string v) => { _v.ClienteId = v; AoCliente(); })" Placeholder="— selecione —" Criar="CriarCli" RotuloCriar="cliente" /></label>
         <div class="fld">Planta de destino<SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" /></div>
         <label class="fld">Serviço previsto<SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
@@ -448,6 +450,7 @@ else
         _erros = null;
         try
         {
+            Ui.ExigirProjeto(_v.Projeto); _v.Projeto = _v.Projeto.Trim();
             if (status is not null) _v.Status = status;
             var (v, tr, at) = Montar();
             var salvo = Svc.SalvarViagem(_ator, v, tr, at);

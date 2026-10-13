@@ -1,5 +1,6 @@
 @* Painel lateral com o resumo operacional de um técnico (usado no mapa e na agenda). *@
 @inject Sessao Sessao
+@inject Servicos Svc
 
 <div class="drawer-backdrop" @onclick="Fechar"></div>
 <aside class="drawer painel-tec" role="dialog" aria-label="Detalhes de @E.Tecnico.Nome">
@@ -35,8 +36,19 @@
             <div class="muted sm">@(E.LocalFonte switch {
                 "atendimento" => "Em atendimento na planta (pela agenda).",
                 "viagem" => "Em deslocamento: a posição ao longo do trajeto não é rastreada.",
+                "howden" => Snap.HowdenLat is null ? "Na empresa — o endereço da Howden ainda não tem coordenadas (Administração → Configurações)." : "Na empresa, fora de viagem: disponível.",
+                "casa" => E.Lat is null ? "Em casa — o endereço residencial ainda não foi localizado no mapa (ficha do técnico)." : "Em casa, no endereço do cadastro: disponível.",
                 _ => "Último ponto conhecido pela agenda." })</div>
         }
+    </div>
+    <div class="loc-bloco base-bloco">
+        <div class="loc-tit"><span class="tag">Fora de viagem, fica…</span></div>
+        <div class="segmented sm base-seg" role="group" aria-label="Onde fica quando não está em viagem">
+            <button class="@(E.Tecnico.LocalBase != Vocab.BaseHowden ? "active" : "")" disabled="@(!PodeConfirmar)" @onclick="() => Base(Vocab.BaseCasa)">@Icons.Svg("user")Em casa</button>
+            <button class="@(E.Tecnico.LocalBase == Vocab.BaseHowden ? "active" : "")" disabled="@(!PodeConfirmar)" @onclick="() => Base(Vocab.BaseHowden)">@Icons.Svg("customers")Na @Snap.HowdenNome</button>
+        </div>
+        @if (E.Tecnico.LocalBaseDesde is { } desde) { <div class="muted sm mt8">Marcado em @Ui.Hora(desde, null, Snap, true) por @E.Tecnico.LocalBasePor.</div> }
+        @if (E.Status is Vocab.OpViagem or Vocab.OpAtendimento) { <div class="muted sm mt8">Vale quando terminar a viagem/atendimento atual.</div> }
     </div>
     <div class="loc-bloco loc-conf">
         <div class="loc-tit"><span class="tag ok">Confirmada · informada</span></div>
@@ -124,6 +136,14 @@
     [Parameter] public DateTime Instante { get; set; }
     [Parameter] public EventCallback OnFechar { get; set; }
     [Parameter] public EventCallback OnConfirmar { get; set; }
+    /// <summary>Chamado depois de mudar "em casa / na Howden" (a página recarrega os dados).</summary>
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    private async Task Base(string b)
+    {
+        try { Svc.DefinirLocalBase(Ator, E.Tecnico.Id, b); Sessao.Avisar(b == Vocab.BaseHowden ? $"{E.Tecnico.Nome}: na {Snap.HowdenNome}." : $"{E.Tecnico.Nome}: em casa."); await OnMudou.InvokeAsync(); }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
 
     private Task Fechar() => OnFechar.InvokeAsync();
     private bool PodeConfirmar => Ator.Pode(Perm.ConfirmarLocal, E.Tecnico.Id);

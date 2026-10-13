@@ -3,6 +3,7 @@ using ControleTecnico.Data;
 using ControleTecnico.Logic;
 using ControleTecnico.Models;
 using Xunit;
+using ControleTecnico.Components.Shared;
 
 namespace ControleTecnico.Tests;
 
@@ -80,7 +81,7 @@ public class AgendaTests
         var est = AgendaEngine.EstadoEm(snap, ev, snap.Tecnicos[t.Id], DateTime.UtcNow, DateTime.UtcNow);
         Assert.Equal(Vocab.OpDisponivel, est.Status);
         Assert.False(est.AgendaMantida);
-        Assert.Equal("nenhum", est.LocalFonte);
+        Assert.Equal("casa", est.LocalFonte);        // fora de viagem: em casa (endereço do cadastro)
     }
 
     [Fact]
@@ -876,5 +877,52 @@ public class ApresentacaoTests
         Assert.True(s.IniciarAuto(new AutoEtapas.Cfg { Etapas = new() { "agenda", "mapa" }, Velocidade = "lenta" }));
         Assert.Equal("agenda", s.AutoFase); Assert.Equal("lenta", s.AutoVel); Assert.Equal(2, s.AutoPlano.Count);
         s.PararAuto(); Assert.False(s.AutoAtivo);
+    }
+}
+
+public class PdfAlteracoesTests
+{
+    [Fact]
+    public void Excluir_viagem_de_qualquer_status_remove_tudo_e_audita()
+    {
+        using var a = new Amb(); var t = a.NovoTec(); var p = a.NovaPlanta();
+        var v = a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "4500123", Status = Vocab.ViagemPlanejada, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(3, 17), TecnicoIds = t.Id } });
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.ExcluirViagem(a.Consulta, v.Id));
+        a.Svc.ExcluirViagem(a.Gestao, v.Id);
+        Assert.Null(a.Db.Viagens.Obter(v.Id));
+        Assert.Empty(a.Db.Atendimentos.Onde(x => x.ViagemId == v.Id));
+        Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "viagem.excluir" && x.Resumo.Contains("4500123"));
+    }
+
+    [Fact]
+    public void Projeto_aparece_no_titulo_dos_eventos_e_atendimento_herda_da_viagem()
+    {
+        using var a = new Amb(); var t = a.NovoTec(); var p = a.NovaPlanta();
+        a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "P-77", Equipamentos = "Ventilador VA-1\nMotor M-2", Status = Vocab.ViagemPlanejada, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(3, 17), TecnicoIds = t.Id } });
+        a.Svc.SalvarAtendimentoAvulso(a.Gestao, new Atendimento { Projeto = "AV-9", Equipamentos = "Compressor", PlantaId = p.Id, TecnicoIds = t.Id, IniPrev = Amb.Fut(9), FimPrev = Amb.Fut(9, 17) });
+        var ev = AgendaEngine.Eventos(a.Svc.Foto());
+        var daViagem = ev.Single(e => e.Fonte == "atend" && e.ViagemId != "");
+        Assert.Equal("P-77", daViagem.Projeto); Assert.StartsWith("Proj. P-77 · ", daViagem.Titulo); Assert.Equal(2, Ui.Linhas(daViagem.Equipamentos).Count);
+        Assert.StartsWith("Proj. AV-9 · ", ev.Single(e => e.Fonte == "atend" && e.ViagemId == "").Titulo);
+        Assert.Throws<ValidacaoException>(() => Ui.ExigirProjeto("  "));
+    }
+
+    [Fact]
+    public void Fora_de_viagem_fica_em_casa_ou_na_Howden_e_disponivel()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        t = a.Db.Tecnicos.Obter(t.Id)!; t.CasaLat = -23.5; t.CasaLon = -46.6; t.Cidade = "São Paulo"; t.Estado = "SP"; a.Svc.SalvarTecnico(a.Gestao, t);
+        var agora = DateTime.UtcNow;
+        var s = a.Svc.Foto(); var est = AgendaEngine.EstadoEm(s, AgendaEngine.Eventos(s), s.Tecnicos[t.Id], agora, agora);
+        Assert.Equal(Vocab.OpDisponivel, est.Status); Assert.Equal("casa", est.LocalFonte); Assert.Equal(-23.5, est.Lat); Assert.StartsWith("Em casa", est.LocalTexto);
+
+        a.Svc.SalvarHowdenAsync(a.Admin, "Howden South America", "Rua Teste, 1", "Cidade X", "MG", "Brasil", -19.9, -44.0, null).GetAwaiter().GetResult();
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.DefinirLocalBase(a.Consulta, t.Id, Vocab.BaseHowden));
+        a.Svc.DefinirLocalBase(a.Gestao, t.Id, Vocab.BaseHowden);
+        s = a.Svc.Foto(); est = AgendaEngine.EstadoEm(s, AgendaEngine.Eventos(s), s.Tecnicos[t.Id], agora, agora);
+        Assert.Equal(Vocab.OpDisponivel, est.Status); Assert.Equal("howden", est.LocalFonte); Assert.Equal(-19.9, est.Lat); Assert.Equal("Howden South America", est.LocalTexto);
+        Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "tecnico.local");
     }
 }

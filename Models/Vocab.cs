@@ -37,6 +37,7 @@ public static class Vocab
     };
 
     // ---- status operacional do técnico ----
+    public const string BaseCasa = "casa", BaseHowden = "howden";
     public const string OpDisponivel = "disponivel", OpAtendimento = "atendimento", OpViagem = "viagem",
         OpFerias = "ferias", OpIndisponivel = "indisponivel", OpSemProg = "semprog";
 

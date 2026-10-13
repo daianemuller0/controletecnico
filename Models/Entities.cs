@@ -14,6 +14,16 @@ public class Tecnico : Entity
     public string Cidade { get; set; } = "";
     public string Estado { get; set; } = "";
     public string Pais { get; set; } = "Brasil";
+    /// <summary>Endereço residencial (rua, número, bairro). Com cidade/estado/país forma o local "em casa" no mapa.</summary>
+    public string Endereco { get; set; } = "";
+    public double? CasaLat { get; set; }
+    public double? CasaLon { get; set; }
+    /// <summary>Nível encontrado na geocodificação da casa: endereco | cidade | estado | pais | manual.</summary>
+    public string CasaGeoNivel { get; set; } = "";
+    /// <summary>Onde o técnico fica quando NÃO está em viagem nem em atendimento: casa | howden.</summary>
+    public string LocalBase { get; set; } = "casa";
+    public DateTime? LocalBaseDesde { get; set; }
+    public string LocalBasePor { get; set; } = "";
     public string OrigemHabitual { get; set; } = "";
     public double? OrigemLat { get; set; }
     public double? OrigemLon { get; set; }
@@ -81,6 +91,10 @@ public class Planta : Entity
 public class Viagem : Entity
 {
     public string Codigo { get; set; } = "";
+    /// <summary>Número do projeto: é por ele que a equipe controla as viagens.</summary>
+    public string Projeto { get; set; } = "";
+    /// <summary>Equipamentos atendidos, um por linha.</summary>
+    public string Equipamentos { get; set; } = "";
     public string ClienteId { get; set; } = "";
     public string PlantaId { get; set; } = "";       // destino principal
     public string ServicoId { get; set; } = "";
@@ -134,6 +148,10 @@ public class Trecho : Entity
 public class Atendimento : Entity
 {
     public string ViagemId { get; set; } = "";       // vazio = atendimento avulso
+    /// <summary>Número do projeto (no atendimento de uma viagem, vazio = o da viagem).</summary>
+    public string Projeto { get; set; } = "";
+    /// <summary>Equipamentos, um por linha (no atendimento de uma viagem, vazio = os da viagem).</summary>
+    public string Equipamentos { get; set; } = "";
     public string TecnicoIds { get; set; } = "";
     public string ClienteId { get; set; } = "";
     public string PlantaId { get; set; } = "";

@@ -25,7 +25,7 @@
 </div>
 
 <div class="toolbar">
-    <input class="field busca" placeholder="Buscar código, cliente, destino…" @bind="_busca" @bind:event="oninput" aria-label="Buscar viagem" />
+    <input class="field busca" placeholder="Buscar projeto, código, cliente, destino, equipamento…" @bind="_busca" @bind:event="oninput" aria-label="Buscar viagem" />
     <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_fTec" ValueChanged="@(async (string v) => { _fTec = v; })" Placeholder="Todos os técnicos" />
     <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; })" Placeholder="Todos os clientes" />
     <select class="field w-auto" @bind="_fModal"><option value="">Carro e avião</option><option value="carro">Com trecho de carro</option><option value="aviao">Com trecho de avião</option></select>
@@ -33,11 +33,13 @@
 </div>
 
 <div class="table-wrap"><table class="grid-tbl">
-    <thead><tr><th>Viagem</th><th>Cliente / destino</th><th>Técnicos</th><th>Período</th><th>Transporte</th><th>Horas prev./real.</th><th>Status</th><th>Pendências</th></tr></thead>
+    <thead><tr><th>Projeto</th><th>Viagem</th><th>Cliente / destino</th><th>Técnicos</th><th>Período</th><th>Transporte</th><th>Horas prev./real.</th><th>Status</th><th>Pendências</th>@if (_ator.Pode(Perm.EditarViagens)) { <th></th> }</tr></thead>
     <tbody>
     @foreach (var l in Filtradas)
     {
         <tr>
+            <td>@if (string.IsNullOrWhiteSpace(l.v.Projeto)) { <span class="proj-tag vazio" title="Viagem sem número de projeto">sem projeto</span> } else { <a href="/viagens/@l.v.Id" class="proj-tag">@l.v.Projeto</a> }
+                @if (Ui.Linhas(l.v.Equipamentos) is { Count: > 0 } eqs) { <div class="muted sm" title="@string.Join(", ", eqs)">@eqs.Count equipamento(s)</div> }</td>
             <td><a href="/viagens/@l.v.Id"><strong>@l.v.Codigo</strong></a><div class="muted sm">@l.v.Responsavel</div></td>
             <td>@_snap.Cliente(l.v.ClienteId)?.Nome<div class="muted sm">@l.v.Destino</div></td>
             <td>@string.Join(", ", Ui.Ids(l.v.TecnicoIds).Select(i => _snap.Tecnico(i)?.Nome?.Split(' ')[0]))</td>
@@ -46,10 +48,24 @@
             <td>@(l.hp?.ToString("0.#") ?? "—") / @(l.hr?.ToString("0.#") ?? "—")</td>
             <td><StatusBadge Item="@Ui.StViagem(l.v.Status)" /></td>
             <td>@if (l.conf > 0) { <span class="badge st-neg" title="Conflitos de agenda">@Icons.Svg("alert", "bico")@l.conf</span> } @if (l.pend > 0) { <span class="badge st-warn" title="Pendências documentais">@Icons.Svg("shield", "bico")@l.pend</span> } @if (l.conf + l.pend == 0) { <span class="muted">—</span> }</td>
+            @if (_ator.Pode(Perm.EditarViagens)) { <td class="acoes"><button class="icon-btn perigo" title="Excluir viagem" aria-label="Excluir viagem @l.v.Codigo" @onclick="() => _excluir = l.v">@Icons.Svg("trash")</button></td> }
         </tr>
     }
     </tbody>
 </table></div>
+@if (_excluir is not null)
+{
+    <Dialogo Titulo="Excluir viagem" OnFechar="@(() => _excluir = null)" Erros="_erros">
+        <ChildContent>
+            <p class="confirma-txt">Você tem certeza que quer excluir essa viagem?</p>
+            <p class="muted"><strong>@_excluir.Codigo</strong>@(string.IsNullOrWhiteSpace(_excluir.Projeto) ? "" : $" · Projeto {_excluir.Projeto}") · @_excluir.Destino — trechos, atendimentos e anexos também serão removidos. A exclusão fica registrada no histórico.</p>
+        </ChildContent>
+        <Rodape>
+            <button class="btn-ghost" @onclick="@(() => _excluir = null)">Não</button>
+            <button class="btn-danger" @onclick="ConfirmarExclusao">@Icons.Svg("trash")Sim, excluir</button>
+        </Rodape>
+    </Dialogo>
+}
 @if (!Filtradas.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("plane")</div><h3>Nenhuma viagem encontrada</h3><p>Crie uma viagem ou ajuste os filtros.</p></div> }
 
 @code {
@@ -57,10 +73,24 @@
     private List<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> _lista = new();
     private string _busca = "", _fSt = "", _fTec = "", _fCli = "", _fModal = ""; private bool _futuras;
 
+    private Viagem? _excluir; private List<string>? _erros;
+
     protected override async Task OnInitializedAsync()
     {
         _ator = await Sessao.AtorAsync(); Sessao.Mudou += Ao;
-        _snap = Svc.Foto();
+        Carregar();
+    }
+
+    private void ConfirmarExclusao()
+    {
+        _erros = null;
+        try { var cod = _excluir!.Codigo; Svc.ExcluirViagem(_ator, _excluir.Id); _excluir = null; Carregar(); Sessao.Avisar($"Viagem {cod} excluída."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+
+    private void Carregar()
+    {
+        _snap = Svc.Foto(); _lista = new();
         var ev = AgendaEngine.Eventos(_snap, incluirCanceladas: true);
         var conf = AgendaEngine.Conflitos(_snap, ev.Where(e => e.Status != "cancelado").ToList());
         var hoje = DocEngine.Hoje(_snap.FusoPadrao);
@@ -89,6 +119,6 @@
     private IEnumerable<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> Filtradas => _lista
         .Where(l => (_fSt == "" || l.v.Status == _fSt) && (_fTec == "" || Ui.Ids(l.v.TecnicoIds).Contains(_fTec)) && (_fCli == "" || l.v.ClienteId == _fCli)
             && (_fModal == "" || l.modais.Contains(_fModal)) && (!_futuras || (l.fim ?? DateTime.MaxValue) >= DateTime.UtcNow)
-            && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{l.v.Codigo} {_snap.Cliente(l.v.ClienteId)?.Nome} {l.v.Destino} {l.v.Origem}").Contains(DocEngine.Norm(_busca))))
+            && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{l.v.Projeto} {l.v.Codigo} {_snap.Cliente(l.v.ClienteId)?.Nome} {l.v.Destino} {l.v.Origem} {l.v.Equipamentos}").Contains(DocEngine.Norm(_busca))))
         .OrderByDescending(l => l.ini ?? DateTime.MaxValue);
 }

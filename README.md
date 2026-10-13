@@ -148,3 +148,10 @@ Técnico **sem programação** agora conta como **Disponível** (a ficha avisa q
 ### Configurando a apresentação
 
 **Administração → Apresentação** (Admin e Gestão): marque quais etapas aparecem e reordene com as setas (mapa, cada indicador, **Indicadores gerenciais**, Agenda), escolha quais gráficos entram na tela de indicadores gerenciais, quais visualizações da agenda (30 dias / mês), a velocidade inicial e se o ciclo repete. A configuração vale para todos e fica na base compartilhada.
+
+## Alterações de outubro/2026 (PDF de ajustes)
+
+- **Excluir viagem** (Controladoria e viagens): ícone de lixeira em cada linha; pergunta *"Você tem certeza que quer excluir essa viagem?"* e, no **Sim**, remove a viagem com trechos, atendimentos e anexos (qualquer status). Fica registrado no histórico.
+- **Agenda**: saíram as visões **Dia** e **Semana**. A linha do tempo tem período livre **De / Até** (até 3 anos por tela, com rolagem horizontal) e atalhos 14 dias, 30 dias, 3 meses, 6 meses e 1 ano. No Mês, clicar no dia abre a linha do tempo a partir dele.
+- **Número do projeto e equipamentos**: obrigatórios na nova viagem (simples e avançada) e no novo compromisso da agenda; equipamentos aceitam 1 ou mais (Enter ou "Adicionar", com sugestões dos já usados). O projeto aparece **sempre**: primeira coluna da lista de viagens, título da viagem, todos os blocos da agenda/mapa ("Proj. 1234 · …"), painel de viagens previstas, apresentação e histórico. A busca da lista procura por projeto e equipamento.
+- **Em casa / na Howden**: quem não está em viagem nem em atendimento aparece **em casa** (endereço residencial da ficha, localizado em cascata endereço → cidade → estado → país) ou, se marcado no painel do técnico, **na Howden South America**. Os dois contam como **disponíveis**. O endereço da empresa é configurado em **Administração → Configurações → Endereço da empresa** (pode informar latitude/longitude ou deixar localizar pelo endereço).

@@ -536,3 +536,66 @@ public sealed partial class Servicos
         Auditar(ator, "config.apresentacao", "config", "", $"Apresentação automática: {string.Join(" › ", cfg.Etapas)}");
     }
 }
+
+public sealed partial class Servicos
+{
+    // ------------------------------------------------ em casa / na Howden
+    /// <summary>Marca onde o técnico fica quando não está em viagem: em casa (endereço do cadastro) ou na Howden.</summary>
+    public Tecnico DefinirLocalBase(Ator ator, string tecnicoId, string localBase)
+    {
+        ator.Exigir(Perm.ConfirmarLocal, tecnicoId);
+        if (localBase is not (Vocab.BaseCasa or Vocab.BaseHowden)) throw new ValidacaoException("Local inválido.");
+        var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
+        if (t.LocalBase == localBase) return t;
+        t.LocalBase = localBase; t.LocalBaseDesde = DateTime.UtcNow; t.LocalBasePor = ator.Login;
+        Db.Tecnicos.Salvar(t, ator.Login);
+        Auditar(ator, "tecnico.local", "tecnico", t.Id, $"{t.Nome}: {(localBase == Vocab.BaseHowden ? "na " + Db.Cfg("howden_nome", "Howden South America") : "em casa")}");
+        return t;
+    }
+
+    /// <summary>Localiza a casa do técnico em cascata (endereço → cidade → estado → país) e grava as coordenadas.</summary>
+    public async Task<GeoResultado> LocalizarCasaAsync(Ator ator, string tecnicoId, Geocoder geo, bool limparSeFalhar = false)
+    {
+        ator.Exigir(Perm.EditarTecnicos);
+        var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
+        if (string.IsNullOrWhiteSpace(t.Cidade) && string.IsNullOrWhiteSpace(t.Estado) && string.IsNullOrWhiteSpace(t.Pais))
+            return new GeoResultado(false, null, null, "", "Informe ao menos a cidade onde o técnico mora.");
+        var r = await geo.BuscarHierarquicoAsync(t.Pais, t.Estado, t.Cidade, t.Endereco);
+        if (r.Ok)
+        {
+            t.CasaLat = r.Lat; t.CasaLon = r.Lon; t.CasaGeoNivel = r.Nivel;
+            if (t.OrigemLat is null) { t.OrigemLat = r.Lat; t.OrigemLon = r.Lon; }
+            Db.Tecnicos.Salvar(t, ator.Login);
+        }
+        else if (limparSeFalhar && t.CasaLat is not null) { t.CasaLat = null; t.CasaLon = null; t.CasaGeoNivel = ""; Db.Tecnicos.Salvar(t, ator.Login); }
+        return r;
+    }
+
+    public (string nome, string endereco, double? lat, double? lon) Howden()
+    {
+        var s = Foto(); return (s.HowdenNome, s.HowdenEndereco, s.HowdenLat, s.HowdenLon);
+    }
+
+    /// <summary>Endereço da Howden South America (onde ficam os técnicos marcados "na Howden"). Geocodifica se não vierem coordenadas.</summary>
+    public async Task<GeoResultado?> SalvarHowdenAsync(Ator ator, string nome, string endereco, string cidade, string estado, string pais, double? lat, double? lon, Geocoder? geo)
+    {
+        ator.Exigir(Perm.Administrar);
+        nome = (nome ?? "").Trim(); endereco = (endereco ?? "").Trim();
+        if (nome.Length is < 2 or > 80) throw new ValidacaoException("Informe o nome do local (até 80 caracteres).");
+        if ((lat.HasValue ^ lon.HasValue) || !(lat is null || Geo.CoordValida(lat, lon))) throw new ValidacaoException("Coordenadas inválidas.");
+        GeoResultado? r = null;
+        if (lat is null && geo is { Configurado: true } && (cidade != "" || estado != "" || pais != ""))
+        {
+            r = await geo.BuscarHierarquicoAsync(pais, estado, cidade, endereco);
+            if (r.Ok) { lat = r.Lat; lon = r.Lon; }
+        }
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        var texto = string.Join(", ", new[] { endereco, cidade, estado, pais }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        Db.SetCfg("howden_nome", nome, ator.Login); Db.SetCfg("howden_endereco", texto, ator.Login);
+        Db.SetCfg("howden_end_rua", endereco, ator.Login); Db.SetCfg("howden_end_cidade", cidade ?? "", ator.Login);
+        Db.SetCfg("howden_end_estado", estado ?? "", ator.Login); Db.SetCfg("howden_end_pais", pais ?? "", ator.Login);
+        Db.SetCfg("howden_lat", lat?.ToString(ci) ?? "", ator.Login); Db.SetCfg("howden_lon", lon?.ToString(ci) ?? "", ator.Login);
+        Auditar(ator, "config.howden", "config", "", $"{nome}: {texto}" + (lat is null ? " (sem coordenadas)" : $" ({lat:0.####}, {lon:0.####})"));
+        return r;
+    }
+}

@@ -43,8 +43,12 @@
     </div>
     @if (_view == "linha")
     {
-        <div class="segmented sm" aria-label="Janela da linha do tempo">
-            @foreach (var d in new[] { 7, 14, 30 }) { <button class="@(_dias == d ? "active" : "")" @onclick="() => { _dias = d; Montar(); }">@d dias</button> }
+        <div class="ag-periodo" aria-label="Período da linha do tempo">
+            <label>De<input type="date" value="@_ref.ToString("yyyy-MM-dd")" @onchange="AoMudarDe" /></label>
+            <label>Até<input type="date" value="@_ref.AddDays(_dias - 1).ToString("yyyy-MM-dd")" @onchange="AoMudarAte" /></label>
+            <div class="segmented sm" aria-label="Atalhos de período">
+                @foreach (var (n, r) in Atalhos) { <button class="@(_dias == n ? "active" : "")" @onclick="() => { _dias = n; Montar(); }">@r</button> }
+            </div>
         </div>
     }
     <div class="ag-filtros">
@@ -98,8 +102,7 @@ else
         {
             case "linha": @LinhaDoTempo(); break;
             case "mes": @Mes(); break;
-            case "semana": @Grade(false); break;
-            default: @Grade(true); break;
+            default: @LinhaDoTempo(); break;
         }
     </div>
     @if (_visiveis.Count == 0)
@@ -115,14 +118,15 @@ else
         var rs = _rs; var re = _re; var total = (re - rs).TotalMinutes;
         var diasLoc = Enumerable.Range(0, (int)Math.Round((_reLocal - _rsLocal).TotalDays)).Select(i => _rsLocal.AddDays(i)).ToList();
         var hojeLoc = L(DateTime.UtcNow).Date;
-        <div class="tl" style="--nd:@diasLoc.Count">
+        var largo = diasLoc.Count > 45 ? "tl-longo" : diasLoc.Count > 21 ? "tl-medio" : "";
+        <div class="tl @largo" style="--nd:@diasLoc.Count">
             <div class="tl-linha tl-cab">
                 <div class="tl-nome tl-cabnome">Técnico</div>
                 <div class="tl-trilha tl-diasgrid">
                     @foreach (var d in diasLoc)
                     {
                         <div class="tl-diacab @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "")">
-                            <span class="dd">@d.ToString("dd")</span><span class="ds">@d.ToString("ddd", Tempo.Pt)</span>@if (d.Day == 1 || d == diasLoc[0]) { <span class="dm">@d.ToString("MMM", Tempo.Pt)</span> }
+                            <span class="dd">@d.ToString("dd")</span><span class="ds">@d.ToString("ddd", Tempo.Pt)</span>@if (d.Day == 1 || d == diasLoc[0]) { <span class="dm">@d.ToString(diasLoc.Count > 45 ? "MMM/yy" : "MMM", Tempo.Pt)</span> }
                         </div>
                     }
                 </div>
@@ -174,7 +178,7 @@ else
                 var ini = U(d); var fim = U(d.AddDays(1));
                 var evs = _visiveis.Where(e => e.Cruza(ini, fim)).OrderBy(e => e.Ini).ToList();
                 <div class="mes-cel @(d.Month != _ref.Month ? "fora" : "") @(d == hojeLoc ? "hoje" : "") @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "")" data-drop="*|@d.ToString("yyyy-MM-dd")">
-                    <button class="mes-dia" @onclick="() => IrDia(d)" title="Ver o dia">@d.Day</button>
+                    <button class="mes-dia" @onclick="() => IrDia(d)" title="Ver a partir deste dia na linha do tempo">@d.Day</button>
                     @foreach (var ev in evs.Take(4))
                     {
                         <button class="@ClasseEv(ev) mes-ev" style="--c:@Ui.TipoEv(ev.Tipo).Color" title="@Dica(ev)" aria-label="@Dica(ev)"
@@ -188,53 +192,6 @@ else
         </div>
     };
 
-    private RenderFragment Grade(bool porTecnico) => __builder =>
-    {
-        // Dia: uma coluna por técnico. Semana: uma coluna por dia.
-        var cols = new List<(string key, string rotulo, DateTime ini, DateTime fim, string tec, string sub)>();
-        if (porTecnico)
-            foreach (var t in TecnicosLinha())
-            {
-                var sit = AgendaEngine.Dias(_snap, _eventos, t, _ref, _ref).FirstOrDefault()?.Situacao ?? "";
-                cols.Add((t.Id, t.Nome, _rs, _re, t.Id, sit switch { "livre" => "Livre na jornada", "parcial" => "Parcial", "ocupado" => "Ocupado", "indisponivel" => "Indisponível", "naoutil" => "Fora da jornada", _ => "" }));
-            }
-        else
-            for (var i = 0; i < 7; i++) { var d = _rsLocal.AddDays(i); cols.Add(("*", d.ToString("ddd dd/MM", Tempo.Pt), U(d), U(d.AddDays(1)), "*", "")); }
-        var hojeLoc = L(DateTime.UtcNow).Date;
-        <div class="hg-wrap">
-            <div class="hg-cab" style="--nc:@cols.Count">
-                <div class="hg-gutter"></div>
-                @foreach (var c in cols) { <div class="hg-colcab @(!porTecnico && L(c.ini).Date == hojeLoc ? "hoje" : "")"><strong>@c.rotulo</strong>@if (c.sub != "") { <span class="muted sm">@c.sub</span> }</div> }
-            </div>
-            <div class="hg-corpo" id="hg-corpo">
-                <div class="hg" style="--nc:@cols.Count">
-                    <div class="hg-gutter">@for (var h = 0; h < 24; h++) { <div class="hg-hora">@h.ToString("00"):00</div> }</div>
-                    @foreach (var c in cols)
-                    {
-                        var dataCol = L(c.ini).Date;
-                        var evs = _visiveis.Where(e => e.Cruza(c.ini, c.fim) && (c.tec == "*" || e.TecnicoId == c.tec)).OrderBy(e => e.Ini).ToList();
-                        var lanes = Lanes(evs);
-                        var n = Math.Max(1, lanes.Count == 0 ? 1 : lanes.Max(x => x.lane) + 1);
-                        <div class="hg-col @(!porTecnico && dataCol == hojeLoc ? "hoje" : "")" data-drop="@(porTecnico ? c.tec : "*")|@dataCol.ToString("yyyy-MM-dd")">
-                            @for (var h = 1; h < 24; h++) { <div class="hg-linha" style="top:@(h * 100.0 / 24)%"></div> }
-                            @if (DateTime.UtcNow >= c.ini && DateTime.UtcNow < c.fim) { <div class="tl-agora h" style="top:@Pct((DateTime.UtcNow - c.ini).TotalMinutes / (c.fim - c.ini).TotalMinutes)%"></div> }
-                            @foreach (var (ev, lane, _) in lanes)
-                            {
-                                var a = ev.Ini < c.ini ? c.ini : ev.Ini; var b = ev.Fim > c.fim ? c.fim : ev.Fim;
-                                var tot = (c.fim - c.ini).TotalMinutes;
-                                <button class="@ClasseEv(ev) hg-ev" style="top:@Pct((a - c.ini).TotalMinutes / tot)%;height:@Pct(Math.Max(0.012, (b - a).TotalMinutes / tot))%;left:@Pct((double)lane / n)%;width:@Pct(1.0 / n)%;--c:@Ui.TipoEv(ev.Tipo).Color"
-                                        title="@Dica(ev)" aria-label="@Dica(ev)" draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dndgrab="off"
-                                        data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@L(ev.Ini).ToString("yyyy-MM-dd")" @onclick="() => AbrirEvento(ev)">
-                                    @if (c.tec == "*") { <b>@Avatar.Iniciais(NomeTec(ev.TecnicoId))</b> }
-                                    <span class="ev-txt">@ev.Titulo</span>@if (_confIds.Contains(ev.Id)) { <span class="ev-x-ico">!</span> }
-                                </button>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    };
 }
 
 @* ----------------------------- detalhe do evento ----------------------------- *@
@@ -252,6 +209,8 @@ else
             <button class="icon-btn" @onclick="@(() => _det = null)" aria-label="Fechar">@Icons.Svg("x")</button>
         </div>
         <dl class="ficha-dl">
+            <dt>Projeto</dt><dd>@if (string.IsNullOrWhiteSpace(ev.Projeto)) { <span class="proj-tag vazio">sem nº de projeto</span> } else { <span class="proj-tag">@ev.Projeto</span> }</dd>
+            @if (Ui.Linhas(ev.Equipamentos) is { Count: > 0 } eqs) { <dt>Equipamentos</dt><dd>@string.Join(" · ", eqs)</dd> }
             <dt>Técnico</dt><dd><a href="/tecnicos/@ev.TecnicoId">@tec?.Nome</a></dd>
             <dt>Início</dt><dd>@Ui.Hora(ev.Ini, ev.Fuso, _snap, true)</dd>
             <dt>Término</dt><dd>@Ui.Hora(ev.Fim, ev.Fuso, _snap, true)</dd>
@@ -351,6 +310,7 @@ else
                 </select></label>
             @if (_form.Tipo == "atendimento")
             {
+                <label class="fld">Nº do projeto *<CampoLista Value="@_form.Projeto" ValueChanged="@((string x) => { _form.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
                 <label class="fld">Status
                     <select @bind="_form.Status" @bind:after="Previa">
                         <option value="rascunho">Provisório (rascunho)</option><option value="planejada">Planejado</option><option value="confirmada">Confirmado</option>
@@ -363,6 +323,7 @@ else
                     <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_form.ServicoId" ValueChanged="@(async (string v) => { _form.ServicoId = v; Previa(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
                 <label class="fld">Início <span class="hint">hora local da planta (@FusoForm)</span><input type="datetime-local" @bind="_form.Ini" @bind:after="Previa" /></label>
                 <label class="fld">Término <span class="hint">hora local da planta</span><input type="datetime-local" @bind="_form.Fim" @bind:after="Previa" /></label>
+                <div class="fld full"><span>Equipamentos <span class="hint">um ou mais</span></span><CampoEquipamentos Value="@_form.Equipamentos" ValueChanged="@((string x) => { _form.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" /></div>
                 <label class="fld">Horas de atendimento previstas <span class="hint">opcional · não é calculado a partir dos dias</span><input type="number" step="0.5" min="0" @bind="_form.Horas" /></label>
             }
             else
@@ -403,7 +364,25 @@ else
 @code {
     [SupplyParameterFromQuery(Name = "tec")] public string? TecQuery { get; set; }
 
-    private static readonly (string, string)[] Vistas = { ("linha", "Linha do tempo"), ("mes", "Mês"), ("semana", "Semana"), ("dia", "Dia") };
+    private static readonly (string, string)[] Vistas = { ("linha", "Linha do tempo"), ("mes", "Mês") };
+    private static readonly (int, string)[] Atalhos = { (14, "14 dias"), (30, "30 dias"), (90, "3 meses"), (180, "6 meses"), (365, "1 ano") };
+    private const int MaxDias = 1096;    // até 3 anos numa tela
+
+    private void AoMudarDe(ChangeEventArgs e)
+    {
+        if (!DateTime.TryParse(e.Value?.ToString(), out var d)) return;
+        var ate = _ref.AddDays(_dias - 1); _ref = d.Date;
+        if (ate < _ref) ate = _ref.AddDays(Math.Max(0, _dias - 1));
+        _dias = Math.Clamp((ate - _ref).Days + 1, 1, MaxDias); Montar();
+    }
+    private void AoMudarAte(ChangeEventArgs e)
+    {
+        if (!DateTime.TryParse(e.Value?.ToString(), out var d)) return;
+        if (d.Date < _ref) { _ref = d.Date; _dias = 1; }
+        else _dias = Math.Clamp((d.Date - _ref).Days + 1, 1, MaxDias);
+        if ((d.Date - _ref).Days + 1 > MaxDias) Sessao.Avisar("Período limitado a 3 anos por tela.", true);
+        Montar();
+    }
 
     private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Ator _ator = new(); private Snapshot _snap = new();
@@ -509,9 +488,6 @@ else
                 _rsLocal = p.AddDays(-off); _reLocal = _rsLocal.AddDays(42);
                 if (_rsLocal.AddDays(35) >= p.AddMonths(1)) _reLocal = _rsLocal.AddDays(35);
                 break;
-            case "semana":
-                _rsLocal = _ref.AddDays(-(((int)_ref.DayOfWeek + 6) % 7)); _reLocal = _rsLocal.AddDays(7); break;
-            case "dia": _rsLocal = _ref; _reLocal = _ref.AddDays(1); break;
             default: _rsLocal = _ref; _reLocal = _ref.AddDays(_dias); break;
         }
         _rs = U(_rsLocal); _re = U(_reLocal);
@@ -538,7 +514,6 @@ else
         try
         {
             await JS.InvokeVoidAsync("app.dnd.iniciar", "agenda-dnd", _ref2);
-            if (_view is "dia" or "semana") await JS.InvokeVoidAsync("eval", "(function(){var e=document.getElementById('hg-corpo'); if(e && !e._ok){e.scrollTop=7*e.scrollHeight/24; e._ok=true;}})()");
         }
         catch { }
     }
@@ -547,19 +522,17 @@ else
     private string Titulo() => _view switch
     {
         "mes" => _ref.ToString("MMMM 'de' yyyy", Tempo.Pt),
-        "dia" => _ref.ToString("dddd, dd 'de' MMMM 'de' yyyy", Tempo.Pt),
-        "semana" => $"{_rsLocal:dd/MM} – {_reLocal.AddDays(-1):dd/MM/yyyy}",
-        _ => $"{_rsLocal:dd/MM} – {_reLocal.AddDays(-1):dd/MM/yyyy}",
+        _ => $"{_rsLocal:dd/MM/yyyy} – {_reLocal.AddDays(-1):dd/MM/yyyy}",
     };
 
     private void MudarVista(string v) { _view = v; Montar(); }
     private void Hoje() { _ref = L(DateTime.UtcNow).Date; Montar(); }
     private void Mover(int s)
     {
-        _ref = _view switch { "mes" => _ref.AddMonths(s), "dia" => _ref.AddDays(s), "semana" => _ref.AddDays(7 * s), _ => _ref.AddDays(s * Math.Max(1, _dias / 2)) };
+        _ref = _view switch { "mes" => _ref.AddMonths(s), _ => _ref.AddDays(s * Math.Max(1, _dias)) };      // linha: avança um período inteiro
         Montar();
     }
-    private void IrDia(DateTime d) { _ref = d; _view = "dia"; Montar(); }
+    private void IrDia(DateTime d) { _ref = d; _dias = 7; _view = "linha"; Montar(); }      // do mês, abre a linha do tempo a partir do dia
     private void AlternarTec(string id, bool on) { if (on) _tecSel.Add(id); else _tecSel.Remove(id); Montar(); }
     private void AlternarTipo(string k, bool on) { if (on) _tiposOcultos.Remove(k); else _tiposOcultos.Add(k); Montar(); }
 
@@ -642,7 +615,7 @@ else
     // ------------------------------------------------------ criar / editar
     private sealed class Form
     {
-        public string Id = "", Tipo = "atendimento", Status = "planejada", PlantaId = "", ServicoId = "", TecnicoId = "", Motivo = "", Obs = "";
+        public string Id = "", Tipo = "atendimento", Status = "planejada", PlantaId = "", ServicoId = "", TecnicoId = "", Motivo = "", Obs = "", Projeto = "", Equipamentos = "";
         public HashSet<string> Tecs = new(); public DateTime Ini, Fim; public double? Horas; public bool DiaInteiro = true, Provisoria;
         public DateTime DiaDe, DiaAte; public string ViagemId = ""; public Atendimento? Orig;
     }
@@ -682,7 +655,7 @@ else
             _form = new Form
             {
                 Id = a.Id, Tipo = "atendimento", Status = a.Status, PlantaId = a.PlantaId, ServicoId = a.ServicoId, Tecs = Ui.Ids(a.TecnicoIds).ToHashSet(),
-                Ini = Tempo.ParaLocal(a.IniPrev, fz), Fim = Tempo.ParaLocal(a.FimPrev, fz), Horas = a.HorasPrev, Obs = a.Obs, Orig = a,
+                Ini = Tempo.ParaLocal(a.IniPrev, fz), Fim = Tempo.ParaLocal(a.FimPrev, fz), Horas = a.HorasPrev, Obs = a.Obs, Orig = a, Projeto = a.Projeto, Equipamentos = a.Equipamentos,
             };
         }
         else
@@ -708,7 +681,7 @@ else
         return new Atendimento
         {
             Id = f.Id, TecnicoIds = Servicos.Csv(f.Tecs), PlantaId = f.PlantaId, ServicoId = f.ServicoId, Status = f.Status,
-            IniPrev = Tempo.ParaUtc(f.Ini, tz), FimPrev = Tempo.ParaUtc(f.Fim, tz), HorasPrev = f.Horas, Obs = f.Obs,
+            IniPrev = Tempo.ParaUtc(f.Ini, tz), FimPrev = Tempo.ParaUtc(f.Fim, tz), HorasPrev = f.Horas, Obs = f.Obs, Projeto = f.Projeto.Trim(), Equipamentos = f.Equipamentos,
             IniReal = f.Orig?.IniReal, FimReal = f.Orig?.FimReal, HorasReal = f.Orig?.HorasReal, JanelaInicio = f.Orig?.JanelaInicio ?? "", JanelaFim = f.Orig?.JanelaFim ?? "",
         };
     }
@@ -737,7 +710,7 @@ else
         if (_form is null) return;
         try
         {
-            if (_form.Tipo == "atendimento") Svc.SalvarAtendimentoAvulso(_ator, MontarAtendimento());
+            if (_form.Tipo == "atendimento") { Ui.ExigirProjeto(_form.Projeto); Svc.SalvarAtendimentoAvulso(_ator, MontarAtendimento()); }
             else Svc.SalvarIndisponibilidade(_ator, MontarIndisp());
             _form = null; Sessao.Avisar("Compromisso salvo.");
             await Recarregar();

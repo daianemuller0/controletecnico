@@ -5,6 +5,7 @@
 @inject Db Db
 @inject Sessao Sessao
 @inject NavigationManager Nav
+@inject Geocoder Geo
 
 <PageTitle>@(_novo ? "Novo técnico" : _t?.Nome ?? "Técnico") · Controle Técnico</PageTitle>
 
@@ -57,9 +58,13 @@ else
                         <label class="fld">E-mail<input type="email" @bind="_f.Email" /></label>
                     }
                     else { <div class="fld full muted sm">@Icons.Svg("lock")Contatos pessoais ocultos @(Sessao.Apresentacao ? "no modo apresentação" : "para o seu perfil").</div> }
+                    <label class="fld full">Endereço residencial <span class="hint">rua, número, bairro — usado para mostrar o técnico "em casa" no mapa</span><input @bind="_f.Endereco" /></label>
                     <label class="fld">Cidade onde mora<input @bind="_f.Cidade" /></label>
                     <label class="fld">Estado<input @bind="_f.Estado" /></label>
                     <label class="fld">País<input list="paises-t" @bind="_f.Pais" /></label>
+                    <div class="fld full casa-geo">@if (_f.CasaLat is not null) { <span class="tag ok">@Icons.Svg("pin")Casa localizada no mapa @(string.IsNullOrEmpty(_f.CasaGeoNivel) ? "" : $"(nível: {_f.CasaGeoNivel})")</span> } else { <span class="tag">@Icons.Svg("pin")Casa ainda sem posição no mapa</span> }
+                        @if (!_novo && _pode) { <button type="button" class="btn-ghost sm" @onclick="LocalizarCasa" disabled="@_localizando">@Icons.Svg("search")@(_localizando ? "Localizando…" : "Localizar agora")</button> }
+                        <span class="muted sm">Fora de viagem: @(_t.LocalBase == Vocab.BaseHowden ? $"na {_snap.HowdenNome}" : "em casa") — altere no painel do técnico na Visão operacional.</span></div>
                     <label class="fld">Origem habitual para viagens <span class="hint">vazio = cidade/UF</span><input @bind="_f.OrigemHabitual" /></label>
                     <label class="fld">Fuso horário<CampoLista Value="@_f.FusoHorario" ValueChanged="@((string v) => { _f.FusoHorario = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" /></label>
                     <div class="fld"></div>
@@ -265,14 +270,34 @@ else
     private static string RotuloDia(string s) => s switch { "livre" => "livre", "parcial" => "parcialmente ocupado", "ocupado" => "ocupado", "indisponivel" => "indisponível", "naoutil" => "fora da jornada", "provisorio" => "alocação provisória", _ => s };
     private void AlternarDia(int n, bool on) { if (on) _diasSel.Add(n); else _diasSel.Remove(n); }
 
-    private void SalvarGeral()
+    private bool _localizando;
+    private async Task LocalizarCasa()
+    {
+        _localizando = true; _erros = null; StateHasChanged();
+        try
+        {
+            var r = await Svc.LocalizarCasaAsync(_ator, Id, Geo);
+            Sessao.Avisar(r.Ok ? $"Casa localizada (nível: {r.Nivel})." : r.Mensagem, !r.Ok); Carregar();
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _localizando = false;
+    }
+
+    private async Task SalvarGeral()
     {
         _erros = null;
         try
         {
             _f.DiasUteis = string.Join(",", _diasSel.OrderBy(x => x));
+            var antes = _novo ? null : _snap.Tecnico(Id);
             var salvo = Svc.SalvarTecnico(_ator, _f);
             Sessao.Avisar("Técnico salvo.");
+            // endereço mudou (ou ainda não localizado): localiza a casa em cascata, sem travar o salvamento
+            var mudou = antes is null || antes.Endereco != salvo.Endereco || antes.Cidade != salvo.Cidade || antes.Estado != salvo.Estado || antes.Pais != salvo.Pais;
+            if ((mudou || salvo.CasaLat is null) && Geo.Configurado)
+            {
+                try { var r = await Svc.LocalizarCasaAsync(_ator, salvo.Id, Geo, limparSeFalhar: mudou); if (!r.Ok) Sessao.Avisar("Casa não localizada no mapa: " + r.Mensagem, true); } catch { }
+            }
             if (_novo) Nav.NavigateTo($"/tecnicos/{salvo.Id}"); else Carregar();
         }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
