@@ -33,6 +33,12 @@
                 @Icons.Svg("admin", "nav-ico")<span>Administração</span>
             </a>
         }
+        @if (_ator.Pode(Perm.Administrar))
+        {
+            <a class="nav-item @(Ativo("/identidade-visual") ? "active" : "")" href="/identidade-visual" title="Identidade visual">
+                @Icons.Svg("image", "nav-ico")<span>Identidade visual</span>
+            </a>
+        }
     </nav>
     <div class="sidebar-footer"><div class="version">@Svc.NomeSistema · v1.0</div></div>
 </aside>
