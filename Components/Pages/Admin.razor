@@ -31,7 +31,7 @@
         <tbody>
         @foreach (var u in _usuarios)
         {
-            <tr><td><code>@u.Id</code></td><td>@u.Nome</td><td><span class="tag">@Roles.Label(u.Papel)</span></td><td>@if (u.EquipeControle) { <span class="badge st-info">@Icons.Svg("check", "bico")Sim</span> }</td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
+            <tr><td><code>@u.Id</code></td><td>@if (Svc.FotoDoUsuario(u.Id) is { Length: > 0 } fu) { <img class="user-av-mini" src="/arquivos/@fu" alt="" /> } @u.Nome</td><td><span class="tag">@Roles.Label(u.Papel)</span></td><td>@if (u.EquipeControle) { <span class="badge st-info">@Icons.Svg("check", "bico")Sim</span> }</td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
                 <td><span class="badge @(u.Ativo ? "st-pos" : "st-neutral")">@(u.Ativo ? "Ativo" : "Inativo")</span></td>
                 <td class="right"><button class="row-act" @onclick="() => EditarUsuario(u)" title="Editar">@Icons.Svg("edit")</button></td></tr>
         }
@@ -84,6 +84,9 @@ else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
             <label class="fld">Latitude <span class="hint">opcional · vazio = localizar pelo endereço</span><input @bind="_hLat" placeholder="-19.9" /></label>
             <label class="fld">Longitude<input @bind="_hLon" placeholder="-43.9" /></label>
             <div class="fld">@if (Svc.Howden().lat is { } la) { <span class="tag ok">@Icons.Svg("pin")No mapa: @la.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture), @Svc.Howden().lon?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)</span> } else { <span class="tag neg">Sem coordenadas — os técnicos "na Howden" não aparecem no mapa</span> }</div>
+        </div>
+        <div class="mt8"><button type="button" class="btn-ghost sm" @onclick="@(() => _mapaH = !_mapaH)">@Icons.Svg("pin")@(_mapaH ? "Fechar mapa" : "Ajustar a posição no mapa")</button>
+            @if (_mapaH) { <MapaPicker Lat="@Num(_hLat)" Lon="@Num(_hLon)" OnMudou="@(((double lat, double lon) x) => { _hLat = x.lat.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture); _hLon = x.lon.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture); })" /> <div class="muted sm">Depois clique em "Salvar endereço da empresa".</div> }
         </div>
         @if (_errosH is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosH) { <div>@e</div> }</div></div> }
         <div class="modal-actions"><button class="btn-primary" @onclick="SalvarHowden">@Icons.Svg("check")Salvar endereço da empresa</button></div>
@@ -190,6 +193,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
             <label class="fld">Login<input @bind="_u.Id" disabled="@(!_novoU)" /></label>
             <label class="fld">Nome<input @bind="_u.Nome" /></label>
             <label class="fld">Perfil<select @bind="_u.Papel">@foreach (var r in Roles.All) {<option value="@r.Role">@r.Label</option>}</select></label>
+            @if (!_novoU) { <div class="fld"><span>Foto</span><InputFile OnChange="FotoUsuario" accept=".jpg,.jpeg,.png" /></div> }
             <label class="fld chk"><input type="checkbox" @bind="_u.EquipeControle" />Equipe de controle de viagens <span class="hint">pode ser responsável por viagens e tem "Minhas viagens"</span></label>
             <label class="fld">Técnico vinculado <span class="hint">obrigatório para o perfil Técnico</span><select @bind="_u.TecnicoId"><option value="">—</option>@foreach (var t in Db.Tecnicos.Todos().OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select></label>
             <label class="fld full">@(_novoU ? "Senha (mín. 8 caracteres)" : "Nova senha (deixe vazio para manter)")<input type="password" @bind="_senha" autocomplete="new-password" /></label>
@@ -231,6 +235,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     private IEnumerable<Auditoria> AudFiltrada => _aud.Where(a => (_fAcao == "" || a.Acao.StartsWith(_fAcao)) && (string.IsNullOrWhiteSpace(_buscaAud) || DocEngine.Norm($"{a.Usuario} {a.Acao} {a.Resumo}").Contains(DocEngine.Norm(_buscaAud))));
 
     // ---- endereço da Howden
+    private bool _mapaH;
     private string _hNome = "", _hRua = "", _hCidade = "", _hEstado = "", _hPais = "", _hLat = "", _hLon = ""; private List<string>? _errosH;
     private void HowdenCarregar()
     {
@@ -276,6 +281,11 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     private void Compactar() { try { var n = Svc.CompactarAgora(_ator); Sessao.Avisar($"{n} entidade(s) compactada(s)."); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); } }
     private void NovoUsuario() { _u = new Usuario { Papel = Roles.Consulta }; _novoU = true; _senha = ""; _erros = null; }
     private void EditarUsuario(Usuario u) { _u = u.Copia<Usuario>(); _novoU = false; _senha = ""; _erros = null; }
+    private async Task FotoUsuario(InputFileChangeEventArgs e)
+    {
+        try { await using var st = e.File.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.DefinirFotoUsuarioAsync(_ator, _u!.Id, e.File.Name, st); _u.FotoAnexoId = Db.Usuarios.Obter(_u.Id)!.FotoAnexoId; Carregar(); Sessao.Avisar("Foto do usuário atualizada."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
     private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar("Usuário salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
     private void SalvarCfg() { _erros = null; try { Svc.SalvarConfig(_ator, _alertas, _fuso, _horas, _contatoGeo); Sessao.Avisar("Configurações salvas."); Carregar(); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
     private void ExecutarDados()

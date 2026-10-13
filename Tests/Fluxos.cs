@@ -611,7 +611,7 @@ public class GeocodificacaoCascataTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
         {
             var q = System.Web.HttpUtility.ParseQueryString(req.RequestUri!.Query).AllKeys.Where(k => k is not null).ToDictionary(k => k!, k => System.Web.HttpUtility.ParseQueryString(req.RequestUri!.Query)[k]!);
-            var nivel = q.ContainsKey("street") ? "endereco" : q.ContainsKey("city") ? "cidade" : q.ContainsKey("state") ? "estado" : "pais";
+            var nivel = q.ContainsKey("street") ? "endereco" : q.ContainsKey("q") ? "livre" : q.ContainsKey("postalcode") ? "cep" : q.ContainsKey("city") ? "cidade" : q.ContainsKey("state") ? "estado" : "pais";
             Chamadas.Add(nivel);
             var corpo = Acha(q) ? "[{\"lat\":\"-23.5\",\"lon\":\"-47.4\",\"display_name\":\"Local " + nivel + "\"}]" : "[]";
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(corpo) });
@@ -636,17 +636,17 @@ public class GeocodificacaoCascataTests
     [Fact]
     public async Task Sem_endereco_para_na_cidade_sem_cidade_para_no_estado_sem_estado_para_no_pais()
     {
-        var (g, f) = Novo(q => !q.ContainsKey("street"));
+        var (g, f) = Novo(q => !q.ContainsKey("street") && !q.ContainsKey("q"));
         var r = await g.BuscarHierarquicoAsync("Brasil", "SP", "Campinas", "Rua inexistente");
-        Assert.Equal("cidade", r.Nivel); Assert.Equal(new[] { "endereco", "cidade" }, f.Chamadas); Assert.Contains("não encontrado: endereco", r.Mensagem);
+        Assert.Equal("cidade", r.Nivel); Assert.Equal(new[] { "endereco", "livre", "cidade" }, f.Chamadas); Assert.Contains("não encontrado: endereco", r.Mensagem);
 
-        (g, f) = Novo(q => !q.ContainsKey("street") && !q.ContainsKey("city"));
+        (g, f) = Novo(q => !q.ContainsKey("street") && !q.ContainsKey("q") && !q.ContainsKey("city"));
         r = await g.BuscarHierarquicoAsync("Brasil", "SP", "Cidadeinexistente", "Rua");
-        Assert.Equal("estado", r.Nivel); Assert.Equal(new[] { "endereco", "cidade", "estado" }, f.Chamadas);
+        Assert.Equal("estado", r.Nivel); Assert.Equal(new[] { "endereco", "livre", "cidade", "estado" }, f.Chamadas);
 
         (g, f) = Novo(q => q.Keys.All(k => k is "country" or "format" or "limit" or "accept-language" or "email"));
         r = await g.BuscarHierarquicoAsync("Brasil", "Estadoinexistente", "Cidade", "Rua");
-        Assert.Equal("pais", r.Nivel); Assert.Equal(new[] { "endereco", "cidade", "estado", "pais" }, f.Chamadas);
+        Assert.Equal("pais", r.Nivel); Assert.Equal(new[] { "endereco", "livre", "cidade", "estado", "pais" }, f.Chamadas);
 
         (g, f) = Novo(_ => false);
         r = await g.BuscarHierarquicoAsync("Xyz", "", "", "");
@@ -657,13 +657,31 @@ public class GeocodificacaoCascataTests
     public async Task Niveis_sem_dado_sao_pulados_e_sem_configuracao_nao_simula()
     {
         var (g, f) = Novo(_ => true);
-        var r = await g.BuscarHierarquicoAsync("Chile", "Antofagasta", "", "Rua sem cidade");   // sem cidade: nem tenta endereço
-        Assert.Equal("estado", r.Nivel); Assert.Equal(new[] { "estado" }, f.Chamadas);
+        var r = await g.BuscarHierarquicoAsync("Chile", "Antofagasta", "", "Rua sem cidade");   // sem cidade: não usa a busca por campos, mas tenta o texto livre
+        Assert.Equal("endereco", r.Nivel); Assert.Equal(new[] { "livre" }, f.Chamadas);
+        (g, f) = Novo(q => !q.ContainsKey("q"));
+        r = await g.BuscarHierarquicoAsync("Chile", "Antofagasta", "", "Rua sem cidade");
+        Assert.Equal("estado", r.Nivel); Assert.Equal(new[] { "livre", "estado" }, f.Chamadas);
         var (g2, f2) = Novo(_ => true, contato: "", ativo: "false");
         var r2 = await g2.BuscarHierarquicoAsync("Brasil", "SP", "Campinas", "");
         Assert.False(r2.Ok); Assert.Empty(f2.Chamadas); Assert.Contains("desativada", r2.Mensagem);
         var (g3, f3) = Novo(_ => true, contato: "");                                   // sem e-mail: funciona (contato é opcional)
         Assert.True((await g3.BuscarHierarquicoAsync("Brasil", "SP", "Campinas", "")).Ok);
+    }
+
+    [Fact]
+    public async Task Endereco_inteiro_num_campo_so_acha_rua_ou_cep_e_nao_cai_no_pais()
+    {
+        // ficha do técnico com tudo no campo de endereço e cidade/estado vazios
+        var (g, f) = Novo(q => q.ContainsKey("q"));
+        var r = await g.BuscarHierarquicoAsync("Brasil", "", "", "Rua das Flores, 120 - Centro, Sorocaba - SP, 18010-000");
+        Assert.Equal("endereco", r.Nivel); Assert.Equal(new[] { "endereco", "livre" }, f.Chamadas);
+        (g, f) = Novo(q => q.ContainsKey("postalcode"));
+        r = await g.BuscarHierarquicoAsync("Brasil", "", "", "Rua das Flores, 120 - Centro, Sorocaba - SP, 18010-000");
+        Assert.Equal("cep", r.Nivel); Assert.Equal(new[] { "endereco", "livre", "cep" }, f.Chamadas);
+        (g, f) = Novo(q => q.ContainsKey("city") && !q.ContainsKey("street"));
+        r = await g.BuscarHierarquicoAsync("Brasil", "", "", "Rua das Flores, 120 - Centro, Sorocaba - SP");
+        Assert.Equal("cidade", r.Nivel);                 // pior caso: cidade tirada do texto, nunca só o país
     }
 
     [Fact]
@@ -681,7 +699,7 @@ public class GeocodificacaoCascataTests
     [Fact]
     public async Task Planta_e_localizada_em_cascata_e_marca_o_nivel()
     {
-        using var a = new Amb(); var (g, _) = Novo(q => !q.ContainsKey("street"));
+        using var a = new Amb(); var (g, _) = Novo(q => !q.ContainsKey("street") && !q.ContainsKey("q"));
         var p = await a.Svc.SalvarPlantaAsync(a.Admin, new Planta { Nome = "P", Pais = "Brasil", Estado = "SP", Cidade = "Campinas", Rua = "Rua que não existe" }, g);
         Assert.True(p.TemCoord); Assert.Equal("ok", p.GeoStatus); Assert.Equal("cidade", p.GeoNivel); Assert.Contains("aproximada ao nível de cidade", p.GeoFonte);
         a.Svc.CorrigirPosicao(a.Admin, p.Id, -10, -40);
@@ -1027,5 +1045,35 @@ public class HistoricoViagemTests
         Assert.Contains(a.Svc.EventosDaViagem(v.Id), x => x.Acao == "viagem.criar");
         Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "viagem.historico");
         a.Svc.ExcluirViagem(a.Gestao, v.Id); Assert.Empty(a.Db.NotasViagem.Onde(x => x.ViagemId == v.Id));
+    }
+}
+
+public class EnderecoCasaTests
+{
+    [Theory]
+    [InlineData("Rua das Flores, 120 - Centro, Sorocaba - SP, 18010-000", "18010-000", "Sorocaba", "SP")]
+    [InlineData("Av. Brasil 500, Contagem/MG", "", "Contagem", "MG")]
+    [InlineData("Rodovia MG 050 Km 341 - Taboca", "", "", "")]
+    public void Decompoe_endereco_digitado_inteiro(string end, string cep, string cidade, string uf)
+    {
+        var (c, ci, u, rua) = Geocoder.Decompor(end);
+        Assert.Equal(cep, c); Assert.Equal(cidade, ci); Assert.Equal(uf, u); Assert.False(string.IsNullOrWhiteSpace(rua));
+    }
+
+    [Fact]
+    public void Foto_do_usuario_propria_ou_da_ficha_do_tecnico()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        a.Svc.SalvarUsuario(a.Admin, new Usuario { Id = "joao", Nome = "João", Papel = Roles.Tecnico, TecnicoId = t.Id }, "senha-forte-1");
+        a.Svc.SalvarUsuario(a.Admin, new Usuario { Id = "maria", Nome = "Maria", Papel = Roles.Controladoria }, "senha-forte-1");
+        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4 };
+        var maria = new Ator { Login = "maria", Nome = "Maria", Papel = Roles.Controladoria };
+        a.Svc.DefinirFotoUsuarioAsync(maria, "maria", "eu.png", new MemoryStream(png)).GetAwaiter().GetResult();
+        Assert.NotEqual("", a.Svc.FotoDoUsuario("maria"));
+        Assert.ThrowsAsync<UnauthorizedAccessException>(() => a.Svc.DefinirFotoUsuarioAsync(maria, "joao", "x.png", new MemoryStream(png))).GetAwaiter().GetResult();
+        Assert.Equal("", a.Svc.FotoDoUsuario("joao"));
+        a.Svc.DefinirFotoAsync(a.Gestao, t.Id, "t.png", new MemoryStream(png)).GetAwaiter().GetResult();
+        Assert.Equal(a.Db.Tecnicos.Obter(t.Id)!.FotoAnexoId, a.Svc.FotoDoUsuario("joao"));       // sem foto própria: usa a da ficha
+        Assert.True(a.Svc.PodeAcessar(a.Consulta, a.Db.Anexos.Obter(a.Svc.FotoDoUsuario("maria"))!));
     }
 }

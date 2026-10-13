@@ -674,3 +674,11 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .hv-txt { white-space: pre-wrap; word-break: break-word; font-size: 14px; color: #1d2b3f; line-height: 1.45; } .hv-txt.sm { font-size: 12.5px; color: #5b6b80; }
 .vg-abas { margin-bottom: 14px; }
 .panel-title > svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; color: #004785; }
+.mp-mapa { height: 300px; min-height: 0; }
+/* ---- foto do usuário ---- */
+.avatar-link { overflow: hidden; text-decoration: none; color: inherit; } .avatar-link img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.perfil-foto { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.perfil-img { width: 120px; height: 120px; border-radius: 50%; overflow: hidden; background: #004785; color: #fff; display: grid; place-items: center; font-size: 40px; font-weight: 800; flex: none; box-shadow: 0 4px 14px rgba(0,50,100,.2); }
+.perfil-img img { width: 100%; height: 100%; object-fit: cover; }
+.perfil-acoes { display: grid; gap: 8px; justify-items: start; }
+.user-av-mini { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; vertical-align: middle; }

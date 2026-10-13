@@ -50,6 +50,40 @@ public sealed partial class Servicos
         return s;
     }
 
+    /// <summary>Foto do usuário (topo da tela). A própria pessoa ou o administrador troca.</summary>
+    public async Task<Anexo> DefinirFotoUsuarioAsync(Ator ator, string login, string nome, Stream conteudo)
+    {
+        if (!string.Equals(ator.Login, login, StringComparison.OrdinalIgnoreCase)) ator.Exigir(Perm.Administrar);
+        var u = Db.Usuarios.Obter(login) ?? throw new ValidacaoException("Usuário não encontrado.");
+        var ext = Path.GetExtension(nome).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png")) throw new ValidacaoException("A foto deve ser JPG ou PNG.");
+        var anexo = await Arquivos.SalvarAsync(ator, "usuario", u.Id, nome, conteudo);
+        if (!string.IsNullOrEmpty(u.FotoAnexoId) && Db.Anexos.Obter(u.FotoAnexoId) is { } velho) Arquivos.Remover(velho);
+        u.FotoAnexoId = anexo.Id; Db.Usuarios.Salvar(u, ator.Login);
+        Auditar(ator, "usuario.foto", "usuario", u.Id, "Foto atualizada");
+        FotoMudou?.Invoke();
+        return anexo;
+    }
+
+    public void RemoverFotoUsuario(Ator ator, string login)
+    {
+        if (!string.Equals(ator.Login, login, StringComparison.OrdinalIgnoreCase)) ator.Exigir(Perm.Administrar);
+        var u = Db.Usuarios.Obter(login) ?? throw new ValidacaoException("Usuário não encontrado.");
+        if (Db.Anexos.Obter(u.FotoAnexoId) is { } a) Arquivos.Remover(a);
+        u.FotoAnexoId = ""; Db.Usuarios.Salvar(u, ator.Login); FotoMudou?.Invoke();
+    }
+
+    /// <summary>Foto a mostrar para o usuário: a dele; senão, a da ficha do técnico vinculado.</summary>
+    public string FotoDoUsuario(string login)
+    {
+        var u = Db.Usuarios.Obter(login);
+        if (u is null) return "";
+        if (!string.IsNullOrEmpty(u.FotoAnexoId)) return u.FotoAnexoId;
+        return string.IsNullOrEmpty(u.TecnicoId) ? "" : Db.Tecnicos.Obter(u.TecnicoId)?.FotoAnexoId ?? "";
+    }
+    public string FotoDoUsuarioPropria(string login) => Db.Usuarios.Obter(login)?.FotoAnexoId ?? "";
+    public event Action? FotoMudou;
+
     public async Task<Anexo> DefinirFotoAsync(Ator ator, string tecnicoId, string nome, Stream conteudo)
     {
         ator.Exigir(Perm.EditarTecnicos);
@@ -342,6 +376,7 @@ public sealed partial class Servicos
             case "tecnico":
                 return ator.VeTecnico(a.DonoId);
             case "marca":
+            case "usuario":
                 return true;
             default: return false;
         }
@@ -572,6 +607,18 @@ public sealed partial class Servicos
         return r;
     }
 
+    /// <summary>Posição da casa marcada à mão no mapa (quando o endereço não é encontrado com precisão).</summary>
+    public Tecnico DefinirCasaManual(Ator ator, string tecnicoId, double lat, double lon)
+    {
+        ator.Exigir(Perm.EditarTecnicos);
+        if (!Geo.CoordValida(lat, lon)) throw new ValidacaoException("Coordenadas inválidas.");
+        var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
+        t.CasaLat = lat; t.CasaLon = lon; t.CasaGeoNivel = "manual";
+        Db.Tecnicos.Salvar(t, ator.Login);
+        Auditar(ator, "tecnico.casa", "tecnico", t.Id, $"{t.Nome}: casa posicionada no mapa ({lat:0.#####}, {lon:0.#####})");
+        return t;
+    }
+
     public (string nome, string endereco, double? lat, double? lon) Howden()
     {
         var s = Foto(); return (s.HowdenNome, s.HowdenEndereco, s.HowdenLat, s.HowdenLon);
@@ -585,7 +632,7 @@ public sealed partial class Servicos
         if (nome.Length is < 2 or > 80) throw new ValidacaoException("Informe o nome do local (até 80 caracteres).");
         if ((lat.HasValue ^ lon.HasValue) || !(lat is null || Geo.CoordValida(lat, lon))) throw new ValidacaoException("Coordenadas inválidas.");
         GeoResultado? r = null;
-        if (lat is null && geo is { Configurado: true } && (cidade != "" || estado != "" || pais != ""))
+        if (lat is null && geo is { Configurado: true } && (endereco != "" || cidade != "" || estado != "" || pais != ""))
         {
             r = await geo.BuscarHierarquicoAsync(pais, estado, cidade, endereco);
             if (r.Ok) { lat = r.Lat; lon = r.Lon; }

@@ -291,4 +291,5 @@ public class Usuario : Entity
     public bool Ativo { get; set; } = true;
     /// <summary>Faz parte da equipe de controle de viagens (pode ser responsável por viagens).</summary>
     public bool EquipeControle { get; set; }
+    public string FotoAnexoId { get; set; } = "";
 }

@@ -53,10 +53,23 @@ public sealed class Geocoder
     {
         if (!Configurado) return new(false, null, null, "", Pendencia);
         pais = (pais ?? "").Trim(); estado = (estado ?? "").Trim(); cidade = (cidade ?? "").Trim(); endereco = (endereco ?? "").Trim();
+        var brasil = pais == "" || DocEngine.Norm(pais) is "brasil" or "brazil";
+        // endereço completo digitado num campo só ("Rua X, 100 - Bairro, Sorocaba - SP, 18000-000"): separa CEP, cidade e UF
+        var (cep, cidadeEnd, ufEnd, rua) = Decompor(endereco);
+        if (cidade == "" && cidadeEnd != "") cidade = cidadeEnd;
+        if (estado == "" && ufEnd != "") estado = ufEnd;
+        if (pais == "" && (cep != "" || ufEnd != "")) pais = "Brasil";
         // "MG" não é reconhecido de forma confiável como estado pelo serviço de mapas: expande a sigla brasileira para o nome
-        if (estado.Length == 2 && DocEngine.Norm(pais) is "brasil" or "brazil" && UfBrasil.TryGetValue(estado.ToUpperInvariant(), out var nomeUf)) estado = nomeUf;
+        if (estado.Length == 2 && brasil && UfBrasil.TryGetValue(estado.ToUpperInvariant(), out var nomeUf)) estado = nomeUf;
         var niveis = new List<(string nivel, Dictionary<string, string> q)>();
-        if (endereco != "" && cidade != "") niveis.Add(("endereco", Q(pais, estado, cidade, endereco)));
+        if (rua != "" && cidade != "") niveis.Add(("endereco", Q(pais, estado, cidade, rua)));
+        // texto livre com tudo o que foi informado: acha endereços que a busca por campos não acha (bairro, rodovia, km…)
+        if (endereco != "")
+        {
+            var livre = string.Join(", ", new[] { rua, cidade, estado, pais }.Where(x => x != "").Distinct(StringComparer.OrdinalIgnoreCase));
+            niveis.Add(("endereco", new Dictionary<string, string> { ["q"] = livre }));
+        }
+        if (cep != "" && brasil) niveis.Add(("cep", new Dictionary<string, string> { ["postalcode"] = cep, ["country"] = "Brasil" }));
         if (cidade != "") niveis.Add(("cidade", Q(pais, estado, cidade, null)));
         if (estado != "") niveis.Add(("estado", Q(pais, estado, null, null)));
         if (pais != "") niveis.Add(("pais", Q(pais, null, null, null)));
@@ -79,6 +92,30 @@ public sealed class Geocoder
             tentados.Add(nivel); ultimoErro = r.erro;
         }
         return new(false, null, null, "", ultimoErro ?? "Local não encontrado (país, estado, cidade e endereço).");
+    }
+
+    /// <summary>Separa de um endereço digitado inteiro: CEP, cidade e UF ("Sorocaba - SP", "Sorocaba/SP") e o resto (rua, número, bairro).</summary>
+    public static (string cep, string cidade, string uf, string rua) Decompor(string endereco)
+    {
+        var e = endereco ?? "";
+        var mc = System.Text.RegularExpressions.Regex.Match(e, @"\b(\d{5})-?(\d{3})\b");
+        var cep = mc.Success ? $"{mc.Groups[1].Value}-{mc.Groups[2].Value}" : "";
+        if (mc.Success) e = e.Remove(mc.Index, mc.Length);
+        e = System.Text.RegularExpressions.Regex.Replace(e, @"\bCEP\b:?", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        string cidade = "", uf = "";
+        var mu = System.Text.RegularExpressions.Regex.Matches(e, @"([A-Za-zÀ-ÿ'.\s]{3,}?)\s*[-/–]\s*([A-Za-z]{2})\b");
+        for (var i = mu.Count - 1; i >= 0; i--)
+        {
+            var m = mu[i];
+            if (!UfBrasil.ContainsKey(m.Groups[2].Value.ToUpperInvariant())) continue;
+            cidade = m.Groups[1].Value.Trim().Trim(',', '-').Trim(); uf = m.Groups[2].Value.ToUpperInvariant();
+            // "Rua X, 100, Centro, Sorocaba - SP": a cidade é o último pedaço antes da UF
+            if (cidade.Contains(',')) cidade = cidade[(cidade.LastIndexOf(',') + 1)..].Trim();
+            e = e.Remove(m.Index, m.Length).Insert(m.Index, ",");
+            break;
+        }
+        var rua = string.Join(", ", e.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(x => x.Trim('-', ' ') != ""));
+        return (cep, cidade, uf, rua.Trim().Trim(',', '-').Trim());
     }
 
     private static readonly Dictionary<string, string> UfBrasil = new()

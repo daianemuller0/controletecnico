@@ -52,6 +52,7 @@ else
         <span class="sep">·</span>
         <span title="Fora de viagem, no endereço do cadastro">@Icons.Svg("user")@_estados.Count(e => e.LocalFonte == "casa" && e.Status == Vocab.OpDisponivel) em casa</span>
         <span title="Fora de viagem, na empresa">@Icons.Svg("customers")@_estados.Count(e => e.LocalFonte == "howden") na @_snap.HowdenNome</span>
+        @if (_snap.HowdenLat is null && _estados.Any(e => e.LocalFonte == "howden")) { <a class="warn sm" href="/admin?aba=cfg" title="Sem coordenadas, quem está na Howden não aparece no mapa">@Icons.Svg("alert")endereço da Howden sem posição no mapa — configurar</a> }
         <span class="sep">·</span>
         <span>@_estados.Count técnico(s) ativos @(_estados.Count == 0 ? "" : "na visão")</span>
     </div>

@@ -177,3 +177,9 @@ Cada viagem tem a aba **Histórico da viagem** (ao lado de "Viagem"): a equipe e
 ### Viagem nova já completa
 
 Ao criar uma viagem, a tela já traz a **lista de verificação**, os **documentos da viagem**, a aba **Histórico da viagem** e o botão **E-mail da OS**. O que for marcado, anexado ou escrito antes de salvar é gravado junto com a viagem ao clicar em Salvar; o botão do e-mail salva a viagem e abre o e-mail em seguida.
+
+## Foto do usuário e localização da casa / Howden
+
+- **Foto do usuário**: clique no avatar do topo (ou no cadeado) → **Meu perfil**: enviar/trocar/remover a foto (JPG/PNG) e alterar a senha. O administrador também troca a foto em Administração → Usuários. Sem foto própria, usuário ligado a um técnico usa a foto da ficha.
+- **Casa do técnico**: o endereço pode ser digitado inteiro num campo só ("Rua X, 120 - Centro, Sorocaba - SP, 18010-000"): o sistema separa CEP, cidade e UF, tenta rua → texto livre → CEP → cidade → estado → país e só cai no país se nada mais existir. Se ainda assim não ficar exato, **Ajustar no mapa** na ficha: clique no mapa para marcar a casa (nível "manual").
+- **Howden South America**: em Administração → Configurações → Endereço da empresa, informe o endereço (ou **Ajustar a posição no mapa**) e salve. Sem coordenadas, quem está "na Howden" não aparece no mapa — a Visão operacional avisa com o link para configurar.

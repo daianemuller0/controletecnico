@@ -20,8 +20,10 @@
                     <div class="user-name">@context.User.Identity?.Name</div>
                     <div class="user-role">@Roles.Label(Roles.Normalize(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value))</div>
                 </div>
-                <div class="avatar">@Iniciais(context.User.Identity?.Name)</div>
-                <a class="icon-btn" href="/senha" title="Alterar minha senha">@Icons.Svg("lock")</a>
+                <a class="avatar avatar-link" href="/senha" title="Meu perfil: foto e senha">
+                    @if (Svc.FotoDoUsuario(_login) is { Length: > 0 } foto) { <img src="/arquivos/@foto" alt="Foto de @context.User.Identity?.Name" /> } else { @Iniciais(context.User.Identity?.Name) }
+                </a>
+                <a class="icon-btn" href="/senha" title="Meu perfil: foto e senha">@Icons.Svg("lock")</a>
                 <form method="post" action="/auth/logout">
                     <button class="icon-btn" type="submit" title="Sair">@Icons.Svg("logout")</button>
                 </form>
@@ -31,7 +33,8 @@
 </header>
 
 @code {
-    protected override void OnInitialized() { Sessao.Mudou += Ao; Svc.MarcaMudou += Ao; }
+    private string _login = "";
+    protected override async Task OnInitializedAsync() { Sessao.Mudou += Ao; Svc.MarcaMudou += Ao; Svc.FotoMudou += Ao; _login = (await Sessao.AtorAsync()).Login; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -39,7 +42,7 @@
         try { Sessao.Apresentacao = await JS.InvokeAsync<bool>("app.apresentacaoAtual"); } catch { }
     }
     private void Ao() => InvokeAsync(StateHasChanged);
-    public void Dispose() { Sessao.Mudou -= Ao; Svc.MarcaMudou -= Ao; }
+    public void Dispose() { Sessao.Mudou -= Ao; Svc.MarcaMudou -= Ao; Svc.FotoMudou -= Ao; }
 
     private async Task Alternar()
     {

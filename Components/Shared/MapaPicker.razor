@@ -1,0 +1,43 @@
+@* Mapa para posicionar um ponto à mão: clique no mapa ou arraste o marcador. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IConfiguration Cfg
+
+<div class="mp">
+    <div id="@_id" class="mapa mp-mapa" role="application" aria-label="Clique no mapa para posicionar"></div>
+    <div class="muted sm mt8">@Icons.Svg("pin")Clique no mapa (ou arraste o marcador) para marcar o local exato.</div>
+</div>
+
+@code {
+    [Parameter] public double? Lat { get; set; }
+    [Parameter] public double? Lon { get; set; }
+    [Parameter] public EventCallback<(double lat, double lon)> OnMudou { get; set; }
+    private readonly string _id = "mp" + Guid.NewGuid().ToString("N")[..8];
+    private DotNetObjectReference<MapaPicker>? _ref; private bool _pronto; private (double?, double?) _ultimo;
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        try
+        {
+            if (first)
+            {
+                _ref = DotNetObjectReference.Create(this);
+                _pronto = await JS.InvokeAsync<bool>("app.mapa.escolher", _id, _ref, Lat, Lon, new { centro = new[] { -15.0, -52.0 }, tileUrl = Cfg["Mapa:TileUrl"], atribuicao = Cfg["Mapa:Atribuicao"] });
+                _ultimo = (Lat, Lon);
+            }
+            else if (_pronto && (Lat, Lon) != _ultimo && Lat is { } la && Lon is { } lo)
+            {
+                _ultimo = (Lat, Lon); await JS.InvokeVoidAsync("app.mapa.definir", _id, la, lo);
+            }
+        }
+        catch { }
+    }
+
+    [JSInvokable] public async Task AoMover(double lat, double lon) { _ultimo = (lat, lon); await OnMudou.InvokeAsync((lat, lon)); }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("app.mapa.destruir", _id); } catch { }
+        _ref?.Dispose();
+    }
+}

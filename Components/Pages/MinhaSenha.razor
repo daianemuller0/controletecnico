@@ -2,23 +2,48 @@
 @attribute [Authorize]
 @inject Servicos Svc
 @inject Sessao Sessao
-<PageTitle>Alterar senha · Controle Técnico</PageTitle>
-<div class="page-head compacto"><div><h1>Alterar minha senha</h1></div></div>
-<div class="panel" style="max-width:480px">
-    @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
-    @if (_ok) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Senha alterada.</div></div> }
-    <div class="form-grid">
-        <label class="fld full">Senha atual<input type="password" @bind="_atual" autocomplete="current-password" /></label>
-        <label class="fld full">Nova senha (mín. 8 caracteres)<input type="password" @bind="_nova" autocomplete="new-password" /></label>
-    </div>
-    <div class="modal-actions"><button class="btn-primary" @onclick="Salvar">@Icons.Svg("check")Alterar</button></div>
+<PageTitle>Meu perfil · Controle Técnico</PageTitle>
+<div class="page-head compacto"><div><h1>Meu perfil</h1><p class="subtitle">Sua foto aparece no topo da tela; a senha é pessoal.</p></div></div>
+<div class="g12 top">
+    <div class="c6"><div class="panel">
+        <div class="panel-head"><div class="panel-title">@Icons.Svg("user")Minha foto</div></div>
+        <div class="perfil-foto">
+            <div class="perfil-img">@if (_foto != "") { <img src="/arquivos/@_foto" alt="Minha foto" /> } else { <span>@Sigla()</span> }</div>
+            <div class="perfil-acoes">
+                <label class="btn-primary file-btn">@Icons.Svg("upload")@(_foto == "" ? "Enviar foto" : "Trocar foto")<InputFile OnChange="Enviar" accept=".jpg,.jpeg,.png" /></label>
+                @if (_temPropria) { <button class="btn-danger-ghost" @onclick="Remover">@Icons.Svg("trash")Remover</button> }
+                <div class="muted sm">JPG ou PNG, até 15 MB. De preferência quadrada, com o rosto centralizado.</div>
+            </div>
+        </div>
+        @if (_errosFoto is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosFoto) { <div>@e</div> }</div></div> }
+    </div></div>
+    <div class="c6"><div class="panel">
+        <div class="panel-head"><div class="panel-title">@Icons.Svg("lock")Alterar minha senha</div></div>
+        @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+        @if (_ok) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Senha alterada.</div></div> }
+        <div class="form-grid">
+            <label class="fld full">Senha atual<input type="password" @bind="_atual" autocomplete="current-password" /></label>
+            <label class="fld full">Nova senha (mín. 8 caracteres)<input type="password" @bind="_nova" autocomplete="new-password" /></label>
+        </div>
+        <div class="modal-actions"><button class="btn-primary" @onclick="Salvar">@Icons.Svg("check")Alterar</button></div>
+    </div></div>
 </div>
 @code {
-    private string _atual = "", _nova = ""; private List<string>? _erros; private bool _ok;
+    private string _atual = "", _nova = "", _foto = ""; private List<string>? _erros, _errosFoto; private bool _ok, _temPropria; private Ator _ator = new();
+    protected override async Task OnInitializedAsync() { _ator = await Sessao.AtorAsync(); Carregar(); }
+    private void Carregar() { _foto = Svc.FotoDoUsuario(_ator.Login); _temPropria = _foto != "" && _foto == (Svc.FotoDoUsuarioPropria(_ator.Login)); }
+    private string Sigla() => string.Concat((_ator.Nome ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+    private async Task Enviar(InputFileChangeEventArgs e)
+    {
+        _errosFoto = null;
+        try { await using var s = e.File.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.DefinirFotoUsuarioAsync(_ator, _ator.Login, e.File.Name, s); Carregar(); Sessao.Avisar("Foto atualizada."); }
+        catch (Exception ex) { _errosFoto = Ui.Erros(ex); }
+    }
+    private void Remover() { try { Svc.RemoverFotoUsuario(_ator, _ator.Login); Carregar(); Sessao.Avisar("Foto removida."); } catch (Exception ex) { _errosFoto = Ui.Erros(ex); } }
     private async Task Salvar()
     {
         _erros = null; _ok = false;
-        try { Svc.AlterarSenha(await Sessao.AtorAsync(), _atual, _nova); _ok = true; _atual = _nova = ""; }
+        try { Svc.AlterarSenha(_ator, _atual, _nova); _ok = true; _atual = _nova = ""; }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
 }
