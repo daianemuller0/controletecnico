@@ -1,0 +1,104 @@
+@* E-mail da Ordem de Serviço: monta o texto padrão da equipe, deixa editar a parte de baixo e abre no Outlook (com a assinatura) ou gera .eml. *@
+@inject Servicos Svc
+@inject Db Db
+@inject Sessao Sessao
+@inject DownloadsTemporarios Dl
+@inject IJSRuntime JS
+
+<Dialogo Titulo="E-mail da Ordem de Serviço" Largo="true" OnFechar="OnFechar" Erros="_erros">
+    @if (_r is null) { <div class="muted">Carregando…</div> }
+    else
+    {
+        <div class="os-grid">
+            <div class="os-form">
+                <label class="fld">Para <span class="hint">e-mail dos técnicos (do cadastro)</span><input @bind="_r.Para" /></label>
+                @if (_r.SemEmail.Count > 0) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>Sem e-mail no cadastro: <strong>@string.Join(", ", _r.SemEmail)</strong>. Informe na ficha do técnico ou digite acima.</div></div> }
+                <label class="fld">Cc <span class="hint">opcional · separe com ;</span><input @bind="_r.Cc" /></label>
+                <label class="fld">Assunto<input @bind="_r.Assunto" /></label>
+                <label class="fld">Saudação <span class="hint">bom dia / boa tarde / boa noite pelo horário</span><input @bind="_r.Saudacao" /></label>
+                <label class="fld">Endereço do cliente<input @bind="_r.Endereco" /></label>
+                <label class="fld">Itinerário<input @bind="_r.Datas" /></label>
+                <div class="os-linhas">
+                    <div class="os-l"><label class="chk-inline"><input type="checkbox" @bind="_r.UsaHotel" /><b>Hotel:</b></label><input @bind="_r.Hotel" disabled="@(!_r.UsaHotel)" /></div>
+                    <div class="os-l"><label class="chk-inline"><input type="checkbox" @bind="_r.UsaCarro" /><b>Carro:</b></label><input @bind="_r.Carro" disabled="@(!_r.UsaCarro)" /></div>
+                    <div class="os-l"><label class="chk-inline"><input type="checkbox" @bind="_r.UsaVoo" /><b>Voo:</b></label><input @bind="_r.Voo" disabled="@(!_r.UsaVoo)" /></div>
+                </div>
+                <label class="fld">Contato <span class="hint">contato do cliente</span><textarea rows="3" @bind="_r.Contato" placeholder="Nome, cargo, empresa, telefone, e-mail"></textarea></label>
+                <label class="fld">Escopo do Serviço<textarea rows="3" @bind="_r.Escopo" placeholder="Ex.: Levantamento em campo."></textarea></label>
+                <label class="fld">Informações adicionais<textarea rows="3" @bind="_r.Info" placeholder="Ex.: Horário de trabalho, regras de acesso, desmobilização…"></textarea></label>
+                <div class="fld"><span>Anexos <span class="hint">documentos da viagem</span></span>
+                    @if (_anexos.Count == 0) { <div class="muted sm">Nenhum documento anexado à viagem.</div> }
+                    @foreach (var a in _anexos) { <label class="chk-inline os-anexo"><input type="checkbox" checked="@_r.AnexoIds.Contains(a.Id)" @onchange="e => Alternar(a.Id, (bool)e.Value!)" />@Icons.Svg("paperclip")@a.NomeOriginal <span class="muted sm">(@(a.Tamanho / 1024) KB)</span></label> }
+                </div>
+                <label class="chk-inline"><input type="checkbox" @bind="_marcar" />Marcar "Ordem de Serviço" na lista de verificação</label>
+            </div>
+            <div class="os-prev">
+                <div class="os-prev-cab"><div><b>Assunto:</b> @_r.Assunto</div><div><b>Para:</b> @_r.Para</div>@if (!string.IsNullOrWhiteSpace(_r.Cc)) { <div><b>Cc:</b> @_r.Cc</div> }
+                    @if (_r.AnexoIds.Count > 0) { <div class="os-prev-anexos">@foreach (var a in _anexos.Where(x => _r.AnexoIds.Contains(x.Id))) { <span>@Icons.Svg("paperclip")@a.NomeOriginal</span> }</div> }</div>
+                <div class="os-prev-corpo">@((MarkupString)EmailOs.Html(_r))<div class="os-assin">— sua assinatura padrão do Outlook entra aqui —</div></div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-ghost" @onclick="OnFechar">Fechar</button>
+            <button class="btn-ghost" @onclick="Baixar" disabled="@_ocupado">@Icons.Svg("download")Baixar e-mail (.eml)</button>
+            <button class="btn-primary" @onclick="Outlook" disabled="@_ocupado">@Icons.Svg("mail")@(_ocupado ? "Abrindo…" : "Abrir no Outlook")</button>
+        </div>
+        <p class="muted sm">"Abrir no Outlook" cria o e-mail no Outlook deste computador já com a sua assinatura padrão, os anexos e o texto — é só conferir e enviar. O ".eml" abre como e-mail novo no Outlook (use Inserir → Assinatura, se ela não vier).</p>
+    }
+</Dialogo>
+
+@code {
+    [Parameter, EditorRequired] public string ViagemId { get; set; } = "";
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public EventCallback OnGerado { get; set; }
+    private EmailOs.Rascunho? _r; private List<Anexo> _anexos = new(); private List<string>? _erros; private bool _ocupado, _marcar = true;
+
+    protected override void OnInitialized()
+    {
+        try { _r = Svc.RascunhoOs(Ator, ViagemId); _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == ViagemId).OrderBy(a => a.NomeOriginal).ToList(); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+    private void Alternar(string id, bool on) { if (on) { if (!_r!.AnexoIds.Contains(id)) _r.AnexoIds.Add(id); } else _r!.AnexoIds.Remove(id); }
+
+    private bool Conferir()
+    {
+        _erros = null;
+        if (string.IsNullOrWhiteSpace(_r!.Para)) { _erros = new() { "Informe ao menos um destinatário (e-mail do técnico)." }; return false; }
+        if (string.IsNullOrWhiteSpace(_r.Assunto)) { _erros = new() { "Informe o assunto." }; return false; }
+        return true;
+    }
+
+    private async Task Outlook()
+    {
+        if (!Conferir()) return;
+        _ocupado = true; StateHasChanged();
+        try
+        {
+            Svc.SalvarTextosOs(Ator, ViagemId, _r!);
+            var arqs = Svc.ArquivosDaViagem(Ator, ViagemId, _r!.AnexoIds).Select(a => (a.nome, a.dados));
+            var (ok, msg) = await EmailOs.AbrirNoOutlookAsync(_r, arqs);
+            if (ok) { Svc.RegistrarOs(Ator, ViagemId, _r, "aberto no Outlook", _marcar); Sessao.Avisar(msg); await OnGerado.InvokeAsync(); }
+            else _erros = new() { msg };
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _ocupado = false;
+    }
+
+    private async Task Baixar()
+    {
+        if (!Conferir()) return;
+        _ocupado = true;
+        try
+        {
+            Svc.SalvarTextosOs(Ator, ViagemId, _r!);
+            var eml = EmailOs.Eml(_r!, Svc.ArquivosDaViagem(Ator, ViagemId, _r!.AnexoIds));
+            var token = Dl.Guardar(eml, EmailOs.NomeSeguro(_r!.Assunto) + ".eml", "message/rfc822", Ator.Login);
+            Svc.RegistrarOs(Ator, ViagemId, _r!, "gerado (.eml)", _marcar);
+            await JS.InvokeVoidAsync("app.baixarUrl", $"/download/{token}");
+            Sessao.Avisar("E-mail gerado: abra o arquivo .eml baixado no Outlook e clique em Enviar."); await OnGerado.InvokeAsync();
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _ocupado = false;
+    }
+}

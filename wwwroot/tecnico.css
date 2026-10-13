@@ -596,3 +596,58 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .base-seg { display: flex; margin-top: 6px; } .base-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .base-seg button svg { width: 14px; height: 14px; }
 .casa-geo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .casa-geo .tag svg { width: 12px; height: 12px; }
+
+/* ---- lista de verificação da viagem ---- */
+.ck { padding: 16px 16px 12px; }
+.ck-topo { display: flex; gap: 14px; align-items: center; margin-bottom: 10px; }
+.ck-anel { width: 92px; height: 92px; flex: none; } .ck-arco { transition: stroke-dasharray .6s ease; }
+.ck-pct { font-size: 18px; font-weight: 800; }
+.ck-resumo { flex: 1; min-width: 0; } .ck-tit { font-weight: 800; font-size: 15px; color: #1d2b3f; } .ck-sub { font-size: 13px; color: #5b6b80; margin: 2px 0 6px; }
+.ck-mosaico { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; } .ck-mosaico i { width: 11px; height: 11px; border-radius: 3px; background: #ece9fb; transition: background .3s; }
+.ck-selo { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+.ck-selo svg { width: 13px; height: 13px; } .ck-selo.ok { background: #e3f6ea; color: #1f9254; } .ck-selo.lib { background: #ece9fb; color: #5b4bd6; } .ck-selo.pend { background: #fff3e6; color: #b45309; }
+.ck-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 520px; overflow-y: auto; }
+.ck-lista li { display: flex; align-items: center; border-radius: 8px; } .ck-lista li:hover { background: #f5f3ff; }
+.ck-lista li.marco .ck-txt { font-weight: 700; }
+.ck-item { flex: 1; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 6px 6px; text-align: left; cursor: pointer; font: inherit; color: #1d2b3f; min-width: 0; }
+.ck-item:disabled { cursor: default; }
+.ck-bola { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #9a90e8; flex: none; display: grid; place-items: center; transition: all .2s; }
+.ck-bola svg { width: 12px; height: 12px; color: #fff; stroke-width: 3; }
+.feito .ck-bola { background: #6c5ce7; border-color: #6c5ce7; animation: ckPop .3s ease; }
+.ck-txt { display: grid; font-size: 13.5px; line-height: 1.25; min-width: 0; } .ck-txt small { font-size: 11px; color: #8793a6; }
+.feito .ck-txt { color: #5b6b80; }
+.ck-x { border: 0; background: none; color: #b5bdc9; font-size: 16px; cursor: pointer; padding: 0 8px; opacity: 0; } li:hover .ck-x { opacity: 1; } .ck-x:hover { color: #c0392b; }
+.ck-add { display: flex; align-items: center; gap: 10px; padding: 6px; } .ck-bola.vazio { border-style: dashed; border-color: #c4bdf3; }
+.ck-add input { flex: 1; border: 0; border-bottom: 1px dashed #d5d0f5; background: none; font: inherit; font-size: 13.5px; padding: 4px 0; outline: none; } .ck-add input:focus { border-bottom-color: #6c5ce7; }
+@keyframes ckPop { 0% { transform: scale(.6); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
+.ck-mini { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5b6b80; white-space: nowrap; }
+.ck-mini .b { width: 56px; height: 6px; border-radius: 4px; background: #ece9fb; overflow: hidden; display: inline-block; } .ck-mini .b span { display: block; height: 100%; background: #6c5ce7; }
+.ck-mini.ok .b span { background: #1f9254; }
+
+/* ---- documentos da viagem ---- */
+.dv-botoes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 6px; }
+.dv-add { position: relative; display: grid; justify-items: center; gap: 2px; padding: 10px 6px; border: 1.5px dashed #b9cde4; border-radius: 12px; background: #f6f9fd; cursor: pointer; color: #004785; text-align: center; transition: all .15s; }
+.dv-add:hover { background: #eaf2fb; border-color: #004785; }
+.dv-add svg { width: 22px; height: 22px; } .dv-add span { font-weight: 700; font-size: 13px; } .dv-add small { font-size: 11px; color: #6b7a90; }
+.dv-add input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.dv-vazio { margin-top: 10px; padding: 14px; border-radius: 10px; background: #f6f8fb; color: #6b7a90; font-size: 13px; text-align: center; }
+.dv-grupo { margin-top: 10px; } .dv-gtit { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #5b6b80; margin-bottom: 4px; }
+.dv-gtit svg { width: 14px; height: 14px; }
+@media (max-width: 760px) { .dv-botoes { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---- e-mail da Ordem de Serviço ---- */
+.os-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 16px; }
+.os-form { display: grid; gap: 8px; align-content: start; max-height: 66vh; overflow-y: auto; padding-right: 6px; }
+.os-linhas { display: grid; gap: 6px; } .os-l { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; } .os-l input[type=text], .os-l input:not([type]) { height: 32px; }
+.os-anexo { display: flex; gap: 6px; align-items: center; } .os-anexo svg { width: 13px; height: 13px; }
+.os-prev { border: 1px solid var(--border, #dde3ea); border-radius: 12px; background: #fff; overflow: hidden; display: flex; flex-direction: column; max-height: 66vh; }
+.os-prev-cab { background: #f4f6f9; padding: 10px 14px; font-size: 12.5px; display: grid; gap: 3px; border-bottom: 1px solid var(--border, #dde3ea); }
+.os-prev-anexos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; } .os-prev-anexos span { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1px solid #dde3ea; border-radius: 6px; padding: 2px 7px; font-size: 11.5px; }
+.os-prev-anexos svg { width: 12px; height: 12px; }
+.os-prev-corpo { padding: 12px 16px; overflow-y: auto; } .os-assin { margin-top: 14px; padding: 8px; border: 1px dashed #c9d3df; border-radius: 8px; color: #8793a6; font-size: 12px; text-align: center; }
+@media (max-width: 1000px) { .os-grid { grid-template-columns: 1fr; } }
+.tabs .tab svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 5px; }
+.tab-n { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: #e8eef5; font-size: 11.5px; font-weight: 700; color: #34465c; text-align: center; }
+.tab.active .tab-n { background: #004785; color: #fff; }
+.os-l input { width: 100%; height: 32px; border: 1px solid var(--border, #dde3ea); border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13.5px; }
+.os-btn .tag { margin-left: 6px; }

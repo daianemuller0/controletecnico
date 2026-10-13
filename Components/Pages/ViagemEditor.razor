@@ -28,6 +28,7 @@ else
             <button class="btn-ghost" @onclick="@(() => Salvar(null))">@Icons.Svg("check")Salvar</button>
             @if (_v.Status is Vocab.ViagemRascunho) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemPlanejada))">Salvar como planejada</button> }
             @if (_v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConfirmada))" disabled="@(!_res.PodeConfirmar)" title="@(_res.PodeConfirmar ? "" : "Há pendências que impedem a confirmação (veja ao lado)")">@Icons.Svg("check")Confirmar viagem</button> }
+            @if (!_novo) { <button class="btn-ghost os-btn" @onclick="@(() => _email = true)">@Icons.Svg("mail")<span>E-mail da OS</span>@if (_v.OsGeradoEm is not null) { <span class="tag ok">enviado</span> }</button> }
             @if (_v.Status == Vocab.ViagemConfirmada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemAndamento))">@Icons.Svg("play")Iniciar</button> }
             @if (_v.Status == Vocab.ViagemAndamento) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConcluida))">@Icons.Svg("flag")Concluir</button> }
             @if (!_novo && _v.Status != Vocab.ViagemCancelada && _v.Status != Vocab.ViagemConcluida) { <button class="btn-danger-ghost" @onclick="@(() => _cancelando = true)">@Icons.Svg("x")Cancelar viagem</button> }
@@ -54,7 +55,12 @@ else
         <label class="fld">Serviço previsto<SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
         <label class="fld">Origem <span class="hint">resumo</span><input @bind="_v.Origem" /></label>
         <label class="fld">Destino <span class="hint">resumo</span><input @bind="_v.Destino" /></label>
-        <label class="fld">Responsável pelo planejamento<input @bind="_v.Responsavel" /></label>
+        <label class="fld">Responsável da viagem <span class="hint">equipe de controle</span>
+            <select value="@_v.ResponsavelLogin" @onchange="AoResponsavel">
+                <option value="">— sem responsável —</option>
+                @foreach (var u in _equipe) { <option value="@u.Id">@(string.IsNullOrWhiteSpace(u.Nome) ? u.Id : u.Nome)</option> }
+                @if (!string.IsNullOrEmpty(_v.ResponsavelLogin) && !_equipe.Any(u => u.Id == _v.ResponsavelLogin)) { <option value="@_v.ResponsavelLogin">@_v.Responsavel</option> }
+            </select></label>
         <label class="fld">Janela diária de atendimento — início<input type="time" value="@_v.JanelaInicio" @onchange="e => _v.JanelaInicio = e.Value?.ToString() ?? string.Empty" /></label>
         <label class="fld">Janela diária — fim<input type="time" value="@_v.JanelaFim" @onchange="e => _v.JanelaFim = e.Value?.ToString() ?? string.Empty" /></label>
         <label class="fld">Status<select @bind="_v.Status" @bind:after="Validar">@foreach (var s in Vocab.StatusViagem) {<option value="@s.Key">@s.Label</option>}</select></label>
@@ -158,25 +164,13 @@ else
 
 @if (!_novo)
 {
-    <div class="panel mt16">
-        <div class="panel-head"><div class="panel-title">Documentos e anexos da viagem <span class="hint">bilhetes, vouchers, itinerários</span></div></div>
-        @if (!_verAnexos) { <div class="muted">@Icons.Svg("lock")Anexos ocultos @(Sessao.Apresentacao ? "no modo apresentação" : "para o seu perfil").</div> }
-        else
-        {
-            @foreach (var an in _anexos) {
-                <div class="anexo">@Icons.Svg("paperclip")<a href="/arquivos/@an.Id" target="_blank" rel="noopener">@an.NomeOriginal</a>
-                    <a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal">@Icons.Svg("download")</a>
-                    @if (_pode) { <button class="row-act del" @onclick="() => RemoverAnexo(an)" title="Remover">@Icons.Svg("x")</button> }</div> }
-            @if (_anexos.Count == 0) { <div class="muted">Nenhum anexo.</div> }
-            @if (_pode) { <div class="fld mt8"><span>Adicionar (PDF, JPG ou PNG, até 15 MB)</span><InputFile OnChange="AoAnexar" multiple accept=".pdf,.jpg,.jpeg,.png" /></div> }
-            @if (!string.IsNullOrEmpty(_msgAnexo)) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@_msgAnexo</div></div> }
-        }
-    </div>
+    <div class="mt16"><DocumentosViagem ViagemId="@Id" Ator="@_ator" Pode="@_pode" VerAnexos="@_verAnexos" /></div>
 }
 </div>
 
 <aside class="vg-lado">
-    <div class="panel">
+    @if (!_novo) { <ChecklistViagem ViagemId="@Id" Itens="@Checklist.Ler(_v.Checklist)" Pode="@_pode" Sessao_Fuso="@_snap.FusoPadrao" OnMudou="@((List<Checklist.Item> l) => { _v.Checklist = Checklist.Gravar(l); })" /> }
+    <div class="panel @(_novo ? "" : "mt16")">
         <div class="panel-head"><div class="panel-title">Controle dos tempos</div></div>
         <table class="tempos">
             <tr><th>Deslocamento de ida</th><td>@Tmp(_tIda)</td></tr>
@@ -218,6 +212,8 @@ else
 }
 }
 
+@if (_email) { <EmailOsDialogo ViagemId="@Id" Ator="@_ator" OnFechar="@(() => _email = false)" OnGerado="@(() => { var x = Svc.Foto().Viagem(Id); if (x is not null) { _v.Checklist = x.Checklist; _v.OsGeradoEm = x.OsGeradoEm; } })" /> }
+
 @code {
     [Parameter] public string Id { get; set; } = "";
 
@@ -229,7 +225,15 @@ else
 
     private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(c.Id); }
-    private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verReserva, _verAnexos;
+    private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verReserva, _verAnexos, _email;
+    private List<Usuario> _equipe = new();
+    private void AoResponsavel(ChangeEventArgs e)
+    {
+        var login = e.Value?.ToString() ?? "";
+        if (_novo) { _v.ResponsavelLogin = login; _v.Responsavel = _equipe.FirstOrDefault(u => u.Id == login)?.Nome ?? ""; return; }
+        try { var v = Svc.DefinirResponsavel(_ator, Id, login); _v.ResponsavelLogin = v.ResponsavelLogin; _v.Responsavel = v.Responsavel; Sessao.Avisar(string.IsNullOrEmpty(v.Responsavel) ? "Viagem sem responsável." : $"Responsável: {v.Responsavel}."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
     private Viagem _v = new(); private HashSet<string> _tecs = new(); private List<TrechoVm> _tr = new(); private List<AtendVm> _at = new();
     private ResultadoViagem _res = new(); private List<string>? _erros; private List<Anexo> _anexos = new(); private string? _msgAnexo, _motivo;
     private bool _cancelando; private string? _pedirCidade;
@@ -248,11 +252,11 @@ else
 
     private void Carregar()
     {
-        _snap = Svc.Foto(); _erros = null; _novo = Id == "novo";
+        _snap = Svc.Foto(); _erros = null; _novo = Id == "novo"; _equipe = Svc.EquipeControle();
         _pode = _ator.Pode(Perm.EditarViagens);
         if (_novo)
         {
-            _ok = _pode; _v = new Viagem { Responsavel = _ator.Nome }; _tecs = new(); _tr = new(); _at = new();
+            _ok = _pode; _v = new Viagem(); if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); _tr = new(); _at = new();
         }
         else
         {

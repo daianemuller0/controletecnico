@@ -19,6 +19,9 @@ public static class Seed
         if (!demo) return;
         U("gestao", "Marina Gestora", Roles.Gestao);
         U("controladoria", "Paulo Controladoria", Roles.Controladoria);
+        U("ana", "Ana Controle", Roles.Controladoria);
+        U("rayssa", "Rayssa Controle", Roles.Controladoria);
+        foreach (var l in new[] { "ana", "rayssa" }) { var u = db.Usuarios.Obter(l)!; u.EquipeControle = true; db.Usuarios.Salvar(u, "seed"); }
         U("consulta", "Visitante (consulta)", Roles.Consulta);
         U("carlos", "Carlos Mendes", Roles.Tecnico, "tec_carlos");
     }
@@ -302,6 +305,15 @@ public static class Seed
         var a8 = At("v8a1", "v8", "tec_marcos", "cli_min", "pl_tub", "srv_bal", H(-10, 8), H(-6, 17), 32); a8.IniReal = H(-10, 8); a8.FimReal = H(-6, 16); a8.HorasReal = 33;
         atends.Add(a8);
 
+        // equipe de controle e lista de verificação (demonstração)
+        var k = 0;
+        foreach (var vg in viagens)
+        {
+            vg.ResponsavelLogin = k % 2 == 0 ? "ana" : "rayssa"; vg.Responsavel = k % 2 == 0 ? "Ana Controle" : "Rayssa Controle";
+            var ck = Checklist.Novo(); var feitos = vg.Status switch { Vocab.ViagemConcluida => ck.Count, Vocab.ViagemAndamento => 12, Vocab.ViagemConfirmada => 9, Vocab.ViagemPlanejada => 4, _ => 1 };
+            for (var i = 0; i < Math.Min(feitos, ck.Count); i++) { ck[i].Feito = true; ck[i].Por = vg.Responsavel; ck[i].Em = DateTime.UtcNow.AddDays(-(feitos - i)); }
+            vg.Checklist = Checklist.Gravar(ck); k++;
+        }
         db.Viagens.SalvarVarios(viagens, "seed");
         db.Trechos.SalvarVarios(trechos, "seed");
         db.Atendimentos.SalvarVarios(atends, "seed");

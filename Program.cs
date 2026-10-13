@@ -76,6 +76,7 @@ builder.Services.AddDataProtection().SetApplicationName("ControleTecnico")
 builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton<Armazenamento>();
 builder.Services.AddSingleton<Servicos>();
+builder.Services.AddSingleton<DownloadsTemporarios>();
 builder.Services.AddSingleton<BuscaPlantas>();
 builder.Services.AddSingleton<Importador>();
 builder.Services.AddSingleton<ImportadorTecnicos>();
@@ -178,6 +179,16 @@ app.MapGet("/marca/{tipo}", (string tipo, HttpContext http, Servicos svc, Armaze
 app.MapGet("/saude", () => Results.Ok("ok")).AllowAnonymous();
 
 // ---- anexos: sempre mediados pelo servidor, com a regra de acesso ----
+app.MapGet("/download/{token}", (string token, HttpContext http, DownloadsTemporarios dl) =>
+{
+    var ator = Ator.De(http.User);
+    if (dl.Retirar(token, ator.Login) is not { } f) return Results.NotFound("Link expirado: gere o arquivo de novo.");
+    var ascii = new string(f.nome.Replace("–", "-").Normalize(System.Text.NormalizationForm.FormD).Where(c => c < 128 && c != '"' && !char.IsControl(c)).ToArray());
+    http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{ascii}\"; filename*=UTF-8''{Uri.EscapeDataString(f.nome)}";
+    http.Response.Headers["Cache-Control"] = "private, no-store";
+    return Results.Bytes(f.dados, f.tipo);
+}).RequireAuthorization();
+
 app.MapGet("/arquivos/{id}", (string id, bool? baixar, HttpContext http, Db db, Servicos svc, Armazenamento arq) =>
 {
     var ator = Ator.De(http.User);

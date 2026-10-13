@@ -95,6 +95,20 @@ public class Viagem : Entity
     public string Projeto { get; set; } = "";
     /// <summary>Equipamentos atendidos, um por linha.</summary>
     public string Equipamentos { get; set; } = "";
+    /// <summary>Login da responsável pela viagem (equipe de controle). "Minhas viagens" filtra por ele.</summary>
+    public string ResponsavelLogin { get; set; } = "";
+    /// <summary>Lista de verificação (JSON): itens, feito, quem e quando.</summary>
+    public string Checklist { get; set; } = "";
+    // ---- e-mail da Ordem de Serviço (textos editados pela equipe, guardados para o próximo envio)
+    public string OsCc { get; set; } = "";
+    public string OsHotel { get; set; } = "";
+    public string OsCarro { get; set; } = "";
+    public string OsVoo { get; set; } = "";
+    public string OsContato { get; set; } = "";
+    public string OsEscopo { get; set; } = "";
+    public string OsInfo { get; set; } = "";
+    public DateTime? OsGeradoEm { get; set; }
+    public string OsGeradoPor { get; set; } = "";
     public string ClienteId { get; set; } = "";
     public string PlantaId { get; set; } = "";       // destino principal
     public string ServicoId { get; set; } = "";
@@ -217,6 +231,8 @@ public class Anexo : Entity
     public string DonoTipo { get; set; } = "";
     public string DonoId { get; set; } = "";
     public string NomeOriginal { get; set; } = "";
+    /// <summary>Documentos de viagem: voo | hotel | carro | outro.</summary>
+    public string Categoria { get; set; } = "";
     public string ContentType { get; set; } = "";
     public long Tamanho { get; set; }
     public string Chave { get; set; } = "";
@@ -258,4 +274,6 @@ public class Usuario : Entity
     public string Salt { get; set; } = "";
     public string TecnicoId { get; set; } = "";
     public bool Ativo { get; set; } = true;
+    /// <summary>Faz parte da equipe de controle de viagens (pode ser responsável por viagens).</summary>
+    public bool EquipeControle { get; set; }
 }

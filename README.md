@@ -159,3 +159,13 @@ Técnico **sem programação** agora conta como **Disponível** (a ficha avisa q
 ## Identidade visual (menu lateral)
 
 Item **Identidade visual** no menu lateral (seção Sistema, só para o administrador), como no projeto axiaisvent: troca o **logo da página de entrada** (tela de login) e o **logo do sistema** (barra lateral), além do nome/subtítulo usados quando não há logo. PNG, JPG, SVG ou WebP até 3 MB; vale para todos na hora e "Remover" volta ao padrão.
+
+## Controle das viagens pela equipe de serviços (e-mail de outubro/2026)
+
+- **Lista de verificação em cada viagem** (coluna da direita da viagem): os 17 itens padrão (Solicitação de Serviço (PJ), LGPD, Documentação, Integração, Política de viagem, Adiantamento, Voo, Hotel, Carro, LIBERADO PARA ENTRADA NO CLIENTE, Desenhos no TEAMS, Ordem de Serviço, Itens arquivados no PV, Relatório de Despesas, Relatório Assessoria, POWRA, Cobrança (Rayssa)). Clique no item para marcar como pronto (fica registrado quem e quando); "Adicionar um item" e × para remover. Anel de progresso, mosaico e selo ("Liberado para entrada no cliente", "Tudo pronto!"); a lista de viagens mostra a barra 12/17.
+- **Responsável da viagem e "Minhas viagens"**: em Administração → Usuários marque **Equipe de controle de viagens** nas duas usuárias (perfil Controladoria). Cada viagem tem a **Responsável** (trocável a qualquer momento, com histórico) e a Controladoria abre na aba **Minhas viagens**.
+- **Documentos da viagem**: botões **Voo/passagem, Hotel, Carro, Outros** (PDF, JPG, PNG ou e-mail salvo .msg/.eml).
+- **E-mail da OS** (botão no topo da viagem): para os e-mails dos técnicos do cadastro; assunto *Projeto – VISITA TÉCNICA – Unidade*; saudação com bom dia/boa tarde/boa noite pelo horário; ORDEM DE SERVIÇO – VISITA TÉCNICA – Unidade; endereço do cliente; "A viagem será em dd/mm com retorno previsto para dd/mm" (pelas datas da viagem); Hotel/Carro/Voo, Contato, Escopo do Serviço e Informações adicionais editáveis (ficam guardados na viagem); anexa os documentos escolhidos.
+  - **Abrir no Outlook**: cria o e-mail no Outlook do computador onde o sistema está rodando, **com a assinatura padrão** de quem envia (Windows + Outlook instalado).
+  - **Baixar e-mail (.eml)**: alternativa; o Outlook abre como e-mail novo com os anexos (a assinatura pode precisar ser inserida em Inserir → Assinatura).
+  - Opcionalmente marca "Ordem de Serviço" na lista de verificação; o envio fica no histórico.

@@ -146,6 +146,22 @@ public sealed partial class Servicos
         ator.Exigir(Perm.EditarViagens);
         var anterior = Db.Viagens.Obter(v.Id);
         v.TecnicoIds = Csv(Snapshot.Ids(v.TecnicoIds));
+        // a lista de verificação e os textos do e-mail da OS têm telas próprias: o formulário da viagem não os sobrescreve
+        if (anterior is not null)
+        {
+            v.Checklist = anterior.Checklist; v.OsCc = anterior.OsCc; v.OsHotel = anterior.OsHotel; v.OsCarro = anterior.OsCarro; v.OsVoo = anterior.OsVoo;
+            v.OsContato = anterior.OsContato; v.OsEscopo = anterior.OsEscopo; v.OsInfo = anterior.OsInfo; v.OsGeradoEm = anterior.OsGeradoEm; v.OsGeradoPor = anterior.OsGeradoPor;
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(v.Checklist)) v.Checklist = Checklist.Gravar(Checklist.Novo());
+            if (string.IsNullOrWhiteSpace(v.ResponsavelLogin) && Db.Usuarios.Obter(ator.Login) is { EquipeControle: true }) v.ResponsavelLogin = ator.Login;
+        }
+        if (!string.IsNullOrWhiteSpace(v.ResponsavelLogin))
+        {
+            var u = Db.Usuarios.Obter(v.ResponsavelLogin) ?? throw new ValidacaoException("Responsável da viagem não encontrado.");
+            v.Responsavel = string.IsNullOrWhiteSpace(u.Nome) ? u.Id : u.Nome;
+        }
         var res = Validar(v, trechos, atends);
         if (res.Erros.Count > 0) throw new ValidacaoException(res.Erros);
 
@@ -222,6 +238,112 @@ public sealed partial class Servicos
         if (novoStatus == Vocab.ViagemCancelada && !string.IsNullOrWhiteSpace(motivo))
             v.Obs = string.IsNullOrWhiteSpace(v.Obs) ? $"Cancelada: {motivo}" : $"{v.Obs}\nCancelada: {motivo}";
         return SalvarViagem(ator, v, trechos, atends);
+    }
+
+    // ------------------------------------------------ lista de verificação e responsável
+    public List<Checklist.Item> MarcarItem(Ator ator, string viagemId, int indice, bool feito)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        var l = Checklist.Ler(v.Checklist);
+        if (indice < 0 || indice >= l.Count) throw new ValidacaoException("Item inexistente na lista de verificação.");
+        l[indice].Feito = feito; l[indice].Por = feito ? (Db.Usuarios.Obter(ator.Login)?.Nome is { Length: > 0 } n ? n : ator.Login) : ""; l[indice].Em = feito ? DateTime.UtcNow : null;
+        v.Checklist = Checklist.Gravar(l); Db.Viagens.Salvar(v, ator.Login);
+        Auditar(ator, "viagem.checklist", "viagem", v.Id, $"{v.Codigo}: \"{l[indice].Texto}\" {(feito ? "concluído" : "reaberto")} ({l.Count(i => i.Feito)}/{l.Count})");
+        return l;
+    }
+
+    public List<Checklist.Item> AdicionarItemChecklist(Ator ator, string viagemId, string texto)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        texto = string.Join(" ", (texto ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        if (texto.Length is < 2 or > 80) throw new ValidacaoException("Descreva o item (2 a 80 caracteres).");
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        var l = Checklist.Ler(v.Checklist);
+        if (l.Any(i => DocEngine.Norm(i.Texto) == DocEngine.Norm(texto))) throw new ValidacaoException("Este item já está na lista.");
+        l.Add(new Checklist.Item { Texto = texto });
+        v.Checklist = Checklist.Gravar(l); Db.Viagens.Salvar(v, ator.Login);
+        Auditar(ator, "viagem.checklist", "viagem", v.Id, $"{v.Codigo}: item \"{texto}\" adicionado");
+        return l;
+    }
+
+    public List<Checklist.Item> RemoverItemChecklist(Ator ator, string viagemId, int indice)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        var l = Checklist.Ler(v.Checklist);
+        if (indice < 0 || indice >= l.Count) throw new ValidacaoException("Item inexistente na lista de verificação.");
+        var t = l[indice].Texto; l.RemoveAt(indice);
+        v.Checklist = Checklist.Gravar(l); Db.Viagens.Salvar(v, ator.Login);
+        Auditar(ator, "viagem.checklist", "viagem", v.Id, $"{v.Codigo}: item \"{t}\" removido");
+        return l;
+    }
+
+    // ------------------------------------------------ e-mail da Ordem de Serviço
+    public EmailOs.Rascunho RascunhoOs(Ator ator, string viagemId)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        var s = Foto(); var v = s.Viagem(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        var anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == viagemId);
+        return EmailOs.Montar(s, v, anexos, Tempo.ParaLocal(DateTime.UtcNow, s.FusoPadrao));
+    }
+
+    /// <summary>Guarda os textos editados (Hotel/Carro/Voo, Contato, Escopo, Informações, Cc) para o próximo envio.</summary>
+    public void SalvarTextosOs(Ator ator, string viagemId, EmailOs.Rascunho r)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        v.OsCc = r.Cc.Trim(); v.OsHotel = r.UsaHotel ? r.Hotel.Trim() : "-"; v.OsCarro = r.UsaCarro ? r.Carro.Trim() : "-"; v.OsVoo = r.UsaVoo ? r.Voo.Trim() : "-";
+        v.OsContato = r.Contato.Trim(); v.OsEscopo = r.Escopo.Trim(); v.OsInfo = r.Info.Trim();
+        Db.Viagens.Salvar(v, ator.Login);
+    }
+
+    /// <summary>Conteúdo dos documentos escolhidos da viagem (para anexar ao e-mail).</summary>
+    public List<(string nome, string tipo, byte[] dados)> ArquivosDaViagem(Ator ator, string viagemId, IEnumerable<string> ids)
+    {
+        ator.Exigir(Perm.VerAnexosViagem);
+        var res = new List<(string, string, byte[])>();
+        foreach (var a in Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == viagemId && ids.Contains(a.Id)))
+        {
+            using var st = Arquivos.Abrir(a) ?? throw new ValidacaoException($"Arquivo \"{a.NomeOriginal}\" não encontrado na pasta da base.");
+            using var ms = new MemoryStream(); st.CopyTo(ms); res.Add((a.NomeOriginal, a.ContentType, ms.ToArray()));
+        }
+        return res;
+    }
+
+    public void RegistrarOs(Ator ator, string viagemId, EmailOs.Rascunho r, string como, bool marcarChecklist)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        v.OsGeradoEm = DateTime.UtcNow; v.OsGeradoPor = Db.Usuarios.Obter(ator.Login)?.Nome is { Length: > 0 } n ? n : ator.Login;
+        if (marcarChecklist)
+        {
+            var l = Checklist.Ler(v.Checklist);
+            var it = l.FirstOrDefault(i => DocEngine.Norm(i.Texto) == DocEngine.Norm(Checklist.ItemOrdemServico));
+            if (it is { Feito: false }) { it.Feito = true; it.Por = v.OsGeradoPor; it.Em = DateTime.UtcNow; v.Checklist = Checklist.Gravar(l); }
+        }
+        Db.Viagens.Salvar(v, ator.Login);
+        Auditar(ator, "viagem.email", "viagem", v.Id, $"{v.Codigo}: e-mail da OS {como} para {r.Para} ({r.AnexoIds.Count} anexo(s)) — \"{r.Assunto}\"");
+    }
+
+    /// <summary>Usuárias da equipe de controle (podem ser responsáveis por viagens e trocar entre si).</summary>
+    public List<Usuario> EquipeControle() => Db.Usuarios.Todos().Where(u => u.Ativo && u.EquipeControle).OrderBy(u => u.Nome).ToList();
+
+    public Viagem DefinirResponsavel(Ator ator, string viagemId, string login)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        var antes = v.Responsavel;
+        if (string.IsNullOrWhiteSpace(login)) { v.ResponsavelLogin = ""; v.Responsavel = ""; }
+        else
+        {
+            var u = Db.Usuarios.Obter(login) ?? throw new ValidacaoException("Usuária não encontrada.");
+            if (!u.Ativo) throw new ValidacaoException("Usuária inativa.");
+            v.ResponsavelLogin = u.Id; v.Responsavel = string.IsNullOrWhiteSpace(u.Nome) ? u.Id : u.Nome;
+        }
+        Db.Viagens.Salvar(v, ator.Login);
+        Auditar(ator, "viagem.responsavel", "viagem", v.Id, $"{v.Codigo}: responsável {(string.IsNullOrEmpty(antes) ? "—" : antes)} → {(string.IsNullOrEmpty(v.Responsavel) ? "—" : v.Responsavel)}");
+        return v;
     }
 
     /// <summary>Exclui a viagem (qualquer status) com trechos, atendimentos e anexos. A ação fica no histórico.</summary>

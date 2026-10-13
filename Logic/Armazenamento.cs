@@ -21,6 +21,13 @@ public sealed class Armazenamento
     {
         [".pdf"] = "application/pdf", [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg", [".png"] = "image/png",
     };
+    /// <summary>Documentos de viagem aceitam também e-mails salvos (confirmação de reserva etc.).</summary>
+    private static readonly Dictionary<string, string> TiposEmail = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".msg"] = "application/vnd.ms-outlook", [".eml"] = "message/rfc822",
+    };
+    public static readonly string[] CategoriasViagem = { "voo", "hotel", "carro", "outro" };
+    public static string TiposAceitosViagem => ".pdf, .jpg, .jpeg, .png, .msg, .eml";
 
     private readonly Db _db;
     private readonly string _dir;
@@ -36,23 +43,25 @@ public sealed class Armazenamento
 
     /// <summary>Valida extensão, tamanho e assinatura do arquivo (o conteúdo precisa
     /// ser do tipo que a extensão diz).</summary>
-    public static void Validar(string nome, long tamanho, ReadOnlySpan<byte> inicio)
+    public static void Validar(string nome, long tamanho, ReadOnlySpan<byte> inicio, bool aceitaEmail = false)
     {
         var ext = Path.GetExtension(nome ?? "");
-        if (!Tipos.TryGetValue(ext, out _))
-            throw new ValidacaoException($"Formato não aceito ({(string.IsNullOrEmpty(ext) ? "sem extensão" : ext)}). Use {TiposAceitos}.");
+        if (!Tipos.ContainsKey(ext) && !(aceitaEmail && TiposEmail.ContainsKey(ext)))
+            throw new ValidacaoException($"Formato não aceito ({(string.IsNullOrEmpty(ext) ? "sem extensão" : ext)}). Use {(aceitaEmail ? TiposAceitosViagem : TiposAceitos)}.");
         if (tamanho <= 0) throw new ValidacaoException("O arquivo está vazio.");
         if (tamanho > TamanhoMaximo) throw new ValidacaoException($"O arquivo excede o limite de {TamanhoMaximo / 1024 / 1024} MB.");
         var ok = ext.ToLowerInvariant() switch
         {
             ".pdf" => inicio.Length >= 4 && inicio[0] == 0x25 && inicio[1] == 0x50 && inicio[2] == 0x44 && inicio[3] == 0x46,
             ".png" => inicio.Length >= 4 && inicio[0] == 0x89 && inicio[1] == 0x50 && inicio[2] == 0x4E && inicio[3] == 0x47,
+            ".msg" => inicio.Length >= 4 && inicio[0] == 0xD0 && inicio[1] == 0xCF && inicio[2] == 0x11 && inicio[3] == 0xE0,
+            ".eml" => inicio.Length > 0 && !inicio.Contains((byte)0),
             _ => inicio.Length >= 3 && inicio[0] == 0xFF && inicio[1] == 0xD8 && inicio[2] == 0xFF,
         };
         if (!ok) throw new ValidacaoException($"O conteúdo de \"{nome}\" não corresponde ao formato {ext}.");
     }
 
-    public async Task<Anexo> SalvarAsync(Ator ator, string donoTipo, string donoId, string nome, Stream conteudo)
+    public async Task<Anexo> SalvarAsync(Ator ator, string donoTipo, string donoId, string nome, Stream conteudo, bool aceitaEmail = false, string categoria = "")
     {
         nome = Path.GetFileName(nome ?? "arquivo");
         using var ms = new MemoryStream();
@@ -63,7 +72,8 @@ public sealed class Armazenamento
             if (ms.Length > TamanhoMaximo) throw new ValidacaoException($"O arquivo excede o limite de {TamanhoMaximo / 1024 / 1024} MB.");
         }
         var bytes = ms.ToArray();
-        Validar(nome, bytes.Length, bytes.AsSpan(0, Math.Min(8, bytes.Length)));
+        Validar(nome, bytes.Length, bytes.AsSpan(0, Math.Min(8, bytes.Length)), aceitaEmail);
+        if (!string.IsNullOrEmpty(categoria) && !CategoriasViagem.Contains(categoria)) categoria = "outro";
 
         var chave = $"{DateTime.UtcNow:yyyyMM}/{Guid.NewGuid():N}.bin";
         var caminho = Path.Combine(_dir, chave.Replace('/', Path.DirectorySeparatorChar));
@@ -76,7 +86,7 @@ public sealed class Armazenamento
         var ext = Path.GetExtension(nome);
         return _db.Anexos.Salvar(new Anexo
         {
-            DonoTipo = donoTipo, DonoId = donoId, NomeOriginal = nome, ContentType = Tipos[ext], Tamanho = bytes.Length,
+            DonoTipo = donoTipo, DonoId = donoId, NomeOriginal = nome, Categoria = categoria, ContentType = Tipos.TryGetValue(ext, out var ct) ? ct : TiposEmail[ext], Tamanho = bytes.Length,
             Chave = chave, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), EnviadoPor = ator.Login,
         }, ator.Login);
     }

@@ -28,6 +28,7 @@ else
             <button class="btn-ghost" @onclick="@(() => Salvar(null))">@Icons.Svg("check")Salvar</button>
             @if (_v.Status is Vocab.ViagemRascunho) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemPlanejada))">Salvar como planejada</button> }
             @if (_v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConfirmada))" disabled="@(!_res.PodeConfirmar)" title="@(_res.PodeConfirmar ? "" : "Há pendências que impedem a confirmação")">@Icons.Svg("check")Confirmar</button> }
+            @if (!_novo) { <button class="btn-ghost os-btn" @onclick="@(() => _email = true)" title="@(_v.OsGeradoEm is { } og ? $"Último: {Ui.Hora(og, null, _snap)} por {_v.OsGeradoPor}" : "Montar o e-mail para os técnicos com os documentos")">@Icons.Svg("mail")<span>E-mail da OS</span>@if (_v.OsGeradoEm is not null) { <span class="tag ok">enviado</span> }</button> }
             @if (_v.Status == Vocab.ViagemConfirmada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemAndamento))">@Icons.Svg("play")Iniciar</button> }
             @if (_v.Status == Vocab.ViagemAndamento) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConcluida))">@Icons.Svg("flag")Concluir</button> }
             @if (!_novo && _v.Status != Vocab.ViagemCancelada && _v.Status != Vocab.ViagemConcluida) { <button class="btn-danger-ghost" @onclick="@(() => _cancelando = true)">@Icons.Svg("x")Cancelar viagem</button> }
@@ -45,6 +46,13 @@ else
         <div class="form-grid">
             <label class="fld">Nº do projeto *<CampoLista Value="@_v.Projeto" ValueChanged="@((string x) => { _v.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
             <div class="fld full"><span>Equipamentos <span class="hint">um ou mais</span></span><CampoEquipamentos Value="@_v.Equipamentos" ValueChanged="@((string x) => { _v.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" Disabled="@(!_pode)" /></div>
+            <label class="fld">Responsável da viagem <span class="hint">equipe de controle</span>
+                <select value="@_v.ResponsavelLogin" @onchange="AoResponsavel">
+                    <option value="">— sem responsável —</option>
+                    @foreach (var u in _equipe) { <option value="@u.Id">@(string.IsNullOrWhiteSpace(u.Nome) ? u.Id : u.Nome)</option> }
+                    @if (!string.IsNullOrEmpty(_v.ResponsavelLogin) && !_equipe.Any(u => u.Id == _v.ResponsavelLogin)) { <option value="@_v.ResponsavelLogin">@_v.Responsavel</option> }
+                </select>
+                @if (_equipe.Count == 0) { <span class="hint">Marque as usuárias da equipe de controle em Administração → Usuários.</span> }</label>
             <div class="fld">Planta <SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" Placeholder="Buscar planta por nome, cidade, estado, país…" /></div>
             <label class="fld">Serviço
                 <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
@@ -60,32 +68,22 @@ else
         @Bloco("volta", "Deslocamento de volta", "plane", "#c26a14", _volta, _fusoPlanta, _fusoOrigem, Dias(_volta.Ini, _volta.Fim), true)
     </div>
 
+    @if (!_novo) { <DocumentosViagem ViagemId="@Id" Ator="@_ator" Pode="@_pode" VerAnexos="@_verAnexos" /> }
+
     <details class="mais" open="@_maisAberto">
         <summary @onclick="@(() => _maisAberto = !_maisAberto)" @onclick:preventDefault>Mais opções @Icons.Svg("chevron-right")</summary>
         <div class="form-grid mt8">
             <label class="fld">Status<select @bind="_v.Status" @bind:after="Validar">@foreach (var s in Vocab.StatusViagem) {<option value="@s.Key">@s.Label</option>}</select></label>
-            <label class="fld">Responsável pelo planejamento<input @bind="_v.Responsavel" /></label>
             <label class="fld">Horas de serviço previstas <span class="hint">opcional</span><input type="number" step="0.5" min="0" @bind="_horasPrev" /></label>
             <label class="fld">Horas de serviço realizadas <span class="hint">opcional</span><input type="number" step="0.5" min="0" @bind="_horasReal" /></label>
             <label class="fld full">Observações<textarea @bind="_v.Obs"></textarea></label>
         </div>
-        @if (!_novo)
-        {
-            <div class="mt8"><span class="muted sm">Anexos da viagem (bilhetes, vouchers)</span>
-            @if (!_verAnexos) { <div class="muted">@Icons.Svg("lock")Ocultos @(Sessao.Apresentacao ? "no modo apresentação" : "para o seu perfil").</div> }
-            else
-            {
-                @foreach (var an in _anexos) { <div class="anexo">@Icons.Svg("paperclip")<a href="/arquivos/@an.Id" target="_blank" rel="noopener">@an.NomeOriginal</a><a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal">@Icons.Svg("download")</a>
-                    @if (_pode) { <button class="row-act del" @onclick="() => RemoverAnexo(an)" title="Remover">@Icons.Svg("x")</button> }</div> }
-                @if (_pode) { <InputFile OnChange="AoAnexar" multiple accept=".pdf,.jpg,.jpeg,.png" /> }
-                @if (!string.IsNullOrEmpty(_msgAnexo)) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@_msgAnexo</div></div> }
-            }</div>
-        }
     </details>
 </fieldset>
 
 <aside class="vs-lado">
-    <div class="panel">
+    @if (!_novo) { <ChecklistViagem ViagemId="@Id" Itens="@Checklist.Ler(_v.Checklist)" Pode="@_pode" Sessao_Fuso="@_snap.FusoPadrao" OnMudou="AoChecklist" /> }
+    <div class="panel @(_novo ? "" : "mt16")">
         <div class="panel-head"><div class="panel-title">Onde vai estar</div>@if (_planta is not null) { <GeoBadge P="_planta" /> }</div>
         <div class="vs-mapa-wrap">
             <div id="mapa-viagem" class="mapa vs-mapa" role="application" aria-label="Mapa do local do serviço"></div>
@@ -131,6 +129,7 @@ else
 </aside>
 </div>
 
+@if (_email) { <EmailOsDialogo ViagemId="@Id" Ator="@_ator" OnFechar="@(() => _email = false)" OnGerado="AoEmail" /> }
 @if (_pedirCidade is not null) { <CidadePlanta PlantaId="@_pedirCidade" Ator="@_ator" OnSalvo="CidadeSalva" OnFechar="@(() => _pedirCidade = null)" /> }
 @if (_cancelando)
 {
@@ -152,8 +151,19 @@ else
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verAnexos, _maisAberto, _cancelando, _localizando;
     private Viagem _v = new(); private HashSet<string> _tecs = new(); private Faixa _ida = new(), _serv = new(), _volta = new();
     private double? _horasPrev, _horasReal; private ResultadoViagem _res = new(); private List<string>? _erros; private Planta? _planta;
-    private List<Anexo> _anexos = new(); private string? _msgAnexo, _motivo, _pedirCidade; private string _fusoOrigem = "", _fusoPlanta = "";
-    private DotNetObjectReference<ViagemSimples>? _ref; private bool _mapaPronto, _redesenhar;
+    private string? _motivo, _pedirCidade; private string _fusoOrigem = "", _fusoPlanta = "";
+    private DotNetObjectReference<ViagemSimples>? _ref; private bool _mapaPronto, _redesenhar, _email;
+    private List<Usuario> _equipe = new();
+
+    private void AoChecklist(List<Checklist.Item> l) { _v.Checklist = Checklist.Gravar(l); }
+    private void AoEmail() { var v = Svc.Foto().Viagem(Id); if (v is not null) { _v.Checklist = v.Checklist; _v.OsGeradoEm = v.OsGeradoEm; _v.OsGeradoPor = v.OsGeradoPor; } }
+    private void AoResponsavel(ChangeEventArgs e)
+    {
+        var login = e.Value?.ToString() ?? "";
+        if (_novo) { _v.ResponsavelLogin = login; _v.Responsavel = _equipe.FirstOrDefault(u => u.Id == login)?.Nome ?? ""; return; }
+        try { var v = Svc.DefinirResponsavel(_ator, Id, login); _v.ResponsavelLogin = v.ResponsavelLogin; _v.Responsavel = v.Responsavel; Sessao.Avisar(string.IsNullOrEmpty(v.Responsavel) ? "Viagem sem responsável." : $"Responsável: {v.Responsavel}."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -168,7 +178,8 @@ else
         _snap = Svc.Foto(); _erros = null; _novo = Id == "novo"; _pode = _ator.Pode(Perm.EditarViagens);
         _verAnexos = (_ator.Pode(Perm.VerAnexosViagem) || _ator.Papel == Roles.Tecnico) && !Sessao.Apresentacao;
         _ida = new Faixa { Modal = Vocab.ModalAviao }; _serv = new Faixa(); _volta = new Faixa { Modal = Vocab.ModalAviao }; _horasPrev = _horasReal = null;
-        if (_novo) { _ok = _pode; _v = new Viagem { Responsavel = _ator.Nome }; _tecs = new(); }
+        _equipe = Svc.EquipeControle();
+        if (_novo) { _ok = _pode; _v = new Viagem(); if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); }
         else
         {
             var v = _snap.Viagem(Id);
@@ -181,7 +192,6 @@ else
                           && ats.Count <= 1 && ats.All(a => paraTodos(a.TecnicoIds) && (a.PlantaId == v.PlantaId || v.PlantaId == ""));
             if (!simples) { Nav.NavigateTo($"/viagens/{Id}/avancado", replace: true); return; }
             _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet();
-            _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == Id);
             AtualizarPlanta();
             var ti = trs.FirstOrDefault(t => t.Tipo == Vocab.TrechoIda); var tr = trs.FirstOrDefault(t => t.Tipo == Vocab.TrechoRetorno); var at = ats.FirstOrDefault();
             if (ti is not null) _ida = new Faixa { T = ti.Copia<Trecho>(), Modal = ti.Modal, Ini = Ui.ParaInput(ti.PartidaPrev, _fusoOrigem), Fim = Ui.ParaInput(ti.ChegadaPrev, _fusoPlanta) };
@@ -357,17 +367,6 @@ else
         try { Svc.AlterarStatusViagem(_ator, Id, Vocab.ViagemCancelada, _motivo); _cancelando = false; Carregar(); Sessao.Avisar("Viagem cancelada; agenda e mapa atualizados."); }
         catch (Exception ex) { _cancelando = false; _erros = Ui.Erros(ex); }
     }
-
-    private async Task AoAnexar(InputFileChangeEventArgs e)
-    {
-        _msgAnexo = null; var falhas = new List<string>();
-        foreach (var f in e.GetMultipleFiles(10))
-            try { await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(_ator, "viagem", Id, f.Name, s); }
-            catch (Exception ex) { falhas.Add($"{f.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
-        _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == Id);
-        if (falhas.Count > 0) _msgAnexo = string.Join(" | ", falhas); else Sessao.Avisar("Anexo adicionado.");
-    }
-    private void RemoverAnexo(Anexo a) { try { Svc.RemoverAnexo(_ator, a.Id); _anexos = Db.Anexos.Onde(x => x.DonoTipo == "viagem" && x.DonoId == Id); } catch (Exception ex) { _msgAnexo = string.Join(" ", Ui.Erros(ex)); } }
 
     public void Dispose() { Sessao.Mudou -= Ao; try { _ = JS.InvokeVoidAsync("app.mapa.destruir", "mapa-viagem"); } catch { } _ref?.Dispose(); }
 }

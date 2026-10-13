@@ -14,10 +14,17 @@
     <div class="momento-ctl">@if (_ator.Pode(Perm.EditarViagens)) { <a class="btn-primary" href="/viagens/novo">@Icons.Svg("plus")Nova viagem</a> }</div>
 </div>
 
+@if (_souEquipe || _lista.Any(l => l.v.ResponsavelLogin == _ator.Login))
+{
+    <div class="tabs" role="tablist">
+        <button role="tab" class="tab @(_minhas ? "active" : "")" @onclick="@(() => _minhas = true)">@Icons.Svg("user")Minhas viagens <span class="tab-n">@_lista.Count(l => l.v.ResponsavelLogin == _ator.Login)</span></button>
+        <button role="tab" class="tab @(!_minhas ? "active" : "")" @onclick="@(() => _minhas = false)">Todas as viagens <span class="tab-n">@_lista.Count</span></button>
+    </div>
+}
 <div class="kpi-linha kpi-6">
     @foreach (var s in Vocab.StatusViagem)
     {
-        var n = _lista.Count(v => v.v.Status == s.Key);
+        var n = _lista.Count(v => v.v.Status == s.Key && (!_minhas || v.v.ResponsavelLogin == _ator.Login));
         <button class="kpi-tile @(_fSt == s.Key ? "ativo" : "")" style="--c:@s.Color" @onclick="() => _fSt = _fSt == s.Key ? string.Empty : s.Key" aria-pressed="@(_fSt == s.Key)">
             <span class="kpi-ico">@Icons.Svg(s.Icon)</span><span class="kpi-v">@n</span><span class="kpi-r">@s.Label</span>
         </button>
@@ -33,7 +40,7 @@
 </div>
 
 <div class="table-wrap"><table class="grid-tbl">
-    <thead><tr><th>Projeto</th><th>Viagem</th><th>Cliente / destino</th><th>Técnicos</th><th>Período</th><th>Transporte</th><th>Horas prev./real.</th><th>Status</th><th>Pendências</th>@if (_ator.Pode(Perm.EditarViagens)) { <th></th> }</tr></thead>
+    <thead><tr><th>Projeto</th><th>Viagem</th><th>Cliente / destino</th><th>Técnicos</th><th>Período</th><th>Transporte</th><th>Horas prev./real.</th><th>Responsável</th><th>Lista de verificação</th><th>Status</th><th>Pendências</th>@if (_ator.Pode(Perm.EditarViagens)) { <th></th> }</tr></thead>
     <tbody>
     @foreach (var l in Filtradas)
     {
@@ -46,6 +53,8 @@
             <td>@(l.ini is null ? "—" : Ui.Periodo(l.ini.Value, l.fim!.Value, null, _snap))</td>
             <td>@foreach (var m in l.modais) { <span class="tag">@(m == "aviao" ? "Avião" : m == "carro" ? "Carro" : "Outro")</span> }</td>
             <td>@(l.hp?.ToString("0.#") ?? "—") / @(l.hr?.ToString("0.#") ?? "—")</td>
+            <td>@(string.IsNullOrWhiteSpace(l.v.Responsavel) ? "—" : l.v.Responsavel)</td>
+            <td>@{ var (f, t) = Checklist.Progresso(l.v); }<span class="ck-mini @(f == t && t > 0 ? "ok" : "")" title="@f de @t itens concluídos"><span class="b"><span style="width:@(t == 0 ? 0 : 100 * f / t)%"></span></span>@f/@t</span></td>
             <td><StatusBadge Item="@Ui.StViagem(l.v.Status)" /></td>
             <td>@if (l.conf > 0) { <span class="badge st-neg" title="Conflitos de agenda">@Icons.Svg("alert", "bico")@l.conf</span> } @if (l.pend > 0) { <span class="badge st-warn" title="Pendências documentais">@Icons.Svg("shield", "bico")@l.pend</span> } @if (l.conf + l.pend == 0) { <span class="muted">—</span> }</td>
             @if (_ator.Pode(Perm.EditarViagens)) { <td class="acoes"><button class="icon-btn perigo" title="Excluir viagem" aria-label="Excluir viagem @l.v.Codigo" @onclick="() => _excluir = l.v">@Icons.Svg("trash")</button></td> }
@@ -73,12 +82,14 @@
     private List<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> _lista = new();
     private string _busca = "", _fSt = "", _fTec = "", _fCli = "", _fModal = ""; private bool _futuras;
 
-    private Viagem? _excluir; private List<string>? _erros;
+    private Viagem? _excluir; private List<string>? _erros; private bool _minhas, _souEquipe;
 
     protected override async Task OnInitializedAsync()
     {
         _ator = await Sessao.AtorAsync(); Sessao.Mudou += Ao;
         Carregar();
+        _souEquipe = Svc.EquipeControle().Any(u => u.Id == _ator.Login);
+        _minhas = _lista.Any(l => l.v.ResponsavelLogin == _ator.Login);
     }
 
     private void ConfirmarExclusao()
@@ -117,8 +128,8 @@
     public void Dispose() => Sessao.Mudou -= Ao;
 
     private IEnumerable<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> Filtradas => _lista
-        .Where(l => (_fSt == "" || l.v.Status == _fSt) && (_fTec == "" || Ui.Ids(l.v.TecnicoIds).Contains(_fTec)) && (_fCli == "" || l.v.ClienteId == _fCli)
+        .Where(l => (!_minhas || l.v.ResponsavelLogin == _ator.Login) && (_fSt == "" || l.v.Status == _fSt) && (_fTec == "" || Ui.Ids(l.v.TecnicoIds).Contains(_fTec)) && (_fCli == "" || l.v.ClienteId == _fCli)
             && (_fModal == "" || l.modais.Contains(_fModal)) && (!_futuras || (l.fim ?? DateTime.MaxValue) >= DateTime.UtcNow)
-            && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{l.v.Projeto} {l.v.Codigo} {_snap.Cliente(l.v.ClienteId)?.Nome} {l.v.Destino} {l.v.Origem} {l.v.Equipamentos}").Contains(DocEngine.Norm(_busca))))
+            && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{l.v.Projeto} {l.v.Codigo} {l.v.Responsavel} {_snap.Cliente(l.v.ClienteId)?.Nome} {l.v.Destino} {l.v.Origem} {l.v.Equipamentos}").Contains(DocEngine.Norm(_busca))))
         .OrderByDescending(l => l.ini ?? DateTime.MaxValue);
 }

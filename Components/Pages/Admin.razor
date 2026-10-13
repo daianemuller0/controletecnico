@@ -26,11 +26,11 @@
 {
     <div class="toolbar"><span class="grow"></span><button class="btn-primary" @onclick="NovoUsuario">@Icons.Svg("plus")Novo usuário</button></div>
     <div class="table-wrap"><table class="grid-tbl">
-        <thead><tr><th>Login</th><th>Nome</th><th>Perfil</th><th>Técnico vinculado</th><th>Situação</th><th></th></tr></thead>
+        <thead><tr><th>Login</th><th>Nome</th><th>Perfil</th><th>Equipe de controle</th><th>Técnico vinculado</th><th>Situação</th><th></th></tr></thead>
         <tbody>
         @foreach (var u in _usuarios)
         {
-            <tr><td><code>@u.Id</code></td><td>@u.Nome</td><td><span class="tag">@Roles.Label(u.Papel)</span></td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
+            <tr><td><code>@u.Id</code></td><td>@u.Nome</td><td><span class="tag">@Roles.Label(u.Papel)</span></td><td>@if (u.EquipeControle) { <span class="badge st-info">@Icons.Svg("check", "bico")Sim</span> }</td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
                 <td><span class="badge @(u.Ativo ? "st-pos" : "st-neutral")">@(u.Ativo ? "Ativo" : "Inativo")</span></td>
                 <td class="right"><button class="row-act" @onclick="() => EditarUsuario(u)" title="Editar">@Icons.Svg("edit")</button></td></tr>
         }
@@ -185,6 +185,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
             <label class="fld">Login<input @bind="_u.Id" disabled="@(!_novoU)" /></label>
             <label class="fld">Nome<input @bind="_u.Nome" /></label>
             <label class="fld">Perfil<select @bind="_u.Papel">@foreach (var r in Roles.All) {<option value="@r.Role">@r.Label</option>}</select></label>
+            <label class="fld chk"><input type="checkbox" @bind="_u.EquipeControle" />Equipe de controle de viagens <span class="hint">pode ser responsável por viagens e tem "Minhas viagens"</span></label>
             <label class="fld">Técnico vinculado <span class="hint">obrigatório para o perfil Técnico</span><select @bind="_u.TecnicoId"><option value="">—</option>@foreach (var t in Db.Tecnicos.Todos().OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select></label>
             <label class="fld full">@(_novoU ? "Senha (mín. 8 caracteres)" : "Nova senha (deixe vazio para manter)")<input type="password" @bind="_senha" autocomplete="new-password" /></label>
             <label class="fld chk"><input type="checkbox" @bind="_u.Ativo" />Usuário ativo</label>

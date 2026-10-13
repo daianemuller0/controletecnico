@@ -1,0 +1,70 @@
+@* Documentos da viagem (passagem, hotel, carro…): botão próprio por tipo e lista agrupada. *@
+@inject Servicos Svc
+@inject Db Db
+@inject Sessao Sessao
+
+<div class="panel dv">
+    <div class="panel-head"><div class="panel-title">@Icons.Svg("paperclip")Documentos da viagem <span class="hint">@_anexos.Count arquivo(s)</span></div></div>
+    @if (!VerAnexos) { <div class="muted">@Icons.Svg("lock")Documentos ocultos @(Sessao.Apresentacao ? "no modo apresentação" : "para o seu perfil").</div> }
+    else
+    {
+        @if (Pode)
+        {
+            <div class="dv-botoes">
+                @foreach (var (cat, rot, ico) in Cats)
+                {
+                    <label class="dv-add" title="Adicionar @rot.ToLowerInvariant()">@Icons.Svg(ico)<span>@rot</span><small>adicionar</small>
+                        <InputFile OnChange="e => Enviar(e, cat)" multiple accept=".pdf,.jpg,.jpeg,.png,.msg,.eml" /></label>
+                }
+            </div>
+            <div class="muted sm">PDF, JPG, PNG ou e-mail salvo (.msg/.eml), até 15 MB cada. Os documentos vão anexados no e-mail da Ordem de Serviço.</div>
+        }
+        @if (_enviando) { <div class="muted sm mt8">Enviando…</div> }
+        @if (!string.IsNullOrEmpty(_msg)) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@_msg</div></div> }
+        @if (_anexos.Count == 0) { <div class="dv-vazio">Nenhum documento ainda. Use os botões acima para anexar passagem, reserva de hotel, carro…</div> }
+        @foreach (var g in _anexos.GroupBy(a => Cat(a.Categoria)).OrderBy(g => Array.FindIndex(Cats, c => c.cat == g.Key)))
+        {
+            var info = Cats.First(c => c.cat == g.Key);
+            <div class="dv-grupo"><div class="dv-gtit">@Icons.Svg(info.ico)@info.rot</div>
+                @foreach (var an in g.OrderBy(a => a.NomeOriginal))
+                {
+                    <div class="anexo">@Icons.Svg("file")<a href="/arquivos/@an.Id" target="_blank" rel="noopener">@an.NomeOriginal</a><span class="muted sm">@(an.Tamanho / 1024) KB</span>
+                        <a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal" title="Baixar">@Icons.Svg("download")</a>
+                        @if (Pode) { <button class="row-act del" @onclick="() => Remover(an)" title="Remover">@Icons.Svg("x")</button> }</div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string ViagemId { get; set; } = "";
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter] public bool Pode { get; set; }
+    [Parameter] public bool VerAnexos { get; set; }
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    private static readonly (string cat, string rot, string ico)[] Cats = { ("voo", "Voo / passagem", "plane"), ("hotel", "Hotel", "customers"), ("carro", "Carro", "car"), ("outro", "Outros", "paperclip") };
+    private static string Cat(string c) => Cats.Any(x => x.cat == c) ? c : "outro";
+    private List<Anexo> _anexos = new(); private string? _msg; private bool _enviando;
+
+    protected override void OnParametersSet() => Carregar();
+    private void Carregar() => _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == ViagemId);
+
+    private async Task Enviar(InputFileChangeEventArgs e, string cat)
+    {
+        _msg = null; _enviando = true; var falhas = new List<string>(); var n = 0;
+        foreach (var f in e.GetMultipleFiles(20))
+            try { await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(Ator, "viagem", ViagemId, f.Name, s, cat); n++; }
+            catch (Exception ex) { falhas.Add($"{f.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+        _enviando = false; Carregar();
+        if (falhas.Count > 0) _msg = string.Join(" | ", falhas);
+        if (n > 0) Sessao.Avisar($"{n} documento(s) anexado(s).");
+        await OnMudou.InvokeAsync();
+    }
+    private async Task Remover(Anexo a)
+    {
+        try { Svc.RemoverAnexo(Ator, a.Id); Carregar(); await OnMudou.InvokeAsync(); }
+        catch (Exception ex) { _msg = string.Join(" ", Ui.Erros(ex)); }
+    }
+}

@@ -1,0 +1,69 @@
+@* Lista de verificação da viagem: clique para marcar como pronto; anel de progresso e mosaico para acompanhar. *@
+@inject Servicos Svc
+@inject Sessao Sessao
+
+@{
+    var feitos = Itens.Count(i => i.Feito); var total = Itens.Count; var pct = total == 0 ? 0 : 100.0 * feitos / total;
+    var cor = pct >= 100 ? "#1f9254" : pct >= 60 ? "#6c5ce7" : pct >= 30 ? "#d9822b" : "#c0392b";
+    const double R = 34; var C = 2 * Math.PI * R;
+    var liberado = Itens.FirstOrDefault(i => DocEngine.Norm(i.Texto) == DocEngine.Norm(Checklist.ItemLiberado));
+}
+<div class="panel ck">
+    <div class="ck-topo">
+        <svg viewBox="0 0 84 84" class="ck-anel" role="img" aria-label="@feitos de @total itens concluídos">
+            <circle cx="42" cy="42" r="@R.ToString(System.Globalization.CultureInfo.InvariantCulture)" fill="none" stroke="#ece9fb" stroke-width="9" />
+            <circle cx="42" cy="42" r="@R.ToString(System.Globalization.CultureInfo.InvariantCulture)" fill="none" stroke="@cor" stroke-width="9" stroke-linecap="round"
+                    stroke-dasharray="@((C * pct / 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)) @C.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" transform="rotate(-90 42 42)" class="ck-arco" />
+            <text x="42" y="47" text-anchor="middle" class="ck-pct" fill="@cor">@pct.ToString("0")%</text>
+        </svg>
+        <div class="ck-resumo">
+            <div class="ck-tit">Lista de verificação</div>
+            <div class="ck-sub"><strong>@feitos de @total</strong> itens concluídos</div>
+            <div class="ck-mosaico" aria-hidden="true">@foreach (var i in Itens) { <i class="@(i.Feito ? "on" : "")" style="@(i.Feito ? $"background:{cor}" : "")" title="@i.Texto"></i> }</div>
+            @if (pct >= 100) { <div class="ck-selo ok">@Icons.Svg("check")Tudo pronto!</div> }
+            else if (liberado is { Feito: true }) { <div class="ck-selo lib">@Icons.Svg("flag")Liberado para entrada no cliente</div> }
+            else { <div class="ck-selo pend">Faltam @(total - feitos) item(ns)</div> }
+        </div>
+    </div>
+    <ul class="ck-lista">
+        @for (var k = 0; k < Itens.Count; k++)
+        {
+            var idx = k; var it = Itens[k];
+            <li class="@(it.Feito ? "feito" : "") @(DocEngine.Norm(it.Texto) == DocEngine.Norm(Checklist.ItemLiberado) ? "marco" : "")">
+                <button type="button" class="ck-item" disabled="@(!Pode)" @onclick="() => Marcar(idx, !it.Feito)" aria-pressed="@it.Feito" title="@(it.Feito ? "Clique para reabrir" : "Clique para marcar como pronto")">
+                    <span class="ck-bola">@if (it.Feito) { @Icons.Svg("check") }</span>
+                    <span class="ck-txt">@it.Texto
+                        @if (it.Feito && it.Em is { } em) { <small>@it.Por · @Tempo.ParaLocal(em, Sessao_Fuso).ToString("dd/MM HH:mm")</small> }</span>
+                </button>
+                @if (Pode) { <button type="button" class="ck-x" @onclick="() => Remover(idx)" title="Remover item" aria-label="Remover @it.Texto">×</button> }
+            </li>
+        }
+    </ul>
+    @if (Pode)
+    {
+        <div class="ck-add"><span class="ck-bola vazio"></span><input placeholder="Adicionar um item" @bind="_novo" @bind:event="oninput" @onkeydown="Tecla" aria-label="Adicionar um item" />
+            @if (!string.IsNullOrWhiteSpace(_novo)) { <button type="button" class="btn-ghost sm" @onclick="Adicionar">Adicionar</button> }</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string ViagemId { get; set; } = "";
+    [Parameter, EditorRequired] public List<Checklist.Item> Itens { get; set; } = new();
+    [Parameter] public bool Pode { get; set; }
+    [Parameter] public string Sessao_Fuso { get; set; } = "America/Sao_Paulo";
+    [Parameter] public EventCallback<List<Checklist.Item>> OnMudou { get; set; }
+    private string _novo = "";
+
+    private async Task Executar(Func<List<Checklist.Item>> f)
+    {
+        try { var l = f(); Itens = l; await OnMudou.InvokeAsync(l); }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
+    private Task Marcar(int i, bool feito) => Executar(() => Svc.MarcarItem(Sessao_Ator!, ViagemId, i, feito));
+    private Task Remover(int i) => Executar(() => Svc.RemoverItemChecklist(Sessao_Ator!, ViagemId, i));
+    private async Task Adicionar() { var t = _novo; _novo = ""; await Executar(() => Svc.AdicionarItemChecklist(Sessao_Ator!, ViagemId, t)); }
+    private async Task Tecla(KeyboardEventArgs e) { if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_novo)) await Adicionar(); }
+
+    private Ator? Sessao_Ator;
+    protected override async Task OnInitializedAsync() => Sessao_Ator = await Sessao.AtorAsync();
+}

@@ -292,7 +292,7 @@ public sealed partial class Servicos
         Auditar(ator, "documento.excluir", "documento", id, $"{d.Nome} de {Db.Tecnicos.Obter(d.TecnicoId)?.Nome} excluído");
     }
 
-    public async Task<Anexo> AnexarAsync(Ator ator, string donoTipo, string donoId, string nome, Stream conteudo)
+    public async Task<Anexo> AnexarAsync(Ator ator, string donoTipo, string donoId, string nome, Stream conteudo, string categoria = "")
     {
         switch (donoTipo)
         {
@@ -307,8 +307,8 @@ public sealed partial class Servicos
                 break;
             default: throw new ValidacaoException("Destino de anexo inválido.");
         }
-        var a = await Arquivos.SalvarAsync(ator, donoTipo, donoId, nome, conteudo);
-        Auditar(ator, "anexo.adicionar", donoTipo, donoId, $"Anexo \"{a.NomeOriginal}\" adicionado");
+        var a = await Arquivos.SalvarAsync(ator, donoTipo, donoId, nome, conteudo, donoTipo == "viagem", donoTipo == "viagem" ? categoria : "");
+        Auditar(ator, "anexo.adicionar", donoTipo, donoId, $"Anexo \"{a.NomeOriginal}\" adicionado" + (string.IsNullOrEmpty(a.Categoria) ? "" : $" ({a.Categoria})"));
         return a;
     }
 
@@ -357,6 +357,7 @@ public sealed partial class Servicos
         if (string.IsNullOrWhiteSpace(u.Nome)) erros.Add("Informe o nome.");
         u.Papel = Roles.Normalize(u.Papel);
         if (u.Papel == Roles.Tecnico && !Db.Tecnicos.Existe(u.TecnicoId)) erros.Add("O perfil Técnico precisa estar ligado a uma ficha de técnico.");
+        if (u.EquipeControle && u.Papel is Roles.Tecnico or Roles.Consulta) erros.Add("A equipe de controle precisa de um perfil que edite viagens (Controladoria, Gestão ou Administrador).");
         var existente = Db.Usuarios.Obter(u.Id);
         if (existente is null && string.IsNullOrEmpty(novaSenha)) erros.Add("Defina uma senha para o novo usuário.");
         if (!string.IsNullOrEmpty(novaSenha) && novaSenha.Length < 8) erros.Add("A senha deve ter ao menos 8 caracteres.");

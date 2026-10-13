@@ -190,3 +190,6 @@ document.addEventListener('keydown', e => {
     const t = document.activeElement; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
     const b = document.getElementById('busca-plantas'); if (b) { e.preventDefault(); b.focus(); b.select(); }
 });
+
+// baixa um arquivo gerado no servidor (link de uso único)
+app.baixarUrl = (url) => { const a = document.createElement('a'); a.href = url; document.body.appendChild(a); a.click(); a.remove(); };

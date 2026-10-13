@@ -926,3 +926,81 @@ public class PdfAlteracoesTests
         Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "tecnico.local");
     }
 }
+
+public class ControleViagemTests
+{
+    private static (Amb a, Viagem v, Tecnico t) Base()
+    {
+        var a = new Amb(); var t = a.NovoTec(); var p = a.NovaPlanta();
+        var tt = a.Db.Tecnicos.Obter(t.Id)!; tt.Nome = "José Braga"; tt.Email = "jose.braga@empresa.com"; a.Svc.SalvarTecnico(a.Gestao, tt);
+        var pl = a.Db.Plantas.Obter(p.Id)!; pl.Nome = "Unidade de Fertilizantes III"; pl.Rua = "Rodovia BR-158"; pl.Cidade = "Três Lagoas"; pl.Estado = "MS"; pl.Cep = "79641-300"; a.Db.Plantas.Salvar(pl, "t");
+        var v = a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "4500123", Status = Vocab.ViagemPlanejada, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3, 8), FimPrev = Amb.Fut(6, 17), TecnicoIds = t.Id } });
+        return (a, v, tt);
+    }
+
+    [Fact]
+    public void Viagem_nova_tem_a_lista_padrao_e_marcar_registra_quem_e_quando()
+    {
+        var (a, v, _) = Base(); using var _a = a;
+        var l = Checklist.Ler(a.Db.Viagens.Obter(v.Id)!.Checklist);
+        Assert.Equal(17, l.Count); Assert.Equal("Solicitação de Serviço (PJ)", l[0].Texto); Assert.Equal("Cobrança (Rayssa)", l[^1].Texto);
+        l = a.Svc.MarcarItem(a.Gestao, v.Id, 0, true);
+        Assert.True(l[0].Feito); Assert.NotNull(l[0].Em); Assert.False(string.IsNullOrEmpty(l[0].Por));
+        a.Svc.AdicionarItemChecklist(a.Gestao, v.Id, "Crachá do cliente");
+        Assert.Throws<ValidacaoException>(() => a.Svc.AdicionarItemChecklist(a.Gestao, v.Id, "crachá do CLIENTE"));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.MarcarItem(a.Consulta, v.Id, 1, true));
+        // salvar a viagem pelo formulário (cópia antiga) não apaga o que foi marcado
+        var copia = a.Db.Viagens.Obter(v.Id)!.Copia<Viagem>(); copia.Checklist = "";
+        a.Svc.SalvarViagem(a.Gestao, copia, new(), a.Db.Atendimentos.Onde(x => x.ViagemId == v.Id));
+        var final = Checklist.Ler(a.Db.Viagens.Obter(v.Id)!.Checklist);
+        Assert.Equal(18, final.Count); Assert.True(final[0].Feito);
+        Assert.Equal((1, 18), Checklist.Progresso(a.Db.Viagens.Obter(v.Id)!));
+    }
+
+    [Fact]
+    public void Responsavel_da_equipe_de_controle_e_troca_auditada()
+    {
+        var (a, v, _) = Base(); using var _a = a;
+        a.Svc.SalvarUsuario(a.Admin, new Usuario { Id = "ana", Nome = "Ana", Papel = Roles.Controladoria, EquipeControle = true }, "senha-forte-1");
+        a.Svc.SalvarUsuario(a.Admin, new Usuario { Id = "rayssa", Nome = "Rayssa", Papel = Roles.Controladoria, EquipeControle = true }, "senha-forte-1");
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarUsuario(a.Admin, new Usuario { Id = "xx", Nome = "X", Papel = Roles.Consulta, EquipeControle = true }, "senha-forte-1"));
+        Assert.Equal(new[] { "ana", "rayssa" }, a.Svc.EquipeControle().Select(u => u.Id));
+        a.Svc.DefinirResponsavel(a.Gestao, v.Id, "ana");
+        a.Svc.DefinirResponsavel(a.Gestao, v.Id, "rayssa");
+        var vv = a.Db.Viagens.Obter(v.Id)!;
+        Assert.Equal("rayssa", vv.ResponsavelLogin); Assert.Equal("Rayssa", vv.Responsavel);
+        Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "viagem.responsavel" && x.Resumo.Contains("Ana → Rayssa"));
+    }
+
+    [Fact]
+    public void Email_da_OS_monta_assunto_saudacao_endereco_datas_e_eml_com_anexo()
+    {
+        var (a, v, t) = Base(); using var _a = a;
+        var pdf = System.Text.Encoding.ASCII.GetBytes("%PDF-1.4 teste");
+        a.Svc.AnexarAsync(a.Gestao, "viagem", v.Id, "JOSE BRAGA - Voo.pdf", new MemoryStream(pdf), "voo").GetAwaiter().GetResult();
+        Assert.Equal("voo", a.Db.Anexos.Onde(x => x.DonoId == v.Id).Single().Categoria);
+        var r = a.Svc.RascunhoOs(a.Gestao, v.Id);
+        Assert.Equal("4500123 – VISITA TÉCNICA – UNIDADE DE FERTILIZANTES III", r.Assunto);
+        Assert.Equal("jose.braga@empresa.com", r.Para);
+        Assert.StartsWith("Braga, ", r.Saudacao);
+        Assert.Contains("Rodovia BR-158 – Três Lagoas – MS – CEP: 79641-300", r.Endereco);
+        Assert.Matches(@"A viagem será em \d\d/\d\d com retorno previsto para \d\d/\d\d\.", r.Datas);
+        Assert.Single(r.AnexoIds);
+        Assert.Equal("bom dia", EmailOs.Cumprimento(new DateTime(2026, 10, 13, 9, 0, 0)));
+        Assert.Equal("boa tarde", EmailOs.Cumprimento(new DateTime(2026, 10, 13, 14, 0, 0)));
+        Assert.Equal("boa noite", EmailOs.Cumprimento(new DateTime(2026, 10, 13, 20, 0, 0)));
+        Assert.Equal("Braga e Torso", EmailOs.NomesSaudacao(new[] { "José Braga", "Carlos Torso" }));
+        r.Contato = "Jessé Rodrigues"; r.Escopo = "Levantamento em campo."; r.UsaCarro = false;
+        var html = EmailOs.Html(r);
+        Assert.Contains("ORDEM DE SERVIÇO – VISITA TÉCNICA – UNIDADE DE FERTILIZANTES III", html); Assert.Contains("Levantamento em campo.", html); Assert.DoesNotContain("Carro:", html);
+        var eml = System.Text.Encoding.UTF8.GetString(EmailOs.Eml(r, a.Svc.ArquivosDaViagem(a.Gestao, v.Id, r.AnexoIds)));
+        Assert.Contains("X-Unsent: 1", eml); Assert.Contains("To: jose.braga@empresa.com", eml); Assert.Contains("Content-Disposition: attachment", eml);
+        a.Svc.SalvarTextosOs(a.Gestao, v.Id, r);
+        a.Svc.RegistrarOs(a.Gestao, v.Id, r, "gerado (.eml)", marcarChecklist: true);
+        var vv = a.Db.Viagens.Obter(v.Id)!;
+        Assert.Equal("-", vv.OsCarro); Assert.Equal("Levantamento em campo.", vv.OsEscopo); Assert.NotNull(vv.OsGeradoEm);
+        Assert.True(Checklist.Ler(vv.Checklist).Single(i => i.Texto == Checklist.ItemOrdemServico).Feito);
+        Assert.False(a.Svc.RascunhoOs(a.Gestao, v.Id).UsaCarro);      // o que foi editado volta no próximo envio
+    }
+}
