@@ -37,6 +37,11 @@ public static class Vocab
     };
 
     // ---- status operacional do técnico ----
+    public static readonly (string Key, string Label, string Icon, string Color)[] TiposNota =
+    {
+        ("ocorrencia", "Ocorrência", "alert", "#c0392b"), ("cliente", "Cliente", "customers", "#0369a1"), ("tecnico", "Técnico", "user", "#7b4fc0"),
+        ("logistica", "Logística (voo, hotel, carro)", "plane", "#d9822b"), ("financeiro", "Financeiro", "dollar", "#1f9254"), ("outro", "Anotação", "edit", "#6b7a90"),
+    };
     public const string BaseCasa = "casa", BaseHowden = "howden";
     public const string OpDisponivel = "disponivel", OpAtendimento = "atendimento", OpViagem = "viagem",
         OpFerias = "ferias", OpIndisponivel = "indisponivel", OpSemProg = "semprog";

@@ -651,3 +651,26 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .tab.active .tab-n { background: #004785; color: #fff; }
 .os-l input { width: 100%; height: 32px; border: 1px solid var(--border, #dde3ea); border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13.5px; }
 .os-btn .tag { margin-left: 6px; }
+
+/* ---- histórico da viagem ---- */
+.hv { display: grid; gap: 14px; max-width: 1000px; }
+.hv-tipos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.hv-tipo { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border, #dde3ea); background: #fff; border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 12.5px; cursor: pointer; color: #34465c; }
+.hv-tipo svg { width: 14px; height: 14px; color: var(--c); } .hv-tipo.on { background: var(--c); border-color: var(--c); color: #fff; } .hv-tipo.on svg { color: #fff; }
+.hv-texto { width: 100%; border: 1px solid var(--border, #dde3ea); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; resize: vertical; min-height: 96px; }
+.hv-texto:focus { outline: 2px solid #bcd6f2; border-color: #004785; }
+.hv-rodape { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; } .hv-rodape .grow { flex: 1; }
+.hv-quando { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: #5b6b80; } .hv-quando input { height: 32px; border: 1px solid var(--border, #dde3ea); border-radius: 8px; padding: 0 8px; font: inherit; }
+.hv-barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .hv-barra .busca { flex: 1; min-width: 220px; }
+.hv-lista { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid #e3e9f0; display: grid; gap: 10px; }
+.hv-dia { margin: 8px 0 0 -18px; padding-left: 18px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #5b6b80; }
+.hv-item { position: relative; display: flex; gap: 12px; background: #fff; border: 1px solid var(--border, #dde3ea); border-left: 4px solid var(--c, #6b7a90); border-radius: 12px; padding: 10px 14px; }
+.hv-item::before { content: ""; position: absolute; left: -26px; top: 16px; width: 12px; height: 12px; border-radius: 50%; background: var(--c, #b5bdc9); border: 2px solid #fff; box-shadow: 0 0 0 2px #e3e9f0; }
+.hv-item.auto { background: #f8fafc; border-left-color: #c9d3df; --c: #c9d3df; }
+.hv-ico { width: 30px; height: 30px; border-radius: 9px; background: color-mix(in srgb, var(--c) 14%, #fff); color: var(--c); display: grid; place-items: center; flex: none; }
+.hv-item.auto .hv-ico { background: #eef2f6; color: #8793a6; } .hv-ico svg { width: 16px; height: 16px; }
+.hv-corpo { flex: 1; min-width: 0; } .hv-cab { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.hv-acoes { margin-left: auto; display: inline-flex; gap: 10px; } .btn-link.perigo { color: #c0392b; }
+.hv-txt { white-space: pre-wrap; word-break: break-word; font-size: 14px; color: #1d2b3f; line-height: 1.45; } .hv-txt.sm { font-size: 12.5px; color: #5b6b80; }
+.vg-abas { margin-bottom: 14px; }
+.panel-title > svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; color: #004785; }

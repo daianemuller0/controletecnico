@@ -326,6 +326,50 @@ public sealed partial class Servicos
         Auditar(ator, "viagem.email", "viagem", v.Id, $"{v.Codigo}: e-mail da OS {como} para {r.Para} ({r.AnexoIds.Count} anexo(s)) — \"{r.Assunto}\"");
     }
 
+    // ------------------------------------------------ histórico da viagem
+    public List<NotaViagem> NotasDaViagem(Ator ator, string viagemId)
+    {
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        if (!(ator.VeTodaEquipe || (ator.Papel == Roles.Tecnico && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId)))) throw new UnauthorizedAccessException("Sem acesso a esta viagem.");
+        return Db.NotasViagem.Onde(n => n.ViagemId == viagemId).OrderByDescending(n => n.Quando).ThenByDescending(n => n.CriadoEm).ToList();
+    }
+
+    public NotaViagem SalvarNota(Ator ator, NotaViagem n)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        var v = Db.Viagens.Obter(n.ViagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        n.Texto = (n.Texto ?? "").Trim();
+        if (n.Texto.Length < 2) throw new ValidacaoException("Escreva o que aconteceu.");
+        if (n.Texto.Length > 8000) throw new ValidacaoException("Texto muito longo (até 8.000 caracteres).");
+        if (!Vocab.TiposNota.Any(t => t.Key == n.Tipo)) n.Tipo = "outro";
+        if (n.Quando == default) n.Quando = DateTime.UtcNow;
+        var ant = string.IsNullOrEmpty(n.Id) ? null : Db.NotasViagem.Obter(n.Id);
+        if (ant is not null)
+        {
+            if (ant.Autor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu (ou o administrador) altera este registro.");
+            n.CriadoEm = ant.CriadoEm; n.Autor = ant.Autor; n.AutorNome = ant.AutorNome; n.EditadoEm = DateTime.UtcNow;
+        }
+        else { n.CriadoEm = DateTime.UtcNow; n.Autor = ator.Login; n.AutorNome = Db.Usuarios.Obter(ator.Login)?.Nome is { Length: > 0 } nm ? nm : ator.Login; }
+        Db.NotasViagem.Salvar(n, ator.Login);
+        var resumo = n.Texto.Length > 120 ? n.Texto[..120] + "…" : n.Texto;
+        Auditar(ator, ant is null ? "viagem.historico" : "viagem.historico.editar", "viagem", v.Id, $"{v.Codigo}: {resumo}");
+        return n;
+    }
+
+    public void ExcluirNota(Ator ator, string notaId)
+    {
+        ator.Exigir(Perm.EditarViagens);
+        var n = Db.NotasViagem.Obter(notaId) ?? throw new ValidacaoException("Registro não encontrado.");
+        if (n.Autor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu (ou o administrador) exclui este registro.");
+        Db.NotasViagem.Apagar(n.Id);
+        Auditar(ator, "viagem.historico.excluir", "viagem", n.ViagemId, $"Registro do histórico excluído: {(n.Texto.Length > 80 ? n.Texto[..80] + "…" : n.Texto)}");
+    }
+
+    /// <summary>Alterações automáticas da viagem (status, responsável, lista de verificação, e-mail, anexos…), para o histórico.</summary>
+    public List<Auditoria> EventosDaViagem(string viagemId) =>
+        Db.Auditorias.Onde(a => a.Entidade == "viagem" && a.EntidadeId == viagemId && !a.Acao.StartsWith("viagem.historico") && a.Acao != "anexo.visualizar" && a.Acao != "anexo.baixar")
+            .OrderByDescending(a => a.Quando).ToList();
+
     /// <summary>Usuárias da equipe de controle (podem ser responsáveis por viagens e trocar entre si).</summary>
     public List<Usuario> EquipeControle() => Db.Usuarios.Todos().Where(u => u.Ativo && u.EquipeControle).OrderBy(u => u.Nome).ToList();
 
@@ -354,6 +398,7 @@ public sealed partial class Servicos
         foreach (var t in Db.Trechos.Onde(t => t.ViagemId == viagemId)) Db.Trechos.Apagar(t.Id);
         foreach (var a in Db.Atendimentos.Onde(a => a.ViagemId == viagemId)) Db.Atendimentos.Apagar(a.Id);
         foreach (var an in Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == viagemId)) Arquivos.Remover(an);
+        foreach (var n in Db.NotasViagem.Onde(n => n.ViagemId == viagemId)) Db.NotasViagem.Apagar(n.Id);
         Db.Viagens.Apagar(viagemId);
         var proj = string.IsNullOrWhiteSpace(v.Projeto) ? "" : $" · projeto {v.Projeto}";
         Auditar(ator, "viagem.excluir", "viagem", viagemId, $"Viagem {v.Codigo}{proj} excluída (status {Vocab.Get(Vocab.StatusViagem, v.Status).Label})");

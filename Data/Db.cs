@@ -23,6 +23,7 @@ public sealed class Db
     public Repo<ConfigItem> Config { get; }
     public Repo<Auditoria> Auditorias { get; }
     public Repo<Usuario> Usuarios { get; }
+    public Repo<NotaViagem> NotasViagem { get; }
 
     public Db(ParquetStore store)
     {
@@ -43,6 +44,7 @@ public sealed class Db
         Config = new(store, "config");
         Auditorias = new(store, "auditoria");
         Usuarios = new(store, "usuarios");
+        NotasViagem = new(store, "notas_viagem");
     }
 
     // ---- configuração (chave/valor) ----

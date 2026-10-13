@@ -169,3 +169,7 @@ Item **Identidade visual** no menu lateral (seção Sistema, só para o administ
   - **Abrir no Outlook**: cria o e-mail no Outlook do computador onde o sistema está rodando, **com a assinatura padrão** de quem envia (Windows + Outlook instalado).
   - **Baixar e-mail (.eml)**: alternativa; o Outlook abre como e-mail novo com os anexos (a assinatura pode precisar ser inserida em Inserir → Assinatura).
   - Opcionalmente marca "Ordem de Serviço" na lista de verificação; o envio fica no histórico.
+
+## Histórico da viagem
+
+Cada viagem tem a aba **Histórico da viagem** (ao lado de "Viagem"): a equipe escreve tudo o que aconteceu — ocorrência, cliente, técnico, logística (voo/hotel/carro), financeiro ou anotação — com a data/hora em que aconteceu. Fica registrado quem escreveu; só a autora (ou o administrador) edita ou exclui. Na mesma linha do tempo aparecem, se quiser, as alterações automáticas (status, responsável, lista de verificação, e-mail da OS, documentos). Há busca e filtro por tipo. Técnicos veem o histórico das próprias viagens, sem editar.

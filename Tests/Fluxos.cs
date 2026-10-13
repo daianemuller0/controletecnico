@@ -1004,3 +1004,28 @@ public class ControleViagemTests
         Assert.False(a.Svc.RascunhoOs(a.Gestao, v.Id).UsaCarro);      // o que foi editado volta no próximo envio
     }
 }
+
+public class HistoricoViagemTests
+{
+    [Fact]
+    public void Registros_do_historico_com_autor_e_permissoes()
+    {
+        using var a = new Amb(); var t = a.NovoTec(); var p = a.NovaPlanta();
+        var v = a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "P1", Status = Vocab.ViagemPlanejada, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(3, 17), TecnicoIds = t.Id } });
+        var n = a.Svc.SalvarNota(a.Gestao, new NotaViagem { ViagemId = v.Id, Tipo = "logistica", Texto = "Voo remarcado para 14/10 às 08h." });
+        a.Svc.SalvarNota(a.Contr, new NotaViagem { ViagemId = v.Id, Tipo = "cliente", Texto = "Cliente pediu integração presencial.", Quando = DateTime.UtcNow.AddDays(-1) });
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarNota(a.Gestao, new NotaViagem { ViagemId = v.Id, Texto = " " }));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarNota(a.Consulta, new NotaViagem { ViagemId = v.Id, Texto = "x y" }));
+        var l = a.Svc.NotasDaViagem(a.Gestao, v.Id);
+        Assert.Equal(2, l.Count); Assert.Equal("Voo remarcado para 14/10 às 08h.", l[0].Texto); Assert.Equal("g", l[0].AutorNome);     // sem cadastro de usuário: fica o login
+        // outra pessoa não altera nem exclui o registro de quem escreveu
+        n.Texto = "alterado"; Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarNota(a.Contr, n));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.ExcluirNota(a.Contr, n.Id));
+        a.Svc.SalvarNota(a.Gestao, n); Assert.NotNull(a.Db.NotasViagem.Obter(n.Id)!.EditadoEm);
+        a.Svc.ExcluirNota(a.Gestao, n.Id); Assert.Single(a.Svc.NotasDaViagem(a.Gestao, v.Id));
+        Assert.Contains(a.Svc.EventosDaViagem(v.Id), x => x.Acao == "viagem.criar");
+        Assert.Contains(a.Db.Auditorias.Todos(), x => x.Acao == "viagem.historico");
+        a.Svc.ExcluirViagem(a.Gestao, v.Id); Assert.Empty(a.Db.NotasViagem.Onde(x => x.ViagemId == v.Id));
+    }
+}

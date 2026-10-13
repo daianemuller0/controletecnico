@@ -41,7 +41,14 @@ else
 @if (_v.Status == Vocab.ViagemCancelada) { <div class="alert-box alert-erro">@Icons.Svg("x")<div><strong>Cancelada:</strong> os eventos saíram da agenda e do mapa e a viagem não bloqueia mais a disponibilidade dos técnicos.</div></div> }
 @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro" role="alert">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
 
-<div class="vg-grid">
+@if (!_novo)
+{
+    <div class="tabs vg-abas" role="tablist">
+        <button role="tab" class="tab @(_abaV != "historico" ? "active" : "")" @onclick="@(() => _abaV = "viagem")">@Icons.Svg("plane")Viagem</button>
+        <button role="tab" class="tab @(_abaV == "historico" ? "active" : "")" @onclick="@(() => _abaV = "historico")">@Icons.Svg("history")Histórico da viagem <span class="tab-n">@_nNotas</span></button>
+    </div>
+}
+<div class="vg-grid" style="@(_abaV == "historico" ? "display:none" : "")">
 <div class="vg-main">
 <fieldset class="semborda" disabled="@(!_pode)">
 
@@ -212,6 +219,7 @@ else
 }
 }
 
+@if (!_novo && _abaV == "historico") { <HistoricoViagem ViagemId="@Id" Ator="@_ator" Pode="@_pode" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nNotas = n)" /> }
 @if (_email) { <EmailOsDialogo ViagemId="@Id" Ator="@_ator" OnFechar="@(() => _email = false)" OnGerado="@(() => { var x = Svc.Foto().Viagem(Id); if (x is not null) { _v.Checklist = x.Checklist; _v.OsGeradoEm = x.OsGeradoEm; } })" /> }
 
 @code {
@@ -226,6 +234,8 @@ else
     private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(c.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verReserva, _verAnexos, _email;
+    private string _abaV = "viagem"; private int _nNotas;
+    private int ContarNotas() { try { return Svc.NotasDaViagem(_ator, Id).Count; } catch { return 0; } }
     private List<Usuario> _equipe = new();
     private void AoResponsavel(ChangeEventArgs e)
     {
@@ -262,7 +272,7 @@ else
         {
             var v = _snap.Viagem(Id);
             if (v is null || !(_ator.VeTodaEquipe || (_ator.Papel == Roles.Tecnico && Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId)))) { _ok = false; return; }
-            _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet();
+            _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet(); _nNotas = ContarNotas();
             _tr = _snap.Trechos.Where(t => t.ViagemId == Id).OrderBy(t => t.Ordem).Select(Vm).ToList();
             _at = _snap.Atendimentos.Where(a => a.ViagemId == Id).OrderBy(a => a.IniPrev).Select(Vm).ToList();
             _anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == Id);

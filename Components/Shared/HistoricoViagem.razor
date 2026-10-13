@@ -1,0 +1,117 @@
+@* Histórico da viagem: a equipe escreve tudo o que aconteceu; as alterações automáticas aparecem junto, na mesma linha do tempo. *@
+@inject Servicos Svc
+@inject Sessao Sessao
+
+<div class="hv">
+    @if (Pode)
+    {
+        <div class="panel hv-novo">
+            <div class="panel-head"><div class="panel-title">@Icons.Svg("edit")@(_edit is null ? "Registrar o que aconteceu" : "Editar registro")</div></div>
+            <div class="hv-tipos" role="group" aria-label="Tipo do registro">
+                @foreach (var t in Vocab.TiposNota)
+                {
+                    <button type="button" class="hv-tipo @(_f.Tipo == t.Key ? "on" : "")" style="--c:@t.Color" @onclick="() => _f.Tipo = t.Key">@Icons.Svg(t.Icon)@t.Label</button>
+                }
+            </div>
+            <textarea class="hv-texto" rows="4" @bind="_f.Texto" @bind:event="oninput" placeholder="Escreva aqui tudo o que aconteceu: contatos com o cliente, mudanças de voo/hotel, problemas no acesso, combinados com o técnico, custos extras…"></textarea>
+            <div class="hv-rodape">
+                <label class="hv-quando">Quando aconteceu<input type="datetime-local" value="@_quando" @onchange="e => _quando = e.Value?.ToString() ?? string.Empty" /></label>
+                <span class="grow"></span>
+                @if (_edit is not null) { <button class="btn-ghost" @onclick="Cancelar">Cancelar</button> }
+                <button class="btn-primary" @onclick="Salvar" disabled="@(string.IsNullOrWhiteSpace(_f.Texto))">@Icons.Svg("check")@(_edit is null ? "Registrar no histórico" : "Salvar alteração")</button>
+            </div>
+            @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+        </div>
+    }
+
+    <div class="hv-barra">
+        <input class="field busca" placeholder="Buscar no histórico…" @bind="_busca" @bind:event="oninput" aria-label="Buscar no histórico" />
+        <select class="field w-auto" @bind="_fTipo"><option value="">Todos os tipos</option>@foreach (var t in Vocab.TiposNota) {<option value="@t.Key">@t.Label</option>}</select>
+        <label class="chk-inline"><input type="checkbox" @bind="_auto" />Mostrar alterações automáticas</label>
+        <span class="muted sm">@_notas.Count registro(s) escrito(s)</span>
+    </div>
+
+    @{ var linhas = Linhas().ToList(); }
+    @if (linhas.Count == 0) { <div class="empty-state sm"><div class="ico">@Icons.Svg("history")</div><h3>Nada registrado ainda</h3><p>Use o campo acima para escrever o que aconteceu nesta viagem.</p></div> }
+    <ol class="hv-lista">
+        @foreach (var g in linhas.GroupBy(l => Tempo.ParaLocal(l.quando, Fuso).Date))
+        {
+            <li class="hv-dia">@g.Key.ToString("dddd, dd 'de' MMMM 'de' yyyy", Tempo.Pt)</li>
+            @foreach (var l in g)
+            {
+                if (l.nota is { } n)
+                {
+                    var t = Vocab.TiposNota.FirstOrDefault(x => x.Key == n.Tipo); if (t.Key is null) t = Vocab.TiposNota[^1];
+                    <li class="hv-item" style="--c:@t.Color">
+                        <span class="hv-ico">@Icons.Svg(t.Icon)</span>
+                        <div class="hv-corpo">
+                            <div class="hv-cab"><strong>@n.AutorNome</strong><span class="tag" style="color:@t.Color">@t.Label</span><span class="muted sm">@Tempo.ParaLocal(n.Quando, Fuso).ToString("HH:mm")@(n.EditadoEm is not null ? " · editado" : "")</span>
+                                @if (Pode && (n.Autor == Ator.Login || Ator.Papel == Roles.Admin)) { <span class="hv-acoes"><button class="btn-link" @onclick="() => Editar(n)">Editar</button><button class="btn-link perigo" @onclick="() => _excluir = n">Excluir</button></span> }</div>
+                            <div class="hv-txt">@n.Texto</div>
+                        </div>
+                    </li>
+                }
+                else if (l.aud is { } a)
+                {
+                    <li class="hv-item auto"><span class="hv-ico">@Icons.Svg("refresh")</span>
+                        <div class="hv-corpo"><div class="hv-cab"><span class="muted sm">@a.Usuario · @Tempo.ParaLocal(a.Quando, Fuso).ToString("HH:mm") · alteração automática</span></div><div class="hv-txt sm">@a.Resumo</div></div></li>
+                }
+            }
+        }
+    </ol>
+</div>
+
+@if (_excluir is not null)
+{
+    <Dialogo Titulo="Excluir registro do histórico" OnFechar="@(() => _excluir = null)">
+        <p class="confirma-txt">Você tem certeza que quer excluir este registro?</p>
+        <p class="muted">@(_excluir.Texto.Length > 200 ? _excluir.Texto[..200] + "…" : _excluir.Texto)</p>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _excluir = null)">Não</button><button class="btn-danger" @onclick="Excluir">@Icons.Svg("trash")Sim, excluir</button></div>
+    </Dialogo>
+}
+
+@code {
+    [Parameter, EditorRequired] public string ViagemId { get; set; } = "";
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter] public bool Pode { get; set; }
+    [Parameter] public string Fuso { get; set; } = "America/Sao_Paulo";
+    [Parameter] public EventCallback<int> OnContagem { get; set; }
+
+    private List<NotaViagem> _notas = new(); private List<Auditoria> _eventos = new(); private List<string>? _erros;
+    private NotaViagem _f = new(); private NotaViagem? _edit, _excluir; private string _quando = "", _busca = "", _fTipo = ""; private bool _auto = true;
+
+    protected override void OnParametersSet() { Carregar(); Limpar(); }
+    private void Carregar()
+    {
+        try { _notas = Svc.NotasDaViagem(Ator, ViagemId); _eventos = Ator.VeTodaEquipe ? Svc.EventosDaViagem(ViagemId) : new(); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+    private void Limpar() { _f = new NotaViagem { ViagemId = ViagemId, Tipo = "ocorrencia" }; _edit = null; _quando = Tempo.ParaLocal(DateTime.UtcNow, Fuso).ToString("yyyy-MM-ddTHH:mm"); }
+
+    private IEnumerable<(DateTime quando, NotaViagem? nota, Auditoria? aud)> Linhas()
+    {
+        var q = DocEngine.Norm(_busca);
+        var n = _notas.Where(x => (_fTipo == "" || x.Tipo == _fTipo) && (q == "" || DocEngine.Norm(x.Texto + " " + x.AutorNome).Contains(q))).Select(x => (x.Quando, (NotaViagem?)x, (Auditoria?)null));
+        var a = (_auto && _fTipo == "" ? _eventos : new()).Where(x => q == "" || DocEngine.Norm(x.Resumo + " " + x.Usuario).Contains(q)).Select(x => (x.Quando, (NotaViagem?)null, (Auditoria?)x));
+        return n.Concat(a).OrderByDescending(x => x.Item1);
+    }
+
+    private async Task Salvar()
+    {
+        _erros = null;
+        try
+        {
+            _f.Quando = DateTime.TryParse(_quando, out var d) ? Tempo.ParaUtc(d, Fuso) : DateTime.UtcNow;
+            Svc.SalvarNota(Ator, _f); Sessao.Avisar(_edit is null ? "Registrado no histórico da viagem." : "Registro alterado.");
+            Carregar(); Limpar(); await OnContagem.InvokeAsync(_notas.Count);
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+    private void Editar(NotaViagem n) { _edit = n; _f = n.Copia<NotaViagem>(); _quando = Tempo.ParaLocal(n.Quando, Fuso).ToString("yyyy-MM-ddTHH:mm"); }
+    private void Cancelar() => Limpar();
+    private async Task Excluir()
+    {
+        try { Svc.ExcluirNota(Ator, _excluir!.Id); _excluir = null; Carregar(); Sessao.Avisar("Registro excluído."); await OnContagem.InvokeAsync(_notas.Count); }
+        catch (Exception ex) { _excluir = null; Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
+}

@@ -254,6 +254,21 @@ public class Requisito : Entity
 
 public class ConfigItem : Entity { public string Valor { get; set; } = ""; }
 
+/// <summary>Registro escrito no histórico da viagem: o que aconteceu, por quem e quando.</summary>
+public class NotaViagem : Entity
+{
+    public string ViagemId { get; set; } = "";
+    /// <summary>ocorrencia | cliente | tecnico | logistica | financeiro | outro</summary>
+    public string Tipo { get; set; } = "ocorrencia";
+    public string Texto { get; set; } = "";
+    /// <summary>Quando aconteceu (pode ser diferente de quando foi escrito).</summary>
+    public DateTime Quando { get; set; }
+    public DateTime CriadoEm { get; set; }
+    public string Autor { get; set; } = "";
+    public string AutorNome { get; set; } = "";
+    public DateTime? EditadoEm { get; set; }
+}
+
 public class Auditoria : Entity
 {
     public DateTime Quando { get; set; }

@@ -39,7 +39,14 @@ else
 @if (_v.Status == Vocab.ViagemCancelada) { <div class="alert-box alert-erro">@Icons.Svg("x")<div><strong>Cancelada:</strong> saiu da agenda e do mapa e não bloqueia a disponibilidade.</div></div> }
 @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro" role="alert">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
 
-<div class="vs-grid">
+@if (!_novo)
+{
+    <div class="tabs vg-abas" role="tablist">
+        <button role="tab" class="tab @(_abaV != "historico" ? "active" : "")" @onclick="@(() => _abaV = "viagem")">@Icons.Svg("plane")Viagem</button>
+        <button role="tab" class="tab @(_abaV == "historico" ? "active" : "")" @onclick="@(() => _abaV = "historico")">@Icons.Svg("history")Histórico da viagem <span class="tab-n">@_nNotas</span></button>
+    </div>
+}
+<div class="vs-grid" style="@(_abaV == "historico" ? "display:none" : "")">
 <fieldset class="semborda vs-form" disabled="@(!_pode)">
 
     <div class="panel">
@@ -129,6 +136,7 @@ else
 </aside>
 </div>
 
+@if (!_novo && _abaV == "historico") { <HistoricoViagem ViagemId="@Id" Ator="@_ator" Pode="@_pode" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nNotas = n)" /> }
 @if (_email) { <EmailOsDialogo ViagemId="@Id" Ator="@_ator" OnFechar="@(() => _email = false)" OnGerado="AoEmail" /> }
 @if (_pedirCidade is not null) { <CidadePlanta PlantaId="@_pedirCidade" Ator="@_ator" OnSalvo="CidadeSalva" OnFechar="@(() => _pedirCidade = null)" /> }
 @if (_cancelando)
@@ -153,6 +161,8 @@ else
     private double? _horasPrev, _horasReal; private ResultadoViagem _res = new(); private List<string>? _erros; private Planta? _planta;
     private string? _motivo, _pedirCidade; private string _fusoOrigem = "", _fusoPlanta = "";
     private DotNetObjectReference<ViagemSimples>? _ref; private bool _mapaPronto, _redesenhar, _email;
+    private string _abaV = "viagem"; private int _nNotas;
+    private int ContarNotas() { try { return Svc.NotasDaViagem(_ator, Id).Count; } catch { return 0; } }
     private List<Usuario> _equipe = new();
 
     private void AoChecklist(List<Checklist.Item> l) { _v.Checklist = Checklist.Gravar(l); }
@@ -191,7 +201,7 @@ else
             var simples = trs.Count(t => t.Tipo == Vocab.TrechoIda) <= 1 && trs.Count(t => t.Tipo == Vocab.TrechoRetorno) <= 1 && trs.All(t => t.Tipo != Vocab.TrechoEntre && paraTodos(t.TecnicoIds))
                           && ats.Count <= 1 && ats.All(a => paraTodos(a.TecnicoIds) && (a.PlantaId == v.PlantaId || v.PlantaId == ""));
             if (!simples) { Nav.NavigateTo($"/viagens/{Id}/avancado", replace: true); return; }
-            _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet();
+            _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet(); _nNotas = ContarNotas();
             AtualizarPlanta();
             var ti = trs.FirstOrDefault(t => t.Tipo == Vocab.TrechoIda); var tr = trs.FirstOrDefault(t => t.Tipo == Vocab.TrechoRetorno); var at = ats.FirstOrDefault();
             if (ti is not null) _ida = new Faixa { T = ti.Copia<Trecho>(), Modal = ti.Modal, Ini = Ui.ParaInput(ti.PartidaPrev, _fusoOrigem), Fim = Ui.ParaInput(ti.ChegadaPrev, _fusoPlanta) };
