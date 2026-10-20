@@ -403,6 +403,41 @@ public class BaseCompartilhadaTests
     }
 
     [Fact]
+    public void Modo_VPN_le_da_copia_local_sem_rede_e_atualiza_em_segundo_plano()
+    {
+        var share = Nova(); var espB = Nova();
+        Repo<Tecnico>.SincronizarEmSegundoPlano = true;
+        try
+        {
+            var dbA = new Db(new ParquetStore(share, Nova(), forcarEspelho: true));
+            dbA.Tecnicos.Salvar(new Tecnico { Id = "t1", Nome = "Ana", Cidade = "X" });
+            // B abre pela primeira vez: sem cópia local, busca da rede uma vez
+            var dbB = new Db(new ParquetStore(share, espB, forcarEspelho: true));
+            Assert.Equal("Ana", dbB.Tecnicos.Obter("t1")!.Nome);
+            // A grava de novo: B continua lendo a memória (sem ir à rede) até a conferência em segundo plano
+            dbA.Tecnicos.Salvar(new Tecnico { Id = "t2", Nome = "Bia", Cidade = "Y" });
+            Assert.Null(dbB.Tecnicos.Obter("t2"));
+            Assert.True(dbB.Tecnicos.ConferirRede());
+            Assert.Equal("Bia", dbB.Tecnicos.Obter("t2")!.Nome);
+            Assert.False(dbB.Tecnicos.ConferirRede());                       // nada mudou: não recarrega
+            // o que B grava aparece para B na hora
+            dbB.Tecnicos.Salvar(new Tecnico { Id = "t3", Nome = "Caio", Cidade = "Z" });
+            Assert.Equal(3, dbB.Tecnicos.Todos().Count);
+            // reabrir B com a cópia local: abre sem precisar da rede (pasta compartilhada fora do ar)
+            Directory.Move(share, share + "_off");
+            var dbB2 = new Db(new ParquetStore(share + "_off", espB, forcarEspelho: true));
+            Directory.Move(share + "_off", share);
+            var dbB3 = new Db(new ParquetStore(share, espB, forcarEspelho: true));
+            Assert.Equal(3, dbB3.Tecnicos.Todos().Count);
+            // número sequencial (Recarregar) sempre confere a rede
+            dbA.Tecnicos.Salvar(new Tecnico { Id = "t4", Nome = "Duda", Cidade = "W" });
+            dbB3.Tecnicos.Recarregar();
+            Assert.Equal(4, dbB3.Tecnicos.Todos().Count);
+        }
+        finally { Repo<Tecnico>.SincronizarEmSegundoPlano = false; try { Directory.Delete(share, true); } catch { } }
+    }
+
+    [Fact]
     public void Compactacao_preserva_dados_move_antigos_para_historico_e_nao_deixa_tmp()
     {
         var share = Nova(); Repo<Tecnico>.SegundosEntreChecagens = 0;

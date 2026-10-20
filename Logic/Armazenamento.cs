@@ -32,11 +32,15 @@ public sealed class Armazenamento
     private readonly Db _db;
     private readonly string _dir;
 
+    private readonly string? _cacheLocal;
+
     public Armazenamento(Db db)
     {
         _db = db;
         _dir = Path.Combine(db.Store.Folder, "arquivos");
         Directory.CreateDirectory(_dir);
+        // base na rede: guarda no computador uma cópia de cada anexo já aberto (fotos, logos, PDFs) — não muda, então não precisa baixar de novo
+        if (db.Store.EspelhoDir is { } esp) { _cacheLocal = Path.Combine(Path.GetDirectoryName(esp.TrimEnd(Path.DirectorySeparatorChar))!, "arquivos_cache"); Directory.CreateDirectory(_cacheLocal); }
     }
 
     public static string TiposAceitos => ".pdf, .jpg, .jpeg, .png";
@@ -82,6 +86,7 @@ public sealed class Armazenamento
         var tmp = caminho + "." + Guid.NewGuid().ToString("N")[..6] + ".tmp";
         await File.WriteAllBytesAsync(tmp, bytes);
         ParquetStore.ComRetentativa(() => { File.Move(tmp, caminho, true); return 0; });
+        GuardarLocal(chave, bytes);
 
         var ext = Path.GetExtension(nome);
         return _db.Anexos.Salvar(new Anexo
@@ -132,6 +137,7 @@ public sealed class Armazenamento
         var tmp = caminho + ".tmp";
         await File.WriteAllBytesAsync(tmp, bytes);
         ParquetStore.ComRetentativa(() => { File.Move(tmp, caminho, true); return 0; });
+        GuardarLocal(chave, bytes);
         return _db.Anexos.Salvar(new Anexo { DonoTipo = "marca", DonoId = tipoMarca, NomeOriginal = nome, ContentType = ct, Tamanho = bytes.Length, Chave = chave,
             Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), EnviadoPor = ator.Login }, ator.Login);
     }
@@ -140,11 +146,30 @@ public sealed class Armazenamento
     {
         var caminho = Path.GetFullPath(Path.Combine(_dir, a.Chave.Replace('/', Path.DirectorySeparatorChar)));
         if (!caminho.StartsWith(Path.GetFullPath(_dir), StringComparison.Ordinal)) return null;   // sem path traversal
+        if (_cacheLocal is not null)
+        {
+            var local = Path.Combine(_cacheLocal, a.Chave.Replace('/', '_'));
+            if (!File.Exists(local))
+            {
+                if (!File.Exists(caminho)) return null;
+                var tmp = local + "." + Guid.NewGuid().ToString("N")[..6] + ".tmp";
+                try { ParquetStore.ComRetentativa(() => { File.Copy(caminho, tmp, true); return 0; }); File.Move(tmp, local, true); }
+                catch { try { File.Delete(tmp); } catch { } return ParquetStore.ComRetentativa(() => (Stream)new FileStream(caminho, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)); }
+            }
+            return new FileStream(local, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        }
         return File.Exists(caminho) ? ParquetStore.ComRetentativa(() => (Stream)new FileStream(caminho, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) : null;
+    }
+
+    private void GuardarLocal(string chave, byte[] bytes)
+    {
+        if (_cacheLocal is null) return;
+        try { File.WriteAllBytes(Path.Combine(_cacheLocal, chave.Replace('/', '_')), bytes); } catch { }
     }
 
     public void Remover(Anexo a)
     {
+        if (_cacheLocal is not null) try { File.Delete(Path.Combine(_cacheLocal, a.Chave.Replace('/', '_'))); } catch { }
         var caminho = Path.GetFullPath(Path.Combine(_dir, a.Chave.Replace('/', Path.DirectorySeparatorChar)));
         if (caminho.StartsWith(Path.GetFullPath(_dir), StringComparison.Ordinal) && File.Exists(caminho))
         {

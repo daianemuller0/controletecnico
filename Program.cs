@@ -37,7 +37,7 @@ ParquetStore store;
 try
 {
     store = new ParquetStore(pastaDados, builder.Configuration["Data:EspelhoLocal"], builder.Configuration.GetValue("Data:UsarEspelho", false));
-    var diag = store.Diagnosticar();
+    var diag = store.Diagnosticar(contarArquivos: false);       // na inicialização só o teste de leitura/escrita (listar tudo pela VPN é lento)
     if (!diag.Ok) throw new InvalidOperationException($"A pasta de dados '{diag.Pasta}' está acessível, mas sem leitura e escrita: {diag.Mensagem}");
     Console.WriteLine($"[controletecnico] Base de dados: {diag.Pasta} (rede: {(diag.Rede ? "sim" : "não")}; espelho local: {diag.Espelho ?? "não usado"}; {diag.LatenciaMs} ms)");
 }
@@ -67,6 +67,9 @@ if (args.Contains("--redefinir-admin"))
     return 0;
 }
 Repo<Tecnico>.SegundosEntreChecagens = builder.Configuration.GetValue("Data:AtualizarCacheSegundos", 3);
+// pasta de rede (VPN): telas leem a cópia local; a rede é conferida em segundo plano
+Repo<Tecnico>.SincronizarEmSegundoPlano = store.Remoto && builder.Configuration.GetValue("Data:SincronizarEmSegundoPlano", true);
+builder.Services.AddHostedService<SincronizacaoService>();
 builder.Services.AddSingleton(store);
 builder.Services.AddHostedService<CompactacaoService>();
 // chaves dos cookies ficam NO COMPUTADOR (nunca na pasta compartilhada, onde ficariam legíveis para outros)
@@ -111,6 +114,14 @@ using (var scope = app.Services.CreateScope())
         Seed.Usuarios(db, senha, demo);
         if (demo) Seed.Demo(db, arq);
     }
+}
+
+// carrega todas as tabelas em memória já na inicialização (da cópia local, em paralelo): a primeira tela abre sem esperar
+{
+    var dbW = app.Services.GetRequiredService<Db>();
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    Parallel.ForEach(dbW.Repos, new ParallelOptions { MaxDegreeOfParallelism = 6 }, r => { try { r.Aquecer(); } catch { } });
+    Console.WriteLine($"[controletecnico] Dados carregados em {sw.ElapsedMilliseconds} ms{(store.Remoto ? " (cópia local; a rede é conferida em segundo plano)" : "")}.");
 }
 
 app.Use(async (ctx, next) =>

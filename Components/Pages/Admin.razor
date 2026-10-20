@@ -164,6 +164,8 @@ else if (_aba == "arm" && _ator.Pode(Perm.Administrar))
             <dt>Pasta</dt><dd><code>@d.Pasta</code></dd>
             <dt>Pasta de rede</dt><dd>@(d.Rede ? "Sim" : "Não (pasta local)")</dd>
             <dt>Espelho local (leitura)</dt><dd>@(d.Espelho is null ? "não usado" : d.Espelho)</dd>
+            <dt>Leitura das telas</dt><dd>@(Repo<Tecnico>.SincronizarEmSegundoPlano ? "cópia local no computador (rápida); a rede é conferida em segundo plano" : "direto da pasta")</dd>
+            @if (Repo<Tecnico>.SincronizarEmSegundoPlano) { <dt>Última conferência com a rede</dt><dd>@(SincronizacaoService.UltimaConferencia is { } uc ? Ui.Hora(uc, null, Svc.Foto(), true) : "ainda não") @if (SincronizacaoService.UltimoErro is { } ue) { <span class="neg"> · @ue</span> }</dd> }
             <dt>Teste de gravação</dt><dd>@d.LatenciaMs ms @if (!string.IsNullOrEmpty(d.Mensagem)) { <span class="neg"> · @d.Mensagem</span> }</dd>
         </dl>
         <p class="muted sm">Cada gravação cria um arquivo pequeno na pasta da entidade; a compactação consolida os arquivos e move os antigos para <code>_historico</code> (30 dias).</p>

@@ -168,6 +168,17 @@ public sealed class ParquetStore
         return arquivos.Length == 0 ? "0" : $"{arquivos.Length}|{arquivos.Max(f => f.LastWriteTimeUtc.Ticks)}|{arquivos.Sum(f => f.Length)}";
     }
 
+    /// <summary>Copia para o espelho local o que mudou na rede (usado pela sincronização em segundo plano).</summary>
+    public void SincronizarEspelho(string entity) => PastaDeLeitura(entity);
+
+    /// <summary>O espelho local já tem dados desta entidade (permite abrir o sistema sem esperar a rede).</summary>
+    public bool EspelhoTemArquivos(string entity)
+    {
+        if (EspelhoDir is null) return false;
+        var d = Path.Combine(EspelhoDir, entity);
+        return Directory.Exists(d) && Directory.EnumerateFiles(d, "*.parquet").Any();
+    }
+
     /// <summary>Sincroniza o espelho local (copia o que falta, remove o que saiu) e devolve a pasta a consultar.</summary>
     private string PastaDeLeitura(string entity)
     {
@@ -179,9 +190,10 @@ public sealed class ParquetStore
             Directory.CreateDirectory(destino);
             var rem = new DirectoryInfo(remoto).GetFiles("*.parquet");
             var locais = new DirectoryInfo(destino).GetFiles("*.parquet").ToDictionary(f => f.Name, f => f.Length, StringComparer.OrdinalIgnoreCase);
-            foreach (var f in rem)
+            // pela VPN cada cópia é dominada pela latência: copia vários arquivos ao mesmo tempo
+            var faltando = rem.Where(f => !(locais.TryGetValue(f.Name, out var len) && len == f.Length)).ToList();
+            Parallel.ForEach(faltando, new ParallelOptions { MaxDegreeOfParallelism = 8 }, f =>
             {
-                if (locais.TryGetValue(f.Name, out var len) && len == f.Length) continue;
                 var tmp = Path.Combine(destino, $"_c_{Guid.NewGuid():N}.tmp");
                 try
                 {
@@ -189,17 +201,20 @@ public sealed class ParquetStore
                     File.Move(tmp, Path.Combine(destino, f.Name), true);
                 }
                 catch (FileNotFoundException) { /* compactada por outro usuário no meio: a próxima leitura reconcilia */ }
+                catch (DirectoryNotFoundException) { }
                 finally { try { File.Delete(tmp); } catch { } }
-            }
+            });
             var nomes = rem.Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var n in locais.Keys.Where(n => !nomes.Contains(n))) { try { File.Delete(Path.Combine(destino, n)); } catch { } }
             return destino;
         }
     }
 
-    public List<Dictionary<string, string?>> ReadAll(string entity)
+    /// <param name="sincronizar">false = lê só o espelho local, sem tocar na rede (a sincronização roda em segundo plano).</param>
+    public List<Dictionary<string, string?>> ReadAll(string entity, bool sincronizar = true)
     {
-        var dir = PastaDeLeitura(entity);
+        var dir = sincronizar || EspelhoDir is null ? PastaDeLeitura(entity) : Path.Combine(EspelhoDir, entity);
+        if (!Directory.Exists(dir)) return new();
         var result = new List<Dictionary<string, string?>>();
         if (Directory.GetFiles(dir, "*.parquet").Length == 0) return result;
         using var conn = Open();
@@ -323,7 +338,7 @@ COPY (
     public sealed record Diagnostico(bool Ok, string Pasta, bool Rede, string? Espelho, bool Leitura, bool Escrita, long LatenciaMs, string Mensagem, Dictionary<string, int> Arquivos);
 
     /// <summary>Teste real de leitura e escrita na pasta compartilhada (cria e apaga um arquivo-sonda).</summary>
-    public Diagnostico Diagnosticar()
+    public Diagnostico Diagnosticar(bool contarArquivos = true)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew(); bool le = false, es = false; string msg = "";
         var arqs = new Dictionary<string, int>();
@@ -332,7 +347,7 @@ COPY (
             var sonda = Path.Combine(Folder, $"_sonda_{Environment.MachineName}_{Guid.NewGuid():N}.tmp");
             try { File.WriteAllText(sonda, "ok"); es = true; le = File.ReadAllText(sonda) == "ok"; }
             finally { try { File.Delete(sonda); } catch { } }
-            foreach (var e in Entities()) arqs[e] = FileCount(e);
+            if (contarArquivos) foreach (var e in Entities()) arqs[e] = FileCount(e);
         }
         catch (Exception ex) { msg = ex.Message; }
         sw.Stop();

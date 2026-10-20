@@ -23,7 +23,17 @@ public sealed class NaoPersistirAttribute : Attribute { }
 /// leitura consolidada por id e gravação em lote. Devolve cópias — quem recebe
 /// pode alterar sem corromper o cache.
 /// </summary>
-public sealed class Repo<T> where T : Entity, new()
+/// <summary>Repositório que a sincronização em segundo plano sabe atualizar.</summary>
+public interface ISincronizavel
+{
+    string Entidade { get; }
+    /// <summary>Confere a pasta compartilhada; se mudou, atualiza o espelho e troca o cache. true = recarregou.</summary>
+    bool ConferirRede();
+    /// <summary>Carrega em memória (da cópia local, se houver) para a primeira tela abrir rápido.</summary>
+    void Aquecer();
+}
+
+public sealed class Repo<T> : ISincronizavel where T : Entity, new()
 {
     private static readonly PropertyInfo[] Props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance)
         .Where(p => p.CanRead && p.CanWrite && p.GetCustomAttribute<NaoPersistirAttribute>() is null).ToArray();
@@ -36,6 +46,11 @@ public sealed class Repo<T> where T : Entity, new()
     private long _ultimaChecagem;
     /// <summary>Intervalo mínimo entre checagens da pasta compartilhada (gravações de outras máquinas).</summary>
     public static int SegundosEntreChecagens { get; set; } = 3;
+    /// <summary>Base em pasta de rede (VPN): as telas leem só a memória/cópia local e a rede é conferida em segundo plano
+    /// (SincronizacaoService). Desligado = comportamento direto (confere a pasta a cada poucos segundos na própria leitura).</summary>
+    public static bool SincronizarEmSegundoPlano { get; set; }
+    private long _gravacoes;
+    private bool Fundo => SincronizarEmSegundoPlano && _store.Remoto;
 
     public Repo(ParquetStore store, string entity) { _store = store; _entity = entity; }
 
@@ -46,6 +61,15 @@ public sealed class Repo<T> where T : Entity, new()
 
     private Dictionary<string, T> Cache()
     {
+        if (Fundo)
+        {
+            if (_cache is not null) return _cache;
+            // primeira leitura: usa a cópia local (abre na hora); só vai à rede se ainda não houver cópia neste computador
+            if (_store.EspelhoTemArquivos(_entity)) _assinatura = null;
+            else { _store.SincronizarEspelho(_entity); try { _assinatura = _store.Assinatura(_entity); } catch { _assinatura = null; } }
+            Versao++;
+            return _cache = Ler(sincronizar: false);
+        }
         var agora = Environment.TickCount64;
         if (_cache is not null)
         {
@@ -58,15 +82,39 @@ public sealed class Repo<T> where T : Entity, new()
         }
         _ultimaChecagem = agora; Versao++;
         _assinatura = _store.Assinatura(_entity);
+        return _cache = Ler(sincronizar: true);
+    }
+
+    private Dictionary<string, T> Ler(bool sincronizar)
+    {
         var d = new Dictionary<string, T>();
-        foreach (var row in _store.ReadAll(_entity))
+        foreach (var row in _store.ReadAll(_entity, sincronizar))
         {
             var e = new T();
             foreach (var p in Props)
                 if (row.TryGetValue(p.Name, out var v)) Set(p, e, v);
             if (!string.IsNullOrEmpty(e.Id)) d[e.Id] = e;
         }
-        return _cache = d;
+        return d;
+    }
+
+    public void Aquecer() { lock (_lock) Cache(); }
+
+    public bool ConferirRede()
+    {
+        if (!_store.Remoto) { Sincronizar(); return false; }
+        string atual;
+        try { atual = _store.Assinatura(_entity); } catch { return false; }          // rede caiu: segue com a cópia local
+        long gravacoesAntes; string? assinaturaAntes;
+        lock (_lock) { gravacoesAntes = _gravacoes; assinaturaAntes = _assinatura; if (_cache is not null && atual == assinaturaAntes) return false; }
+        _store.SincronizarEspelho(_entity);                                          // copia só o que mudou (fora da trava: as telas seguem respondendo)
+        var novo = Ler(sincronizar: false);
+        lock (_lock)
+        {
+            if (_gravacoes != gravacoesAntes) return false;                           // gravamos no meio: confere de novo na próxima volta
+            _cache = novo; _assinatura = atual; Versao++;
+        }
+        return true;
     }
 
     public static string NovoId() => Guid.NewGuid().ToString("N")[..12];
@@ -113,7 +161,7 @@ public sealed class Repo<T> where T : Entity, new()
                 Props.Select(p => new KeyValuePair<string, string?>(p.Name, Get(p, e))).ToList()).ToList();
             _store.WriteBatch(_entity, rows);   // primeiro a pasta compartilhada; só então o cache
             foreach (var e in lista) cache[e.Id] = e.Copia<T>();
-            Versao++; _ultimaChecagem = 0;       // na próxima leitura confere se mais alguém gravou junto
+            Versao++; _ultimaChecagem = 0; _gravacoes++;       // na próxima leitura confere se mais alguém gravou junto
         }
         return lista;
     }
@@ -127,7 +175,7 @@ public sealed class Repo<T> where T : Entity, new()
             var rows = new List<IReadOnlyList<KeyValuePair<string, string?>>>
                 { Props.Select(p => new KeyValuePair<string, string?>(p.Name, Get(p, e))).ToList() };
             _store.WriteBatch(_entity, rows, deleted: true);
-            cache.Remove(id); Versao++;
+            cache.Remove(id); Versao++; _gravacoes++;
         }
     }
 
@@ -137,7 +185,12 @@ public sealed class Repo<T> where T : Entity, new()
         lock (_lock) { _store.Clear(_entity); _cache = new Dictionary<string, T>(); _assinatura = null; }
     }
 
-    public void Recarregar() { lock (_lock) _cache = null; }
+    /// <summary>Força ler da pasta compartilhada agora (ex.: antes de numerar uma viagem nova).</summary>
+    public void Recarregar()
+    {
+        if (Fundo) { ConferirRede(); return; }
+        lock (_lock) _cache = null;
+    }
 
     // ---- serialização --------------------------------------------------
     private static string? Get(PropertyInfo p, object o)

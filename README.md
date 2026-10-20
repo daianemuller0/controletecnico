@@ -183,3 +183,12 @@ Ao criar uma viagem, a tela já traz a **lista de verificação**, os **document
 - **Foto do usuário**: clique no avatar do topo (ou no cadeado) → **Meu perfil**: enviar/trocar/remover a foto (JPG/PNG) e alterar a senha. O administrador também troca a foto em Administração → Usuários. Sem foto própria, usuário ligado a um técnico usa a foto da ficha.
 - **Casa do técnico**: o endereço pode ser digitado inteiro num campo só ("Rua X, 120 - Centro, Sorocaba - SP, 18010-000"): o sistema separa CEP, cidade e UF, tenta rua → texto livre → CEP → cidade → estado → país e só cai no país se nada mais existir. Se ainda assim não ficar exato, **Ajustar no mapa** na ficha: clique no mapa para marcar a casa (nível "manual").
 - **Howden South America**: em Administração → Configurações → Endereço da empresa, informe o endereço (ou **Ajustar a posição no mapa**) e salve. Sem coordenadas, quem está "na Howden" não aparece no mapa — a Visão operacional avisa com o link para configurar.
+
+## Desempenho pela VPN
+
+- **Leitura local**: com a base na pasta de rede, as telas leem a **cópia local** (`%LOCALAPPDATA%\ControleTecnico\espelho`) e a memória; a pasta compartilhada é conferida **em segundo plano** a cada 15 s (`Data:SincronizarSegundos`). Gravações continuam indo direto ao servidor. Alterações de outras pessoas aparecem em até ~15 s.
+- **Inicialização**: carrega todas as tabelas da cópia local em paralelo; só a primeira vez num computador baixa tudo (cópias em paralelo).
+- **Anexos, fotos e logos**: cada arquivo é baixado uma vez e guardado em `%LOCALAPPDATA%\ControleTecnico\arquivos_cache`.
+- **Menos arquivos**: a compactação roda a cada hora e consolida tabelas com 20+ arquivos.
+- **Abrir sem compilar**: `powershell -ExecutionPolicy Bypass -File .\publicar.ps1` publica a versão compilada e cria o atalho "Controle Tecnico" na Área de Trabalho (rode de novo depois de cada `git pull`). `dotnet run` recompila a cada abertura e demora.
+- Para voltar ao modo antigo: `Data:SincronizarEmSegundoPlano=false`.

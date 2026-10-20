@@ -24,6 +24,8 @@ public sealed class Db
     public Repo<Auditoria> Auditorias { get; }
     public Repo<Usuario> Usuarios { get; }
     public Repo<NotaViagem> NotasViagem { get; }
+    public IReadOnlyList<ISincronizavel> Repos => new ISincronizavel[] { Config, Usuarios, Tecnicos, Especialidades, Servicos, Clientes, Plantas, Viagens, Trechos,
+        Atendimentos, Indisponibilidades, Confirmacoes, Documentos, Anexos, Requisitos, NotasViagem, Auditorias };
 
     public Db(ParquetStore store)
     {

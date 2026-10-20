@@ -11,8 +11,8 @@ public sealed class CompactacaoService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        var limite = _cfg.GetValue("Data:CompactarAcimaDeArquivos", 40);
-        var horas = Math.Max(1, _cfg.GetValue("Data:CompactarACadaHoras", 6));
+        var limite = _cfg.GetValue("Data:CompactarAcimaDeArquivos", 20);
+        var horas = Math.Max(1, _cfg.GetValue("Data:CompactarACadaHoras", 1));
         try { await Task.Delay(TimeSpan.FromSeconds(45), ct); } catch (OperationCanceledException) { return; }
         while (!ct.IsCancellationRequested)
         {
