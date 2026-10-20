@@ -577,6 +577,14 @@ public sealed partial class Servicos
     {
         ator.Exigir(Perm.ConfirmarLocal, tecnicoId);
         var tec = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
+        // locais especiais: a posição vem SEMPRE do cadastro atual (endereço da Howden / casa do técnico)
+        if (plantaId is ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa)
+        {
+            var snap = Foto();
+            if (string.IsNullOrWhiteSpace(texto)) texto = plantaId == ConfirmacaoLocal.Howden ? snap.HowdenNome : "Em casa";
+            DefinirLocalBase(ator, tecnicoId, plantaId == ConfirmacaoLocal.Howden ? Vocab.BaseHowden : Vocab.BaseCasa);
+            lat = null; lon = null;
+        }
         var planta = Db.Plantas.Obter(plantaId);
         if (planta is null && string.IsNullOrWhiteSpace(texto)) throw new ValidacaoException("Informe a planta ou descreva o local.");
         if (planta is not null && string.IsNullOrWhiteSpace(texto)) texto = Foto().NomePlanta(planta.Id);

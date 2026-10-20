@@ -195,6 +195,10 @@ public class Indisponibilidade : Entity
 
 public class ConfirmacaoLocal : Entity
 {
+    /// <summary>PlantaId especial: técnico na empresa (posição = endereço da Howden cadastrado).</summary>
+    public const string Howden = "@howden";
+    /// <summary>PlantaId especial: técnico em casa (posição = casa da ficha).</summary>
+    public const string Casa = "@casa";
     public string TecnicoId { get; set; } = "";
     public string PlantaId { get; set; } = "";
     public string Texto { get; set; } = "";

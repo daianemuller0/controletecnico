@@ -39,6 +39,9 @@
                 "howden" => Snap.HowdenLat is null ? "Na empresa — o endereço da Howden ainda não tem coordenadas (Administração → Configurações)." : "Na empresa, fora de viagem: disponível.",
                 "casa" => E.Lat is null ? "Em casa — o endereço residencial ainda não foi localizado no mapa (ficha do técnico)." : "Em casa, no endereço do cadastro: disponível.",
                 _ => "Último ponto conhecido pela agenda." })</div>
+            @if (E.LocalFonte == "howden" && Snap.HowdenLat is null && Ator.Pode(Perm.Administrar)) { <a class="btn-ghost sm mt8" href="/admin?aba=cfg">@Icons.Svg("pin")Definir a posição exata da Howden</a> }
+            @if (E.LocalFonte == "casa" && E.Tecnico.CasaLat is null && Ator.Pode(Perm.EditarTecnicos)) { <a class="btn-ghost sm mt8" href="/tecnicos/@E.Tecnico.Id">@Icons.Svg("pin")Definir a casa na ficha</a> }
+            @if (E.Precisao == "aproximada" && E.LocalFonte != "viagem") { <div class="sm warn mt8">≈ Posição aproximada (só a cidade foi encontrada).</div> }
         }
     </div>
     <div class="loc-bloco base-bloco">

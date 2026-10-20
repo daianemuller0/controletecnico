@@ -61,11 +61,20 @@ public sealed class Snapshot
             if (!string.IsNullOrEmpty(t.DestPlantaId) && plantas.TryGetValue(t.DestPlantaId, out var pd)) { t.DestLat = pd.Lat; t.DestLon = pd.Lon; }
             if (!string.IsNullOrEmpty(t.OrigemPlantaId) && plantas.TryGetValue(t.OrigemPlantaId, out var po)) { t.OrigemLat = po.Lat; t.OrigemLon = po.Lon; }
         }
-        var confs = db.Confirmacoes.Todos();
-        foreach (var c in confs)
-            if (!string.IsNullOrEmpty(c.PlantaId) && plantas.TryGetValue(c.PlantaId, out var pc)) { c.Lat = pc.Lat; c.Lon = pc.Lon; }
         var hNivel = db.Cfg("howden_nivel");
         var hExata = Exata(hNivel);
+        var hNome = db.Cfg("howden_nome", "Howden South America");
+        double? hLat = hExata && double.TryParse(db.Cfg("howden_lat"), nf, ci, out var hl) ? hl : null;
+        double? hLon = hExata && double.TryParse(db.Cfg("howden_lon"), nf, ci, out var ho) ? ho : null;
+        var confs = db.Confirmacoes.Todos();
+        foreach (var c in confs)
+        {
+            if (c.PlantaId == ConfirmacaoLocal.Howden || (string.IsNullOrEmpty(c.PlantaId) && c.Lat is null && DocEngine.Norm(c.Texto) == DocEngine.Norm(hNome)))
+            { c.Lat = hLat; c.Lon = hLon; }                                                         // "na Howden": sempre a posição exata cadastrada da empresa
+            else if (c.PlantaId == ConfirmacaoLocal.Casa)
+            { var tc = tecnicos.GetValueOrDefault(c.TecnicoId); c.Lat = tc?.CasaLat; c.Lon = tc?.CasaLon; }
+            else if (!string.IsNullOrEmpty(c.PlantaId) && plantas.TryGetValue(c.PlantaId, out var pc)) { c.Lat = pc.Lat; c.Lon = pc.Lon; }
+        }
         return new Snapshot
         {
             Tecnicos = tecnicos, Viagens = db.Viagens.Todos().ToDictionary(x => x.Id), Trechos = trechos,
@@ -74,10 +83,9 @@ public sealed class Snapshot
             Especialidades = db.Especialidades.Todos().ToDictionary(x => x.Id), Confirmacoes = confs,
             Documentos = db.Documentos.Todos(), Requisitos = db.Requisitos.Todos(),
             FusoPadrao = db.FusoPadrao, DiasAlerta = db.DiasAlerta, ConfirmacaoHoras = db.ConfirmacaoValidadeHoras,
-            HowdenNome = db.Cfg("howden_nome", "Howden South America"), HowdenEndereco = db.Cfg("howden_endereco"), HowdenNivel = hNivel,
+            HowdenNome = hNome, HowdenEndereco = db.Cfg("howden_endereco"), HowdenNivel = hNivel,
             // a Howden só vai ao mapa com posição EXATA (endereço encontrado ou marcada à mão)
-            HowdenLat = hExata && double.TryParse(db.Cfg("howden_lat"), nf, ci, out var hl) ? hl : null,
-            HowdenLon = hExata && double.TryParse(db.Cfg("howden_lon"), nf, ci, out var ho) ? ho : null,
+            HowdenLat = hLat, HowdenLon = hLon,
         };
     }
 

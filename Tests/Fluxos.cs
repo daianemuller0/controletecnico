@@ -1154,6 +1154,25 @@ public class MapaAssertivoTests
     }
 
     [Fact]
+    public async Task Confirmar_na_Howden_ou_em_casa_usa_a_posicao_do_cadastro()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        // confirmação antiga, só em texto com o nome da empresa (como era feito antes)
+        a.Svc.ConfirmarLocal(a.Gestao, t.Id, "", "Howden South America", null, null, "");
+        var c = a.Svc.ConfirmarLocal(a.Gestao, t.Id, ConfirmacaoLocal.Howden, "", null, null, "");
+        Assert.Equal("Howden South America", c.Texto);
+        Assert.Equal(Vocab.BaseHowden, a.Db.Tecnicos.Obter(t.Id)!.LocalBase);          // também passa a "fica na Howden"
+        Assert.All(a.Svc.Foto().Confirmacoes, x => Assert.Null(x.Lat));                  // sem posição exata da empresa: fora do mapa
+        await a.Svc.SalvarHowdenAsync(a.Admin, "Howden South America", "Rua X, 10", "Contagem", "MG", "Brasil", -19.9312, -44.0533, null);
+        Assert.All(a.Svc.Foto().Confirmacoes, x => Assert.Equal(-19.9312, x.Lat));       // as duas seguem a posição exata cadastrada
+
+        var tt = a.Db.Tecnicos.Obter(t.Id)!; tt.CasaLat = -23.55; tt.CasaLon = -46.63; tt.CasaGeoNivel = "endereco"; a.Db.Tecnicos.Salvar(tt);
+        var casa = a.Svc.ConfirmarLocal(a.Gestao, t.Id, ConfirmacaoLocal.Casa, "", null, null, "");
+        Assert.Equal(Vocab.BaseCasa, a.Db.Tecnicos.Obter(t.Id)!.LocalBase);
+        Assert.Equal(-23.55, a.Svc.Foto().Confirmacoes.Single(x => x.Id == casa.Id).Lat);
+    }
+
+    [Fact]
     public void Posicoes_vagas_ja_gravadas_sao_ignoradas_e_revisadas()
     {
         using var a = new Amb(); var t = a.NovoTec();

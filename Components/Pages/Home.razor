@@ -52,7 +52,7 @@ else
         <span class="sep">·</span>
         <span title="Fora de viagem, no endereço do cadastro">@Icons.Svg("user")@_estados.Count(e => e.LocalFonte == "casa" && e.Status == Vocab.OpDisponivel) em casa</span>
         <span title="Fora de viagem, na empresa">@Icons.Svg("customers")@_estados.Count(e => e.LocalFonte == "howden") na @_snap.HowdenNome</span>
-        @if (_snap.HowdenLat is null && _estados.Any(e => e.LocalFonte == "howden")) { <a class="warn sm" href="/admin?aba=cfg" title="Sem coordenadas, quem está na Howden não aparece no mapa">@Icons.Svg("alert")endereço da Howden sem posição no mapa — configurar</a> }
+
         <span class="sep">·</span>
         <span>@_estados.Count técnico(s) ativos @(_estados.Count == 0 ? "" : "na visão")</span>
     </div>
@@ -101,6 +101,11 @@ else
         </section>
     }
 
+    @if (_snap.HowdenLat is null && _estados.Any(e => e.LocalFonte == "howden"))
+    {
+        <div class="alert-box alert-aviso">@Icons.Svg("alert")<div><strong>@_estados.Count(e => e.LocalFonte == "howden") técnico(s) na @_snap.HowdenNome não aparecem no mapa</strong> porque a empresa ainda não tem a <strong>posição exata</strong> cadastrada.
+            @if (_ator.Pode(Perm.Administrar)) { <a href="/admin?aba=cfg">Definir agora</a><span> (cole o link do Google Maps da empresa).</span> } else { <span>Peça ao administrador: Administração → Configurações → Endereço da empresa.</span> }</div></div>
+    }
     <div class="op-grid">
         <section class="op-lista panel" aria-label="Técnicos">
             <div class="panel-head"><div class="panel-title">Equipe <span class="hint">@_visiveis.Count de @_estados.Count</span></div></div>
@@ -209,14 +214,31 @@ else
 {
     <Dialogo Titulo="@($"Confirmar localização · {_confirmando.Nome}")" OnFechar="@(() => _confirmando = null)" Erros="_errosConf">
         <p class="muted">Registra onde o técnico <strong>está agora</strong>. Fica separado da localização prevista pela agenda e mostra data, hora e quem informou.</p>
+        <div class="segmented conf-modo" role="group" aria-label="Onde está">
+            <button class="@(_confPlanta == ConfirmacaoLocal.Howden ? "active" : "")" @onclick="@(() => { _confPlanta = ConfirmacaoLocal.Howden; _confTexto = ""; })">@Icons.Svg("customers")Na @_snap.HowdenNome</button>
+            <button class="@(_confPlanta == ConfirmacaoLocal.Casa ? "active" : "")" @onclick="@(() => { _confPlanta = ConfirmacaoLocal.Casa; _confTexto = ""; })">@Icons.Svg("user")Em casa</button>
+            <button class="@(_confPlanta is not (ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa) ? "active" : "")" @onclick="@(() => _confPlanta = "")">@Icons.Svg("pin")Numa planta / outro local</button>
+        </div>
+        @if (_confPlanta == ConfirmacaoLocal.Howden)
+        {
+            @if (_snap.HowdenLat is null) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>O endereço da Howden ainda não tem a <strong>posição exata</strong>, então não dá para mostrar no mapa. @if (_ator.Pode(Perm.Administrar)) { <a href="/admin?aba=cfg">Definir agora</a> } else { <span>Peça ao administrador para definir em Administração → Configurações.</span> }</div></div> }
+            else { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Vai aparecer no mapa na posição exata da empresa.</div></div> }
+        }
+        else if (_confPlanta == ConfirmacaoLocal.Casa)
+        {
+            @if (_confirmando.CasaLat is null) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>A casa deste técnico ainda não tem posição no mapa. <a href="/tecnicos/@_confirmando.Id">Definir na ficha</a></div></div> }
+        }
         <div class="form-grid">
-            <div class="fld full">Planta<SeletorPlanta Value="@_confPlanta" ValueChanged="id => _confPlanta = id ?? string.Empty" Vazio="— outro local (descrever abaixo) —" Placeholder="— outro local (descrever abaixo) —" /></div>
-            <label class="fld full">Descrição do local (opcional se escolheu uma planta)
-                <input class="field" @bind="_confTexto" placeholder="Ex.: Hotel Central, Calama" /></label>
+            @if (_confPlanta is not (ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa))
+            {
+                <div class="fld full">Planta<SeletorPlanta Value="@_confPlanta" ValueChanged="id => _confPlanta = id ?? string.Empty" Vazio="— outro local (descrever abaixo) —" Placeholder="— outro local (descrever abaixo) —" /></div>
+                <label class="fld full">Descrição do local (opcional se escolheu uma planta)
+                    <input class="field" @bind="_confTexto" placeholder="Ex.: Hotel Central, Calama" /></label>
+            }
             <label class="fld full">Observação
                 <input class="field" @bind="_confObs" /></label>
         </div>
-        <p class="muted sm">Sem planta, a confirmação fica registrada em texto e não aparece no mapa (não há coordenadas).</p>
+        @if (_confPlanta is not (ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa)) { <p class="muted sm">Sem planta, a confirmação fica registrada em texto e não aparece no mapa (não há coordenadas).</p> }
         <div class="modal-actions">
             <button class="btn-ghost" @onclick="@(() => _confirmando = null)">Cancelar</button>
             <button class="btn-primary" @onclick="SalvarConfirmacao">@Icons.Svg("check")Confirmar</button>

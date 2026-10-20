@@ -690,3 +690,4 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .px { display: grid; gap: 8px; width: 100%; }
 .px-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .px-link { display: flex; gap: 8px; } .px-link input { flex: 1; min-width: 0; height: 36px; border: 1px solid var(--border, #dde3ea); border-radius: 8px; padding: 0 10px; font: inherit; }
+.conf-modo { display: flex; flex-wrap: wrap; margin-bottom: 10px; } .conf-modo button { display: inline-flex; align-items: center; gap: 6px; } .conf-modo svg { width: 14px; height: 14px; }
