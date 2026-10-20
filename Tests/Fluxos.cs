@@ -656,7 +656,7 @@ public class GeocodificacaoCascataTests
     private static (Geocoder g, Fake f) Novo(Func<Dictionary<string, string>, bool> acha, string contato = "ti@x.com", string ativo = "true")
     {
         var f = new Fake { Acha = acha };
-        var cfg = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:Contato"] = contato, ["Geocoding:Ativo"] = ativo, ["Geocoding:IntervaloMs"] = "0" }).Build();
+        var cfg = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:Contato"] = contato, ["Geocoding:Ativo"] = ativo, ["Geocoding:IntervaloMs"] = "0", ["Geocoding:PhotonUrl"] = "" }).Build();
         return (new Geocoder(new Fab { H = f }, cfg), f);
     }
 
@@ -710,10 +710,10 @@ public class GeocodificacaoCascataTests
         // ficha do técnico com tudo no campo de endereço e cidade/estado vazios
         var (g, f) = Novo(q => q.ContainsKey("q"));
         var r = await g.BuscarHierarquicoAsync("Brasil", "", "", "Rua das Flores, 120 - Centro, Sorocaba - SP, 18010-000");
-        Assert.Equal("endereco", r.Nivel); Assert.Equal(new[] { "endereco", "livre" }, f.Chamadas);
+        Assert.Equal("endereco", r.Nivel); Assert.Equal(new[] { "endereco", "endereco", "livre" }, f.Chamadas);   // rua+número, rua, texto livre
         (g, f) = Novo(q => q.ContainsKey("postalcode"));
         r = await g.BuscarHierarquicoAsync("Brasil", "", "", "Rua das Flores, 120 - Centro, Sorocaba - SP, 18010-000");
-        Assert.Equal("cep", r.Nivel); Assert.Equal(new[] { "endereco", "livre", "cep" }, f.Chamadas);
+        Assert.Equal("cep", r.Nivel); Assert.Equal(new[] { "endereco", "endereco", "livre", "cep" }, f.Chamadas);
         (g, f) = Novo(q => q.ContainsKey("city") && !q.ContainsKey("street"));
         r = await g.BuscarHierarquicoAsync("Brasil", "", "", "Rua das Flores, 120 - Centro, Sorocaba - SP");
         Assert.Equal("cidade", r.Nivel);                 // pior caso: cidade tirada do texto, nunca só o país
@@ -739,6 +739,114 @@ public class GeocodificacaoCascataTests
         Assert.True(p.TemCoord); Assert.Equal("ok", p.GeoStatus); Assert.Equal("cidade", p.GeoNivel); Assert.Contains("aproximada ao nível de cidade", p.GeoFonte);
         a.Svc.CorrigirPosicao(a.Admin, p.Id, -10, -40);
         Assert.Equal("manual", a.Db.Plantas.Obter(p.Id)!.GeoStatus); Assert.Equal("", a.Db.Plantas.Obter(p.Id)!.GeoNivel);
+    }
+}
+
+public class EnderecoBrasileiroTests
+{
+    [Theory]
+    [InlineData("Rua paraiba, 244 Jardim tarumã", "Rua paraiba", "244", "Jardim tarumã")]
+    [InlineData("Rua Paraíba 244 Jardim Tarumã", "Rua Paraíba", "244", "Jardim Tarumã")]
+    [InlineData("Rua das Flores, 120 - Centro", "Rua das Flores", "120", "Centro")]
+    [InlineData("Av. Brasil, nº 1000, apto 12, Vila Nova", "Av. Brasil", "1000", "Vila Nova")]
+    [InlineData("Avenida 9 de Julho 500", "Avenida 9 de Julho", "500", "")]
+    [InlineData("Rua 7, 120", "Rua 7", "120", "")]
+    [InlineData("Rua 7", "Rua 7", "", "")]
+    [InlineData("Rodovia MG 050 Km 341 - Taboca", "Rodovia MG 050 Km 341", "", "Taboca")]
+    [InlineData("Rua X, s/n, Bairro: Industrial", "Rua X", "", "Industrial")]
+    public void Separa_logradouro_numero_e_bairro(string entrada, string logradouro, string numero, string bairro)
+    {
+        Assert.Equal((logradouro, numero, bairro), Geocoder.Logradouro(entrada));
+    }
+
+    [Theory]
+    [InlineData("Rua Paraíba", "Rua paraiba", true)]
+    [InlineData("Avenida Doutor João Silva", "Av. Dr. João Silva", true)]
+    [InlineData("Rua Paraíba Nova", "Rua Paraiba", false)]
+    [InlineData("Rua Pernambuco", "Rua Paraiba", false)]
+    public void Confere_o_nome_da_rua(string encontrada, string digitada, bool igual) => Assert.Equal(igual, Geocoder.MesmaRua(encontrada, digitada));
+
+    /// <summary>Simula Nominatim (/search) e Photon (/api/) ao mesmo tempo.</summary>
+    private sealed class Servicos2 : HttpMessageHandler
+    {
+        public List<string> Chamadas = new();
+        public Func<Dictionary<string, string>, string> Nominatim = _ => "[]";
+        public Func<string, string> Photon = _ => "{\"features\":[]}";
+        public int StatusNominatim = 200;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            var pq = System.Web.HttpUtility.ParseQueryString(req.RequestUri!.Query);
+            var q = pq.AllKeys.Where(k => k is not null).ToDictionary(k => k!, k => pq[k]!);
+            if (req.RequestUri.AbsolutePath.StartsWith("/api"))
+            {
+                Chamadas.Add("photon:" + q["q"]);
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(Photon(q["q"])) });
+            }
+            Chamadas.Add(q.ContainsKey("street") ? "rua:" + q["street"] : q.ContainsKey("q") ? "livre:" + q["q"] : q.ContainsKey("city") ? "cidade" : "outro");
+            if (StatusNominatim != 200) return Task.FromResult(new HttpResponseMessage((System.Net.HttpStatusCode)StatusNominatim));
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(Nominatim(q)) });
+        }
+    }
+    private sealed class Fab : IHttpClientFactory { public HttpMessageHandler H = null!; public HttpClient CreateClient(string n) => new(H); }
+    private static Geocoder Geo(Servicos2 h) => new(new Fab { H = h },
+        new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:IntervaloMs"] = "0" }).Build());
+    private static string Feat(string tipo, string nome, string cidade, string estado, double lat = -23.18, double lon = -46.88, string rua = "") =>
+        "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[" + lon.ToString(System.Globalization.CultureInfo.InvariantCulture) + "," + lat.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+        "]},\"properties\":{\"type\":\"" + tipo + "\",\"name\":\"" + nome + "\",\"street\":\"" + rua + "\",\"city\":\"" + cidade + "\",\"state\":\"" + estado + "\",\"countrycode\":\"BR\"}}";
+    private const string CidadeJundiai = "[{\"lat\":\"-23.18\",\"lon\":\"-46.89\",\"display_name\":\"Jundiaí\",\"place_rank\":16,\"addresstype\":\"city\"}]";
+
+    [Fact]
+    public async Task Bairro_grudado_no_numero_nao_atrapalha_a_busca_da_rua()
+    {
+        // o caso da ficha: "Rua paraiba, 244 Jardim tarumã" — o mapa tem a rua, mas não o número
+        var h = new Servicos2 { Nominatim = q => q.TryGetValue("street", out var st) && st == "Rua paraiba"
+            ? "[{\"lat\":\"-23.1801\",\"lon\":\"-46.8702\",\"display_name\":\"Rua Paraíba, Jardim Tarumã, Jundiaí\",\"place_rank\":26,\"addresstype\":\"road\"}]" : "[]" };
+        var r = await Geo(h).BuscarHierarquicoAsync("Brasil", "São Paulo", "Jundiaí", "Rua paraiba, 244 Jardim tarumã");
+        Assert.True(r.Ok); Assert.Equal("endereco", r.Nivel); Assert.Equal(-23.1801, r.Lat);
+        Assert.Equal(new[] { "rua:244 Rua paraiba", "rua:Rua paraiba" }, h.Chamadas);
+    }
+
+    [Fact]
+    public async Task Photon_entra_quando_o_nominatim_nao_acha_e_so_vale_a_mesma_rua_e_cidade()
+    {
+        var h = new Servicos2 { Nominatim = q => q.ContainsKey("city") && !q.ContainsKey("street") ? CidadeJundiai : "[]",
+            Photon = _ => "{\"features\":[" + Feat("street", "Rua Paraíba", "Campinas", "São Paulo", -22.9) + "," + Feat("street", "Rua Pernambuco", "Jundiaí", "São Paulo", -23.2) + "," + Feat("house", "", "Jundiaí", "São Paulo", -23.1805, rua: "Rua Paraíba") + "]}" };
+        var r = await Geo(h).BuscarHierarquicoAsync("Brasil", "SP", "Jundiaí", "Rua paraiba, 244 Jardim tarumã");
+        Assert.True(r.Ok); Assert.Equal("endereco", r.Nivel); Assert.Equal(-23.1805, r.Lat);       // ignorou outra cidade e outra rua
+        Assert.Equal("OpenStreetMap/Photon", r.Fonte);
+
+        // nenhum candidato confere: não inventa, desce para o bairro/cidade
+        h = new Servicos2 { Nominatim = q => q.ContainsKey("city") && !q.ContainsKey("street") ? CidadeJundiai : "[]",
+            Photon = _ => "{\"features\":[" + Feat("street", "Rua Paraíba", "Campinas", "São Paulo") + "]}" };
+        r = await Geo(h).BuscarHierarquicoAsync("Brasil", "SP", "Jundiaí", "Rua paraiba, 244 Jardim tarumã");
+        Assert.Equal("cidade", r.Nivel);
+        Assert.Contains(h.Chamadas, c => c == "livre:Jardim tarumã, Jundiaí, São Paulo, Brasil");    // tentou o bairro antes da cidade
+    }
+
+    [Fact]
+    public async Task Nominatim_fora_do_ar_continua_pelo_photon_e_avisa_quando_nada_responde()
+    {
+        var h = new Servicos2 { StatusNominatim = 403, Photon = q => q.StartsWith("Rua") ? "{\"features\":[" + Feat("street", "Rua Paraíba", "Jundiaí", "São Paulo", -23.1801) + "]}" : "{\"features\":[]}" };
+        var r = await Geo(h).BuscarHierarquicoAsync("Brasil", "SP", "Jundiaí", "Rua paraiba, 244");
+        Assert.True(r.Ok); Assert.Equal(-23.1801, r.Lat);
+        Assert.Single(h.Chamadas, c => c.StartsWith("rua:"));                                 // não insiste no serviço que recusou
+
+        var fora = new Servicos2 { StatusNominatim = 503, Photon = _ => throw new HttpRequestException("sem rede") };
+        r = await Geo(fora).BuscarHierarquicoAsync("Brasil", "SP", "Jundiaí", "Rua paraiba, 244");
+        Assert.False(r.Ok); Assert.True(r.ErroServico); Assert.Contains("Não foi possível acessar o serviço de mapas", r.Mensagem);
+    }
+
+    [Fact]
+    public async Task Localizar_a_casa_guarda_o_que_foi_encontrado()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        var tt = a.Db.Tecnicos.Obter(t.Id)!; tt.Endereco = "Rua paraiba, 244 Jardim tarumã"; tt.Cidade = "Jundiaí"; tt.Estado = "SP"; tt.Pais = "Brasil"; a.Db.Tecnicos.Salvar(tt);
+        var h = new Servicos2 { Nominatim = q => q.TryGetValue("street", out var st) && st == "Rua paraiba"
+            ? "[{\"lat\":\"-23.1801\",\"lon\":\"-46.8702\",\"display_name\":\"Rua Paraíba, Jardim Tarumã, Jundiaí\",\"place_rank\":26,\"addresstype\":\"road\"}]" : "[]" };
+        var r = await a.Svc.LocalizarCasaAsync(a.Admin, t.Id, Geo(h));
+        Assert.True(r.Ok);
+        var salvo = a.Db.Tecnicos.Obter(t.Id)!;
+        Assert.Equal(-23.1801, salvo.CasaLat); Assert.Equal("endereco", salvo.CasaGeoNivel); Assert.Contains("Jardim Tarumã", salvo.CasaGeoFonte);
     }
 }
 

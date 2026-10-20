@@ -85,7 +85,9 @@ builder.Services.AddSingleton<DownloadsTemporarios>();
 builder.Services.AddSingleton<BuscaPlantas>();
 builder.Services.AddSingleton<Importador>();
 builder.Services.AddSingleton<ImportadorTecnicos>();
-builder.Services.AddHttpClient("geo", c => c.Timeout = TimeSpan.FromSeconds(15));
+// rede corporativa: usa o proxy do Windows com o login do usuário (sem isso o proxy recusa e o mapa "não acha" nenhum endereço)
+builder.Services.AddHttpClient("geo", c => c.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { DefaultProxyCredentials = System.Net.CredentialCache.DefaultCredentials });
 builder.Services.AddSingleton<Geocoder>();
 builder.Services.AddSingleton<Rota>();
 builder.Services.AddSingleton<GeocodificacaoJob>();

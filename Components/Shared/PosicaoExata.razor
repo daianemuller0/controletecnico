@@ -5,7 +5,7 @@
     <div class="px-status">
         @if (Lat is null) { <span class="badge st-neg">@Icons.Svg("pin", "bico")Sem posição no mapa</span> }
         else if (Snapshot.Exata(Nivel)) { <span class="badge st-pos">@Icons.Svg("check", "bico")Posição exata @(Nivel is "manual" or "link" ? "(marcada à mão)" : "(endereço encontrado)")</span> }
-        else { <span class="badge st-warn">@Icons.Svg("alert", "bico")Aproximada (@(Nivel == "cep" ? "CEP" : "cidade")) — confirme abaixo</span> }
+        else { <span class="badge st-warn">@Icons.Svg("alert", "bico")Aproximada (@(Nivel == "cep" ? "CEP" : Nivel == "bairro" ? "bairro" : "cidade")) — confirme abaixo</span> }
         @if (Lat is { } la && Lon is { } lo) { <span class="muted sm">@la.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture), @lo.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture)</span> }
     </div>
     @if (!Disabled)

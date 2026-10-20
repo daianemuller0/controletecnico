@@ -18,10 +18,15 @@ public sealed class Geocoder
     private readonly Data.Db? _db;
     private readonly int _intervaloMs;
     private readonly bool _ativo;
+    private readonly string _photon;
     private readonly SemaphoreSlim _ritmo = new(1, 1);
     private DateTime _ultimo = DateTime.MinValue;
+    // Nominatim recusou/não respondeu: fica 2 min sem ser consultado (insistir prolonga o bloqueio) e as buscas seguem pelo Photon
+    private DateTime _nominatimPausaAte = DateTime.MinValue;
+    private string _nominatimUltimoErro = "";
     // Muitas plantas dividem cidade/estado/país: a mesma consulta (inclusive "não encontrado") nunca é repetida.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede, int rank, string tipo)> _cache = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _cachePhoton = new();
     public int ConsultasRealizadas { get; private set; }
     public int ConsultasEmCache { get; private set; }
 
@@ -32,6 +37,8 @@ public sealed class Geocoder
         _contatoCfg = cfg["Geocoding:Contato"] ?? "";
         _intervaloMs = int.TryParse(cfg["Geocoding:IntervaloMs"], out var ms) ? ms : 1100;
         _ativo = !string.Equals(cfg["Geocoding:Ativo"], "false", StringComparison.OrdinalIgnoreCase);
+        // segundo serviço (Photon, também OpenStreetMap): tolera texto "solto" e entra quando o Nominatim não acha ou não responde. "" desliga.
+        _photon = (cfg["Geocoding:PhotonUrl"] ?? "https://photon.komoot.io").TrimEnd('/');
         _db = db;
     }
 
@@ -43,10 +50,11 @@ public sealed class Geocoder
     public string Pendencia => "Geocodificação desativada (Geocoding:Ativo=false). Enquanto isso as plantas ficam como \"localização pendente\" ou podem ser posicionadas manualmente no mapa.";
 
     /// <summary>
-    /// Localiza uma planta em CASCATA, do mais preciso ao mais genérico, parando no último nível que existir:
-    /// endereço (rua + cidade + estado + país) → cidade (+ estado + país) → estado (+ país) → país.
-    /// Cada consulta é estruturada (campos separados), então a hierarquia é respeitada: o endereço só vale dentro da
-    /// cidade, a cidade dentro do estado e o estado dentro do país. Níveis sem dado informado são pulados.
+    /// Localiza um endereço em CASCATA, do mais preciso ao mais genérico, parando no primeiro nível encontrado:
+    /// rua + número → rua → texto livre → (Photon) → CEP → bairro → cidade → estado → país.
+    /// "Rua Paraíba, 244 Jardim Tarumã" é separado em logradouro, número e bairro: o serviço de mapas não acha a rua
+    /// com o bairro grudado no número. As consultas por campos respeitam a hierarquia (a rua só vale dentro da cidade).
+    /// Se o Nominatim não responder (rede, proxy, bloqueio), a busca continua pelo Photon antes de desistir.
     /// </summary>
     public async Task<GeoResultado> BuscarHierarquicoAsync(string? pais, string? estado, string? cidade, string? endereco,
         string? textoLivre = null, CancellationToken ct = default, string? nomeLocal = null)
@@ -61,43 +69,128 @@ public sealed class Geocoder
         if (pais == "" && (cep != "" || ufEnd != "")) pais = "Brasil";
         // "MG" não é reconhecido de forma confiável como estado pelo serviço de mapas: expande a sigla brasileira para o nome
         if (estado.Length == 2 && brasil && UfBrasil.TryGetValue(estado.ToUpperInvariant(), out var nomeUf)) estado = nomeUf;
-        var niveis = new List<(string nivel, Dictionary<string, string> q)>();
-        if (rua != "" && cidade != "") niveis.Add(("endereco", Q(pais, estado, cidade, rua)));
-        // texto livre com tudo o que foi informado: acha endereços que a busca por campos não acha (bairro, rodovia, km…)
+        var (logradouro, numero, bairro) = Logradouro(rua);
+        var cid = cidade; var est = estado;
+        var niveis = new List<(string nivel, string fonte, Dictionary<string, string> q)>();
+        if (logradouro != "" && cidade != "")
+        {
+            niveis.Add(("endereco", "n", Q(pais, estado, cidade, numero != "" ? $"{numero} {logradouro}" : logradouro)));
+            // o número quase nunca está no mapa: a rua sozinha ainda é o endereço (melhor que cair na cidade)
+            if (numero != "") niveis.Add(("endereco", "n", Q(pais, estado, cidade, logradouro)));
+        }
+        // texto livre com tudo o que foi informado, já separado: acha o que a busca por campos não acha (rodovia, km…)
         if (endereco != "")
         {
-            var livre = string.Join(", ", new[] { rua, cidade, estado, pais }.Where(x => x != "").Distinct(StringComparer.OrdinalIgnoreCase));
-            niveis.Add(("endereco", new Dictionary<string, string> { ["q"] = livre }));
+            var livre = string.Join(", ", new[] { numero != "" ? $"{logradouro} {numero}" : logradouro, bairro, cidade, estado, pais }.Where(x => x != "").Distinct(StringComparer.OrdinalIgnoreCase));
+            niveis.Add(("endereco", "n", new Dictionary<string, string> { ["q"] = livre }));
         }
         // pelo NOME do local (fábricas, refinarias, a própria Howden costumam estar cadastradas no mapa pelo nome)
         // só quando não há endereço: com endereço, a busca pela rua já foi tentada (e o nome dobraria as consultas)
         if (!string.IsNullOrWhiteSpace(nomeLocal) && endereco == "" && (cidade != "" || estado != ""))
-            niveis.Add(("endereco", new Dictionary<string, string> { ["q"] = string.Join(", ", new[] { nomeLocal!.Trim(), cidade, estado, pais }.Where(x => x != "")) }));
-        if (cep != "" && brasil) niveis.Add(("cep", new Dictionary<string, string> { ["postalcode"] = cep, ["country"] = "Brasil" }));
-        if (cidade != "") niveis.Add(("cidade", Q(pais, estado, cidade, null)));
-        if (estado != "") niveis.Add(("estado", Q(pais, estado, null, null)));
-        if (pais != "") niveis.Add(("pais", Q(pais, null, null, null)));
+            niveis.Add(("endereco", "n", new Dictionary<string, string> { ["q"] = string.Join(", ", new[] { nomeLocal!.Trim(), cidade, estado, pais }.Where(x => x != "")) }));
+        // segundo serviço para a rua: tolera abreviações e palavras a mais; o resultado só vale se a rua, a cidade e o estado conferirem
+        if (PhotonAtivo && logradouro != "" && cidade != "")
+            niveis.Add(("endereco", "p", new Dictionary<string, string> { ["q"] = string.Join(", ", new[] { numero != "" ? $"{logradouro} {numero}" : logradouro, cidade, estado }.Where(x => x != "")) }));
+        if (cep != "" && brasil) niveis.Add(("cep", "n", new Dictionary<string, string> { ["postalcode"] = cep, ["country"] = "Brasil" }));
+        if (bairro != "" && cidade != "")
+        {
+            niveis.Add(("bairro", "n", new Dictionary<string, string> { ["q"] = string.Join(", ", new[] { bairro, cidade, estado, pais }.Where(x => x != "")) }));
+            if (PhotonAtivo) niveis.Add(("bairro", "p?", new Dictionary<string, string> { ["q"] = string.Join(", ", new[] { bairro, cidade, estado }.Where(x => x != "")) }));
+        }
+        if (cidade != "")
+        {
+            niveis.Add(("cidade", "n", Q(pais, estado, cidade, null)));
+            if (PhotonAtivo) niveis.Add(("cidade", "p?", new Dictionary<string, string> { ["q"] = string.Join(", ", new[] { cidade, estado }.Where(x => x != "")) }));
+        }
+        if (estado != "") niveis.Add(("estado", "n", Q(pais, estado, null, null)));
+        if (pais != "") niveis.Add(("pais", "n", Q(pais, null, null, null)));
         if (niveis.Count == 0)
         {
             if (string.IsNullOrWhiteSpace(textoLivre)) return new(false, null, null, "", "Informe ao menos o país, o estado ou a cidade.");
             var livre = await ConsultarComNivelAsync(new Dictionary<string, string> { ["q"] = textoLivre! }, "endereco", ct);
-            return livre.ok ? new(true, livre.lat, livre.lon, "OpenStreetMap/Nominatim", livre.nome, livre.nivel) : new(false, null, null, "", livre.erro ?? "Endereço não localizado.");
+            return livre.ok ? new(true, livre.lat, livre.lon, "OpenStreetMap/Nominatim", livre.nome, livre.nivel)
+                : new(false, null, null, "", livre.erro ?? "Endereço não localizado.", "", livre.falhaDeRede);
         }
-        string? ultimoErro = null; var tentados = new List<string>();
-        foreach (var (nivel, q) in niveis)
+        var nominatimFora = PhotonAtivo && DateTime.UtcNow < _nominatimPausaAte;
+        string? ultimoErro = null, erroRede = nominatimFora ? _nominatimUltimoErro : null; var tentados = new List<string>(); var achouAlgo = false;
+        foreach (var (nivel, fonte, q) in niveis)
         {
-            var r = await ConsultarComNivelAsync(q, nivel, ct);
-            if (r.erro is not null && !r.ok && r.falhaDeRede) return new(false, null, null, "", r.erro, "", true);   // rede/serviço fora: não conclui "não existe"
+            if (fonte == "n" && nominatimFora) continue;
+            if (fonte == "p?" && !nominatimFora) continue;                 // reservas do Photon para bairro/cidade: só com o Nominatim fora
+            var r = fonte == "n" ? await ConsultarComNivelAsync(q, nivel, ct)
+                : await ConsultarPhotonAsync(q["q"], nivel, cid, est, brasil, logradouro, ct);
+            if (!r.ok && r.falhaDeRede)
+            {
+                erroRede ??= r.erro;
+                if (fonte == "n")
+                {
+                    if (!PhotonAtivo) return new(false, null, null, "", $"Não foi possível acessar o serviço de mapas ({r.erro}). Verifique a internet/VPN/proxy ou use \"Definir a posição exata\" com o link do Google Maps.", "", true);
+                    nominatimFora = true; _nominatimPausaAte = DateTime.UtcNow.AddMinutes(2); _nominatimUltimoErro = r.erro ?? "";
+                }
+                continue;                                                    // rede/serviço fora: não conclui "não existe", tenta o outro serviço
+            }
+            achouAlgo |= r.ok || r.erro is not null;
             // o serviço devolveu algo MAIS VAGO do que o pedido (ex.: pediu a rua e veio só "Brasil"): não vale para este nível
             if (r.ok && Precisao(r.nivel) < Precisao(nivel)) { tentados.Add(nivel); continue; }
             if (r.ok)
             {
-                var msg = tentados.Count == 0 ? r.nome : $"{r.nome} — não encontrado: {string.Join(", ", tentados)}; posição aproximada ao nível de {nivel}.";
-                return new(true, r.lat, r.lon, "OpenStreetMap/Nominatim", msg, nivel);
+                var fonteNome = fonte == "n" ? "OpenStreetMap/Nominatim" : "OpenStreetMap/Photon";
+                var falhos = tentados.Distinct().ToList();
+                var msg = falhos.Count == 0 ? r.nome : $"{r.nome} — não encontrado: {string.Join(", ", falhos)}; posição aproximada ao nível de {nivel}.";
+                return new(true, r.lat, r.lon, fonteNome, msg, nivel);
             }
             tentados.Add(nivel); ultimoErro = r.erro;
         }
+        // nenhum serviço respondeu: é problema de acesso (internet, VPN, proxy), não do endereço
+        if (erroRede is not null && (nominatimFora || !achouAlgo))
+            return new(false, null, null, "", $"Não foi possível acessar o serviço de mapas ({erroRede}). Verifique a internet/VPN/proxy ou use \"Definir a posição exata\" com o link do Google Maps.", "", true);
         return new(false, null, null, "", ultimoErro ?? "Local não encontrado (país, estado, cidade e endereço).");
+    }
+
+    /// <summary>Separa o logradouro, o número e o bairro do campo de endereço:
+    /// "Rua Paraíba, 244 Jardim Tarumã", "Av. Brasil 1000 - Centro", "Rua 7, nº 120, apto 3, Vila Nova".
+    /// "Rua 7" e "Rodovia SP 300, km 45" não perdem o número que faz parte do nome.</summary>
+    public static (string logradouro, string numero, string bairro) Logradouro(string rua)
+    {
+        var partes = System.Text.RegularExpressions.Regex.Split(rua ?? "", @"\s*[,;]\s*|\s+[-–]\s+")
+            .Select(x => x.Trim().Trim('-', '–').Trim()).Where(x => x != "").ToList();
+        if (partes.Count == 0) return ("", "", "");
+        string logr = partes[0], num = ""; var bairros = new List<string>();
+        static bool EhNumero(string t) => System.Text.RegularExpressions.Regex.IsMatch(t, @"^\d{1,6}[A-Za-z]?$");
+        static bool MarcaNumero(string t) => DocEngine.Norm(t).TrimEnd('.', ':') is "n" or "no" or "nº" or "n°" or "num" or "numero";
+        static bool Complemento(string t) => System.Text.RegularExpressions.Regex.IsMatch(DocEngine.Norm(t),
+            @"^(apto?\.?|apartamento|ap\.?|bloco|bl\.?|sala|sl\.?|conj\.?|conjunto|cj\.?|casa|fundos|lote|lt\.?|quadra|qd\.?|km|andar|loja|box|galpao|predio|torre)\b|^s\s*/?\s*n$");
+        // número no meio do 1º pedaço: "Rua Paraíba 244 Jardim Tarumã" (precisa de ao menos 2 palavras antes: "Rua 7" é nome)
+        var tk = logr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 2; i < tk.Length; i++)
+        {
+            var antes = tk[i - 1];
+            if (!EhNumero(tk[i].TrimStart('n', 'N', 'º', '°', '.'))) continue;
+            if (DocEngine.Norm(antes) is "km" or "br" || System.Text.RegularExpressions.Regex.IsMatch(antes, @"^[A-Z]{2,3}$")) continue;   // "SP 300", "km 45"
+            var fim = MarcaNumero(antes) ? i - 1 : i;
+            if (fim < 2) continue;
+            num = tk[i].TrimStart('n', 'N', 'º', '°', '.');
+            var resto = string.Join(' ', tk.Skip(i + 1));
+            logr = string.Join(' ', tk.Take(fim));
+            if (resto != "") bairros.Add(resto);
+            break;
+        }
+        foreach (var p in partes.Skip(1))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(p, @"^(?:n[º°o]?\.?\s*|n[uú]mero\s*)?(\d{1,6}[A-Za-z]?)\b\s*(.*)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (num == "" && m.Success)
+            {
+                num = m.Groups[1].Value;
+                var resto = m.Groups[2].Value.Trim().Trim('-', '–').Trim();
+                if (resto != "" && !Complemento(resto)) bairros.Add(resto);
+                continue;
+            }
+            if (Complemento(p) || m.Success) continue;
+            bairros.Add(p);
+        }
+        var bairro = bairros.FirstOrDefault() ?? "";
+        bairro = System.Text.RegularExpressions.Regex.Replace(bairro, @"^bairro\s*:?\s*", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+        return (logr.Trim(), num, bairro);
     }
 
     /// <summary>Separa de um endereço digitado inteiro: CEP, cidade e UF ("Sorocaba - SP", "Sorocaba/SP") e o resto (rua, número, bairro).</summary>
@@ -166,11 +259,13 @@ public sealed class Geocoder
     }
 
     /// <summary>Precisão de cada nível (maior = mais exato).</summary>
-    public static int Precisao(string nivel) => nivel switch { "manual" or "link" => 5, "endereco" => 4, "cep" => 3, "cidade" => 2, "estado" => 1, "pais" => 0, _ => -1 };
+    public static int Precisao(string nivel) => nivel switch { "manual" or "link" => 5, "endereco" => 4, "cep" or "bairro" => 3, "cidade" => 2, "estado" => 1, "pais" => 0, _ => -1 };
+    /// <summary>Nome do nível para mensagens ("o bairro", "a cidade"…).</summary>
+    public static string NomeNivel(string nivel) => nivel switch { "endereco" => "o endereço", "cep" => "o CEP", "bairro" => "o bairro", "cidade" => "a cidade", "estado" => "o estado", "pais" => "o país", _ => nivel };
 
-    /// <summary>Nível que o resultado REALMENTE tem, pelo place_rank do Nominatim (rua 26+, bairro/cidade 13-25, estado 5-12, país até 4).</summary>
+    /// <summary>Nível que o resultado REALMENTE tem, pelo place_rank do Nominatim (rua 26+, bairro 19-25, cidade 13-18, estado 5-12, país até 4).</summary>
     public static string NivelDoRank(int rank, string tipo) =>
-        tipo == "postcode" ? "cep" : rank >= 26 ? "endereco" : rank >= 13 ? "cidade" : rank >= 5 ? "estado" : "pais";
+        tipo == "postcode" ? "cep" : rank >= 26 ? "endereco" : rank >= 19 ? "bairro" : rank >= 13 ? "cidade" : rank >= 5 ? "estado" : "pais";
 
     private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede, string nivel)> ConsultarComNivelAsync(Dictionary<string, string> q, string pedido, CancellationToken ct)
     {
@@ -178,6 +273,91 @@ public sealed class Geocoder
         if (!r.ok) return (r.ok, r.lat, r.lon, r.nome, r.erro, r.falhaDeRede, "");
         var real = r.rank < 0 ? pedido : NivelDoRank(r.rank, r.tipo);           // sem rank (serviço compatível sem o campo): confia no pedido
         return (true, r.lat, r.lon, r.nome, null, false, real);
+    }
+
+    private bool PhotonAtivo => _photon != "";
+
+    /// <summary>Consulta o Photon e só aceita o resultado que CONFERE com o pedido: mesmo país/estado/cidade e, para endereço, a mesma rua
+    /// (o Photon sempre devolve "o mais parecido", que pode ser outra rua ou outra cidade).</summary>
+    private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede, string nivel)> ConsultarPhotonAsync(
+        string texto, string pedido, string cidade, string estado, bool brasil, string logradouro, CancellationToken ct)
+    {
+        var url = $"{_photon}/api/?q={Uri.EscapeDataString(texto)}&limit=8";
+        if (!_cachePhoton.TryGetValue(url, out var corpo))
+        {
+            await _ritmo.WaitAsync(ct);
+            ConsultasRealizadas++;
+            try
+            {
+                var espera = TimeSpan.FromMilliseconds(_intervaloMs) - (DateTime.UtcNow - _ultimo);
+                if (espera > TimeSpan.Zero) await Task.Delay(espera, ct);
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(Contato) ? "ControleTecnico/1.0" : $"ControleTecnico/1.0 ({Contato})");
+                using var resp = await _http.SendAsync(req, ct);
+                _ultimo = DateTime.UtcNow;
+                if (!resp.IsSuccessStatusCode) return (false, 0, 0, "", $"Photon respondeu {(int)resp.StatusCode}", true, "");
+                corpo = await resp.Content.ReadAsStringAsync(ct);
+                _cachePhoton[url] = corpo;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { return (false, 0, 0, "", "Photon: " + ex.Message, true, ""); }
+            finally { _ritmo.Release(); }
+        }
+        else ConsultasEmCache++;
+        try
+        {
+            using var doc = JsonDocument.Parse(corpo);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("features", out var fs) || fs.ValueKind != JsonValueKind.Array)
+                return (false, 0, 0, "", "Não encontrado.", false, "");
+            foreach (var f in fs.EnumerateArray())
+            {
+                if (!f.TryGetProperty("properties", out var p) || !f.TryGetProperty("geometry", out var g) || !g.TryGetProperty("coordinates", out var c) || c.GetArrayLength() < 2) continue;
+                string S(string k) => p.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+                bool Igual(string a, string b) => a != "" && DocEngine.Norm(a) == DocEngine.Norm(b);
+                if (brasil && S("countrycode") is { Length: > 0 } cc && !cc.Equals("BR", StringComparison.OrdinalIgnoreCase)) continue;
+                if (estado != "" && S("state") is { Length: > 0 } st && !Igual(st, estado)) continue;
+                var tipo = S("type");
+                string? nivel = null;
+                if (pedido == "endereco")
+                {
+                    if (cidade == "" || !new[] { "city", "county", "locality", "district" }.Any(k => Igual(S(k), cidade))) continue;
+                    var nomeRua = tipo == "street" ? S("name") : S("street");
+                    if (tipo is "house" or "street" or "other" && MesmaRua(nomeRua, logradouro)) nivel = "endereco";
+                }
+                else if (pedido == "bairro")
+                {
+                    if (tipo is "district" or "locality" && new[] { "city", "county" }.Any(k => Igual(S(k), cidade))) nivel = "bairro";
+                }
+                else if (pedido == "cidade")
+                {
+                    if (tipo is "city" or "county" or "district" or "locality" && Igual(S("name"), cidade)) nivel = "cidade";
+                }
+                if (nivel is null) continue;
+                var nome = string.Join(", ", new[] { S("name"), S("housenumber") != "" && tipo == "house" ? S("street") + " " + S("housenumber") : "", S("district"), S("city"), S("state") }.Where(x => x.Trim() != "").Distinct());
+                return (true, c[1].GetDouble(), c[0].GetDouble(), nome, null, false, nivel);
+            }
+            return (false, 0, 0, "", "Não encontrado.", false, "");
+        }
+        catch (JsonException) { return (false, 0, 0, "", "Não encontrado.", false, ""); }
+    }
+
+    private static readonly HashSet<string> TiposLogradouro = new() { "rua", "r", "avenida", "av", "travessa", "tv", "trav", "alameda", "al", "estrada", "est", "rodovia", "rod", "praca", "pca", "pc", "largo", "lgo", "via", "viela", "vila", "beco", "servidao", "passagem", "ladeira", "rua.", "av." };
+    private static readonly HashSet<string> Ligacoes = new() { "de", "da", "do", "das", "dos", "e" };
+    private static readonly Dictionary<string, string> Abreviacoes = new()
+    {
+        ["dr"] = "doutor", ["dra"] = "doutora", ["prof"] = "professor", ["profa"] = "professora", ["eng"] = "engenheiro", ["cel"] = "coronel", ["gen"] = "general",
+        ["pres"] = "presidente", ["gov"] = "governador", ["des"] = "desembargador", ["cap"] = "capitao", ["ten"] = "tenente", ["mal"] = "marechal",
+        ["alm"] = "almirante", ["pe"] = "padre", ["sto"] = "santo", ["sta"] = "santa", ["dep"] = "deputado", ["ver"] = "vereador", ["sen"] = "senador",
+        ["cmdte"] = "comandante", ["com"] = "comendador", ["mons"] = "monsenhor", ["visc"] = "visconde", ["bar"] = "barao", ["maj"] = "major", ["sgt"] = "sargento",
+    };
+    /// <summary>A rua devolvida é a digitada? Compara as palavras do nome sem o tipo (Rua/Av.), sem acentos e com abreviações expandidas.</summary>
+    public static bool MesmaRua(string encontrada, string digitada)
+    {
+        static HashSet<string> Palavras(string s) => DocEngine.Norm(s).Replace(".", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => Abreviacoes.TryGetValue(w, out var x) ? x : w).Where(w => !Ligacoes.Contains(w)).ToHashSet();
+        var a = Palavras(encontrada); var b = Palavras(digitada);
+        a.RemoveWhere(TiposLogradouro.Contains); b.RemoveWhere(TiposLogradouro.Contains);
+        return a.Count > 0 && a.SetEquals(b);
     }
 
     private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede, int rank, string tipo)> ConsultarAsync(Dictionary<string, string> parametros, CancellationToken ct)

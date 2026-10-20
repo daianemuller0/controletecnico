@@ -22,6 +22,8 @@ public sealed partial class Servicos
             erros.Add("Coordenadas da origem habitual inválidas.");
         if (erros.Count > 0) throw new ValidacaoException(erros);
         var novo = string.IsNullOrEmpty(t.Id);
+        // "fica em casa / na Howden" é alterado pelo painel da Visão operacional: a ficha aberta antes não pode desfazer
+        if (!novo && Db.Tecnicos.Obter(t.Id) is { } atual) { t.LocalBase = atual.LocalBase; t.LocalBaseDesde = atual.LocalBaseDesde; t.LocalBasePor = atual.LocalBasePor; }
         if (string.IsNullOrWhiteSpace(t.OrigemHabitual) && !string.IsNullOrWhiteSpace(t.Cidade)) t.OrigemHabitual = $"{t.Cidade}{(string.IsNullOrWhiteSpace(t.Estado) ? "" : "/" + t.Estado)}";
         Db.Tecnicos.Salvar(t, ator.Login);
         Auditar(ator, novo ? "tecnico.criar" : "tecnico.alterar", "tecnico", t.Id, $"Técnico {t.Nome} {(novo ? "cadastrado" : "atualizado")}");
@@ -601,15 +603,15 @@ public sealed partial class Servicos
             return new GeoResultado(false, null, null, "", "Informe ao menos a cidade onde o técnico mora.");
         var r = await geo.BuscarHierarquicoAsync(t.Pais, t.Estado, t.Cidade, t.Endereco);
         if (r.Ok && !Snapshot.Aproveitavel(r.Nivel))
-            r = r with { Ok = false, Mensagem = $"Endereço não encontrado (só o {(r.Nivel == "pais" ? "país" : "estado")}). Confira rua, número e cidade, cole o link do Google Maps ou marque a casa no mapa." };
+            r = r with { Ok = false, Mensagem = $"Endereço não encontrado (só {Geocoder.NomeNivel(r.Nivel)}). Confira rua, número e cidade, cole o link do Google Maps ou marque a casa no mapa." };
         if (r.Ok)
         {
-            t.CasaLat = r.Lat; t.CasaLon = r.Lon; t.CasaGeoNivel = r.Nivel;
+            t.CasaLat = r.Lat; t.CasaLon = r.Lon; t.CasaGeoNivel = r.Nivel; t.CasaGeoFonte = r.Mensagem;
             if (t.OrigemLat is null) { t.OrigemLat = r.Lat; t.OrigemLon = r.Lon; }
             Db.Tecnicos.Salvar(t, ator.Login);
         }
-        else if ((limparSeFalhar || !Snapshot.Aproveitavel(t.CasaGeoNivel)) && t.CasaLat is not null && t.CasaGeoNivel != "manual")
-        { t.CasaLat = null; t.CasaLon = null; t.CasaGeoNivel = ""; Db.Tecnicos.Salvar(t, ator.Login); }
+        else if ((limparSeFalhar || !Snapshot.Aproveitavel(t.CasaGeoNivel)) && t.CasaLat is not null && t.CasaGeoNivel is not ("manual" or "link"))
+        { t.CasaLat = null; t.CasaLon = null; t.CasaGeoNivel = ""; t.CasaGeoFonte = ""; Db.Tecnicos.Salvar(t, ator.Login); }
         return r;
     }
 
@@ -641,6 +643,7 @@ public sealed partial class Servicos
         if (!Geo.CoordValida(lat, lon)) throw new ValidacaoException("Coordenadas inválidas.");
         var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
         t.CasaLat = lat; t.CasaLon = lon; t.CasaGeoNivel = origem == "link" ? "link" : "manual";
+        t.CasaGeoFonte = origem == "link" ? "Posição do link do Google Maps / coordenadas" : "Marcada no mapa";
         Db.Tecnicos.Salvar(t, ator.Login);
         Auditar(ator, "tecnico.casa", "tecnico", t.Id, $"{t.Nome}: casa posicionada no mapa ({lat:0.#####}, {lon:0.#####})");
         return t;
@@ -665,7 +668,7 @@ public sealed partial class Servicos
             r = await geo.BuscarHierarquicoAsync(pais, estado, cidade, endereco, nomeLocal: nome);
             // a Howden só vale com o endereço EXATO: posição pela cidade/estado/país colocaria todo mundo no lugar errado
             if (r.Ok && Snapshot.Exata(r.Nivel)) { lat = r.Lat; lon = r.Lon; nivel = r.Nivel; }
-            else if (r.Ok) r = r with { Ok = false, Mensagem = $"O serviço de mapas só achou {(r.Nivel == "cidade" ? "a cidade" : r.Nivel == "cep" ? "o CEP" : r.Nivel == "estado" ? "o estado" : "o país")}, não o endereço exato. Cole o link do Google Maps ou marque no mapa." };
+            else if (r.Ok) r = r with { Ok = false, Mensagem = $"O serviço de mapas só achou {Geocoder.NomeNivel(r.Nivel)}, não o endereço exato. Cole o link do Google Maps ou marque no mapa." };
         }
         Db.SetCfg("howden_nivel", nivel, ator.Login);
         var ci = System.Globalization.CultureInfo.InvariantCulture;

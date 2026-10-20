@@ -20,6 +20,8 @@ public class Tecnico : Entity
     public double? CasaLon { get; set; }
     /// <summary>Nível encontrado na geocodificação da casa: endereco | cidade | estado | pais | manual.</summary>
     public string CasaGeoNivel { get; set; } = "";
+    /// <summary>O que o serviço de mapas encontrou para a casa (para conferir) ou como foi marcada.</summary>
+    public string CasaGeoFonte { get; set; } = "";
     /// <summary>Onde o técnico fica quando NÃO está em viagem nem em atendimento: casa | howden.</summary>
     public string LocalBase { get; set; } = "casa";
     public DateTime? LocalBaseDesde { get; set; }

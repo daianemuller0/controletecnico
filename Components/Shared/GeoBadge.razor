@@ -9,7 +9,7 @@ else if (n == "manual")
 }
 else if (!Snapshot.Exata(n))
 {
-    <span class="badge st-warn" title="@(string.IsNullOrEmpty(P.GeoNivel) ? "Localizada antes da conferência de precisão: pode estar só na cidade. Reconfira ou marque no mapa." : P.GeoFonte)">@Icons.Svg("pin", "bico")Aproximada: @(n == "cep" ? "CEP" : "cidade")</span>
+    <span class="badge st-warn" title="@(string.IsNullOrEmpty(P.GeoNivel) ? "Localizada antes da conferência de precisão: pode estar só na cidade. Reconfira ou marque no mapa." : P.GeoFonte)">@Icons.Svg("pin", "bico")Aproximada: @(n == "cep" ? "CEP" : n == "bairro" ? "bairro" : "cidade")</span>
 }
 else
 {
