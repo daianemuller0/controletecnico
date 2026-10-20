@@ -68,6 +68,8 @@ public sealed record Estado
     public bool AgendaMantida { get; init; }
     public string Motivo { get; init; } = "";
     public bool TemLocalMapa => Lat.HasValue && Lon.HasValue;
+    /// <summary>exata | aproximada (só a cidade foi encontrada) — o mapa mostra a diferença.</summary>
+    public string Precisao { get; init; } = "";
 }
 
 public sealed record Livre(DateTime Dia, string Situacao);
@@ -281,15 +283,17 @@ public static class AgendaEngine
         var mantidaFinal = status != Vocab.OpDisponivel || mantida;
 
         // ---- localização prevista (derivada da agenda) ----
-        string texto = ""; string fonte = "nenhum"; Planta? planta = null; double? lat = null, lon = null;
+        string texto = ""; string fonte = "nenhum"; Planta? planta = null; double? lat = null, lon = null; var precisao = "exata";
         if (status == Vocab.OpAtendimento && atual is not null)
         {
             planta = s.Planta(atual.PlantaId); texto = atual.LocalFim; fonte = "atendimento"; lat = atual.LatFim; lon = atual.LonFim;
+            precisao = Snapshot.Exata(Snapshot.NivelPlanta(planta)) ? "exata" : "aproximada";
         }
         else if (status == Vocab.OpViagem && atual is not null)
         {
             texto = $"{Rot(atual.LocalIni)} → {Rot(atual.LocalFim)}"; fonte = "viagem"; lat = atual.LatFim; lon = atual.LonFim;
             planta = s.Planta(atual.PlantaFimId);
+            precisao = planta is null || Snapshot.Exata(Snapshot.NivelPlanta(planta)) ? "exata" : "aproximada";
         }
         else
         {
@@ -298,13 +302,14 @@ public static class AgendaEngine
             var naHowden = t.LocalBase == Vocab.BaseHowden && status == Vocab.OpDisponivel;
             if (naHowden)
             {
-                texto = s.HowdenNome; fonte = "howden"; lat = s.HowdenLat; lon = s.HowdenLon;
+                texto = s.HowdenNome; fonte = "howden"; lat = s.HowdenLat; lon = s.HowdenLon; precisao = "exata";
             }
             else
             {
                 var cid = string.Join("/", new[] { t.Cidade, t.Estado }.Where(x => !string.IsNullOrWhiteSpace(x)));
                 texto = "Em casa" + (cid == "" ? "" : $" · {cid}"); fonte = "casa";
-                lat = t.CasaLat ?? t.OrigemLat; lon = t.CasaLon ?? t.OrigemLon;
+                if (t.CasaLat is not null) { lat = t.CasaLat; lon = t.CasaLon; precisao = Snapshot.Exata(string.IsNullOrEmpty(t.CasaGeoNivel) ? "endereco" : t.CasaGeoNivel) ? "exata" : "aproximada"; }
+                else { lat = t.OrigemLat; lon = t.OrigemLon; precisao = "aproximada"; }      // sem a casa localizada: só a cidade de origem
             }
         }
         if (string.IsNullOrWhiteSpace(texto) && !lat.HasValue) fonte = "nenhum";
@@ -341,7 +346,7 @@ public static class AgendaEngine
         return new Estado
         {
             Tecnico = t, Status = status, Atual = atual, Provisorio = prov, Proximo = proximo, Anterior = anterior,
-            LocalTexto = texto, LocalFonte = fonte, Planta = planta, Lat = lat, Lon = lon,
+            LocalTexto = texto, LocalFonte = fonte, Planta = planta, Lat = lat, Lon = lon, Precisao = lat is null ? "" : precisao,
             Confirmacao = conf, ConfirmacaoVigente = vigente, ForaJornada = forJ, AgendaMantida = mantidaFinal, Motivo = motivo,
         };
     }

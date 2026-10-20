@@ -682,3 +682,11 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .perfil-img img { width: 100%; height: 100%; object-fit: cover; }
 .perfil-acoes { display: grid; gap: 8px; justify-items: start; }
 .user-av-mini { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; vertical-align: middle; }
+/* posição aproximada (só a cidade) */
+.mk.mk-aprox { opacity: .78; outline-style: dotted; position: relative; }
+.mk .mk-q { position: absolute; right: -6px; top: -6px; width: 17px; height: 17px; border-radius: 50%; background: #b7791f; color: #fff; font-size: 12px; font-weight: 800; display: grid; place-items: center; border: 2px solid #fff; }
+.mk-tip-aviso { margin: 4px 0; padding: 4px 6px; border-radius: 6px; background: #fff3e0; color: #8a4b00; font-size: 11.5px; max-width: 260px; white-space: normal; }
+/* ---- posição exata ---- */
+.px { display: grid; gap: 8px; width: 100%; }
+.px-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.px-link { display: flex; gap: 8px; } .px-link input { flex: 1; min-width: 0; height: 36px; border: 1px solid var(--border, #dde3ea); border-radius: 8px; padding: 0 10px; font: inherit; }

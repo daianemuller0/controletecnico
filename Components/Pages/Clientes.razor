@@ -77,6 +77,10 @@ else if (_aba == "plantas")
                 {
                     <button class="btn-ghost" @onclick="IniciarJob">@Icons.Svg("pin")Localizar pendentes (@_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual"))</button>
                 }
+                @if (Geo.Configurado && !Job.Rodando && Job.Aproximadas() is > 0 and var nAp)
+                {
+                    <button class="btn-ghost" @onclick="ReconferirJob" title="Busca de novo o endereço exato das plantas posicionadas só pela cidade (não piora nenhuma)">@Icons.Svg("refresh")Reconferir aproximadas (@nAp)</button>
+                }
                 <button class="btn-primary" @onclick="NovaPlanta">@Icons.Svg("plus")Nova planta</button>
             }
         </div>
@@ -308,6 +312,8 @@ else if (_aba == "importar" && _pode)
                     <label class="fld">Latitude<input type="number" step="0.000001" value="@_lat" @onchange="e => MudarCoord(e.Value?.ToString(), true)" /></label>
                     <label class="fld">Longitude<input type="number" step="0.000001" value="@_lon" @onchange="e => MudarCoord(e.Value?.ToString(), false)" /></label>
                 </div>
+                <div class="px-link mt8"><input @bind="_linkPl" placeholder="Cole o link do Google Maps ou as coordenadas da planta" aria-label="Link do Google Maps" />
+                    <button type="button" class="btn-primary sm" @onclick="UsarLinkPlanta" disabled="@string.IsNullOrWhiteSpace(_linkPl)">@Icons.Svg("check")Usar</button></div>
                 <div id="mapa-planta" class="mapa mapa-pl" role="application" aria-label="Mapa para posicionar a planta"></div>
                 <p class="muted sm">Clique no mapa ou arraste o marcador para corrigir a posição. A posição corrigida fica gravada como <strong>ajustada manualmente</strong> e não é sobrescrita pela consulta de endereço.</p>
                 @if (_pode)
@@ -357,7 +363,7 @@ else if (_aba == "importar" && _pode)
     private string _chip = "", _fUf = "", _ordem = "nome"; private int _tam = 100;
     private List<PlantaItem> _lista = new(); private Dictionary<string, int> _cont = new(); private List<string> _paises = new(), _ufs = new();
     private static readonly (string, string, string)[] Chips =
-        { ("", "Todas", "layers"), ("ok", "Localizadas", "check"), ("aprox", "Aproximadas", "pin"), ("pendente", "Sem localização", "alert"), ("semcidade", "Sem cidade", "help") };
+        { ("", "Todas", "layers"), ("ok", "Endereço exato", "check"), ("aprox", "Aproximadas", "pin"), ("pendente", "Sem localização", "alert"), ("semcidade", "Sem cidade", "help") };
 
     private void Refiltrar()
     {
@@ -391,7 +397,7 @@ else if (_aba == "importar" && _pode)
 
     private RenderFragment GeoChip(string g) => __builder =>
     {
-        var (txt, css) = g switch { "ok" => ("Localizada", "st-pos"), "manual" => ("Ajustada manualmente", "st-info"), "aprox" => ("Aproximada", "st-warn"), _ => ("Sem localização", "st-neutral") };
+        var (txt, css) = g switch { "ok" => ("Endereço exato", "st-pos"), "manual" => ("Exata (marcada)", "st-pos"), "aprox" => ("Aproximada", "st-warn"), _ => ("Sem localização", "st-neutral") };
         <span class="badge @css">@Icons.Svg("pin", "bico")@txt</span>
     };
 
@@ -454,6 +460,15 @@ else if (_aba == "importar" && _pode)
         if (_pl is null) return;
         _pl.Lat = Num(_lat); _pl.Lon = Num(_lon);
         if (_pl.TemCoord) { _pl.GeoStatus = "manual"; _pl.GeoFonte = "Posição informada manualmente"; await JS.InvokeVoidAsync("app.mapa.definir", "mapa-planta", _pl.Lat, _pl.Lon); }
+    }
+
+    private string _linkPl = "";
+    private async Task UsarLinkPlanta()
+    {
+        var c = await Geo.CoordenadasDoLinkAsync(_linkPl);
+        if (c is null) { _msgGeoPl = "Não encontrei coordenadas nesse texto. Cole o link do Google Maps (Compartilhar → Copiar link) ou as coordenadas, ex.: -23.5505, -46.6333."; return; }
+        await AoMover(c.Value.lat, c.Value.lon); _pl!.GeoFonte = "Posição exata pelo link/coordenadas"; _linkPl = ""; _msgGeoPl = null;
+        try { await JS.InvokeVoidAsync("app.mapa.definir", "mapa-planta", _pl.Lat, _pl.Lon); } catch { }
     }
 
     [JSInvokable]
@@ -551,6 +566,11 @@ else if (_aba == "importar" && _pode)
             </div>
         </div>
     };
+
+    private void ReconferirJob()
+    {
+        try { Job.Iniciar(_ator, reconferirAproximadas: true); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
 
     private void IniciarJob()
     {

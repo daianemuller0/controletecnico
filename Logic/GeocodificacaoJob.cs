@@ -29,7 +29,11 @@ public sealed class GeocodificacaoJob
 
     public int Faltam() => _db.Plantas.Onde(p => p.Ativo && !p.TemCoord && p.GeoStatus != "manual" && Servicos.TemLocal(p)).Count;
 
-    public bool Iniciar(Ator ator)
+    /// <summary>Plantas com posição só aproximada (cidade/CEP ou localizadas antes da conferência de precisão).</summary>
+    public int Aproximadas() => _db.Plantas.Onde(p => p.Ativo && Aproximada(p) && Servicos.TemLocal(p)).Count;
+    private static bool Aproximada(Planta p) => p.TemCoord && p.GeoStatus != "manual" && !Snapshot.Exata(Snapshot.NivelPlanta(p));
+
+    public bool Iniciar(Ator ator, bool reconferirAproximadas = false)
     {
         ator.Exigir(Perm.EditarClientes);
         if (!_geo.Configurado) throw new ValidacaoException(_geo.Pendencia);
@@ -39,7 +43,7 @@ public sealed class GeocodificacaoJob
             Rodando = true; Erro = null; Feitas = Localizadas = Pendentes = 0; Fim = null; Inicio = DateTime.UtcNow; Atual = "";
             _cts = new CancellationTokenSource();
         }
-        var alvo = _db.Plantas.Onde(p => p.Ativo && !p.TemCoord && p.GeoStatus != "manual" && Servicos.TemLocal(p))
+        var alvo = _db.Plantas.Onde(p => p.Ativo && ((!p.TemCoord && p.GeoStatus != "manual") || (reconferirAproximadas && Aproximada(p))) && Servicos.TemLocal(p))
             .OrderBy(p => p.Pais).ThenBy(p => p.Estado).ThenBy(p => p.Cidade).ToList();   // agrupa por cidade: aproveita o cache de consultas
         Total = alvo.Count;
         var ct = _cts.Token;
@@ -68,6 +72,15 @@ public sealed class GeocodificacaoJob
                     continue;
                 }
                 falhasSeguidas = 0;
+                if (p.TemCoord)
+                {
+                    // já tinha posição aproximada: só troca se a nova for MAIS precisa (nunca piora)
+                    if (r.Ok && Geocoder.Precisao(r.Nivel) > Geocoder.Precisao(Snapshot.NivelPlanta(p))) { Servicos.AplicarGeo(p, r); lote.Add(p); }
+                    Feitas++; if (Snapshot.Exata(Snapshot.NivelPlanta(p))) Localizadas++; else Pendentes++;
+                    if (lote.Count >= 50) Gravar();
+                    if (Feitas % 10 == 0) Mudou?.Invoke();
+                    continue;
+                }
                 Servicos.AplicarGeo(p, r); lote.Add(p);
                 Feitas++; if (p.TemCoord) Localizadas++; else Pendentes++;
                 if (lote.Count >= 50) Gravar();

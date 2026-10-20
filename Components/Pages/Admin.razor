@@ -81,12 +81,9 @@ else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
             <label class="fld">Cidade<input @bind="_hCidade" /></label>
             <label class="fld">Estado<input @bind="_hEstado" /></label>
             <label class="fld">País<input @bind="_hPais" /></label>
-            <label class="fld">Latitude <span class="hint">opcional · vazio = localizar pelo endereço</span><input @bind="_hLat" placeholder="-19.9" /></label>
-            <label class="fld">Longitude<input @bind="_hLon" placeholder="-43.9" /></label>
-            <div class="fld">@if (Svc.Howden().lat is { } la) { <span class="tag ok">@Icons.Svg("pin")No mapa: @la.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture), @Svc.Howden().lon?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)</span> } else { <span class="tag neg">Sem coordenadas — os técnicos "na Howden" não aparecem no mapa</span> }</div>
         </div>
-        <div class="mt8"><button type="button" class="btn-ghost sm" @onclick="@(() => _mapaH = !_mapaH)">@Icons.Svg("pin")@(_mapaH ? "Fechar mapa" : "Ajustar a posição no mapa")</button>
-            @if (_mapaH) { <MapaPicker Lat="@Num(_hLat)" Lon="@Num(_hLon)" OnMudou="@(((double lat, double lon) x) => { _hLat = x.lat.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture); _hLon = x.lon.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture); })" /> <div class="muted sm">Depois clique em "Salvar endereço da empresa".</div> }
+        <div class="mt8"><strong class="sm">Posição exata da empresa no mapa</strong>
+            <PosicaoExata Lat="@Svc.Howden().lat" Lon="@Svc.Howden().lon" Nivel="@Db.Cfg("howden_nivel")" OnDefinir="HowdenNoMapa" />
         </div>
         @if (_errosH is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosH) { <div>@e</div> }</div></div> }
         <div class="modal-actions"><button class="btn-primary" @onclick="SalvarHowden">@Icons.Svg("check")Salvar endereço da empresa</button></div>
@@ -246,16 +243,25 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
         _hLat = h.lat?.ToString(ci) ?? ""; _hLon = h.lon?.ToString(ci) ?? "";
     }
     private static double? Num(string s) => double.TryParse(s.Replace(',', '.').Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+    private async Task HowdenNoMapa((double lat, double lon, string origem) x)
+    {
+        _errosH = null;
+        try { await Svc.SalvarHowdenAsync(_ator, _hNome, _hRua, _hCidade, _hEstado, _hPais, x.lat, x.lon, null); HowdenCarregar(); Sessao.Avisar("Posição exata da Howden gravada."); }
+        catch (Exception ex) { _errosH = Ui.Erros(ex); }
+    }
+
     private async Task SalvarHowden()
     {
         _errosH = null;
         try
         {
-            var la = Num(_hLat); var lo = Num(_hLon);
-            if ((_hLat.Trim() != "" && la is null) || (_hLon.Trim() != "" && lo is null)) throw new ValidacaoException("Latitude/longitude inválidas (use ponto ou vírgula decimal).");
-            var r = await Svc.SalvarHowdenAsync(_ator, _hNome, _hRua, _hCidade, _hEstado, _hPais, la, lo, Geo);
+            // endereço igual e posição já exata: mantém a posição; endereço mudou: procura de novo (só aceita o endereço exato)
+            var mesmoEndereco = _hRua == Db.Cfg("howden_end_rua") && _hCidade == Db.Cfg("howden_end_cidade") && _hEstado == Db.Cfg("howden_end_estado") && _hPais == Db.Cfg("howden_end_pais", "Brasil");
+            var manter = mesmoEndereco && Snapshot.Exata(Db.Cfg("howden_nivel"));
+            var r = await Svc.SalvarHowdenAsync(_ator, _hNome, _hRua, _hCidade, _hEstado, _hPais, manter ? Num(_hLat) : null, manter ? Num(_hLon) : null, Geo);
             HowdenCarregar();
-            Sessao.Avisar(r is { Ok: false } ? "Endereço salvo, mas não foi possível localizá-lo: " + r.Mensagem : r is { Ok: true } ? $"Endereço salvo e localizado (nível: {r.Nivel})." : "Endereço salvo.", r is { Ok: false });
+            if (r is { Ok: false }) _errosH = new() { "Endereço salvo, mas a posição exata não foi encontrada: " + r.Mensagem };
+            else Sessao.Avisar(r is { Ok: true } ? "Endereço salvo e encontrado no mapa no endereço exato." : "Endereço salvo.");
         }
         catch (Exception ex) { _errosH = Ui.Erros(ex); }
     }

@@ -62,10 +62,10 @@ else
                     <label class="fld">Cidade onde mora<input @bind="_f.Cidade" /></label>
                     <label class="fld">Estado<input @bind="_f.Estado" /></label>
                     <label class="fld">País<input list="paises-t" @bind="_f.Pais" /></label>
-                    <div class="fld full casa-geo">@if (_f.CasaLat is not null) { <span class="tag ok">@Icons.Svg("pin")Casa localizada no mapa @(string.IsNullOrEmpty(_f.CasaGeoNivel) ? "" : $"(nível: {_f.CasaGeoNivel})")</span> } else { <span class="tag">@Icons.Svg("pin")Casa ainda sem posição no mapa</span> }
+                    <div class="fld full casa-geo">@if (_f.CasaLat is not null && Snapshot.Exata(_f.CasaGeoNivel)) { <span class="tag ok">@Icons.Svg("pin")Casa no endereço exato</span> } else if (_f.CasaLat is not null) { <span class="tag warn">@Icons.Svg("pin")Casa aproximada (só a cidade) — defina a posição exata</span> } else { <span class="tag">@Icons.Svg("pin")Casa ainda sem posição no mapa</span> }
                         @if (!_novo && _pode) { <button type="button" class="btn-ghost sm" @onclick="LocalizarCasa" disabled="@_localizando">@Icons.Svg("search")@(_localizando ? "Localizando…" : "Localizar pelo endereço")</button>
-                            <button type="button" class="btn-ghost sm" @onclick="@(() => _mapaCasa = !_mapaCasa)">@Icons.Svg("pin")@(_mapaCasa ? "Fechar mapa" : "Ajustar no mapa")</button> }
-                        @if (_mapaCasa) { <div class="full" style="width:100%"><MapaPicker Lat="@_f.CasaLat" Lon="@_f.CasaLon" OnMudou="CasaNoMapa" /></div> }
+                            <button type="button" class="btn-ghost sm" @onclick="@(() => _mapaCasa = !_mapaCasa)">@Icons.Svg("pin")@(_mapaCasa ? "Fechar" : "Definir a posição exata")</button> }
+                        @if (_mapaCasa || (!_novo && _pode && _f.CasaLat is not null && !Snapshot.Exata(_f.CasaGeoNivel))) { <div class="full" style="width:100%"><PosicaoExata Lat="@_f.CasaLat" Lon="@_f.CasaLon" Nivel="@_f.CasaGeoNivel" OnDefinir="CasaNoMapa" /></div> }
                         <span class="muted sm">Fora de viagem: @(_t.LocalBase == Vocab.BaseHowden ? $"na {_snap.HowdenNome}" : "em casa") — altere no painel do técnico na Visão operacional.</span></div>
                     <label class="fld">Origem habitual para viagens <span class="hint">vazio = cidade/UF</span><input @bind="_f.OrigemHabitual" /></label>
                     <label class="fld">Fuso horário<CampoLista Value="@_f.FusoHorario" ValueChanged="@((string v) => { _f.FusoHorario = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" /></label>
@@ -273,9 +273,9 @@ else
     private void AlternarDia(int n, bool on) { if (on) _diasSel.Add(n); else _diasSel.Remove(n); }
 
     private bool _localizando, _mapaCasa;
-    private void CasaNoMapa((double lat, double lon) p)
+    private void CasaNoMapa((double lat, double lon, string origem) p)
     {
-        try { var t = Svc.DefinirCasaManual(_ator, Id, p.lat, p.lon); _f.CasaLat = t.CasaLat; _f.CasaLon = t.CasaLon; _f.CasaGeoNivel = t.CasaGeoNivel; Sessao.Avisar("Casa posicionada no mapa."); }
+        try { var t = Svc.DefinirCasaManual(_ator, Id, p.lat, p.lon, p.origem); _f.CasaLat = t.CasaLat; _f.CasaLon = t.CasaLon; _f.CasaGeoNivel = t.CasaGeoNivel; Sessao.Avisar("Casa posicionada no mapa."); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
     private async Task LocalizarCasa()

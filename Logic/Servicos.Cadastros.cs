@@ -138,6 +138,9 @@ public sealed partial class Servicos
     /// <summary>Aplica o resultado da busca em cascata à planta.</summary>
     public static void AplicarGeo(Planta p, GeoResultado r)
     {
+        // só estado/país não serve para o mapa: fica pendente, pedindo endereço completo ou a marcação no mapa
+        if (r.Ok && !Snapshot.Aproveitavel(r.Nivel))
+        { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoNivel = ""; p.GeoFonte = $"Endereço não encontrado (só o {(r.Nivel == "pais" ? "país" : "estado")}). Complete o endereço, cole o link do Google Maps ou marque no mapa."; return; }
         if (r.Ok)
         {
             p.Lat = r.Lat; p.Lon = r.Lon; p.GeoStatus = "ok"; p.GeoNivel = r.Nivel; p.GeoEm = DateTime.UtcNow;
@@ -148,7 +151,7 @@ public sealed partial class Servicos
 
     public static Task<GeoResultado> Localizar(Geocoder geo, Planta p, CancellationToken ct = default) =>
         geo.BuscarHierarquicoAsync(p.Pais, p.Estado, p.Cidade, string.Join(" ", new[] { p.Rua, p.Numero }.Where(x => !string.IsNullOrWhiteSpace(x))),
-            string.IsNullOrWhiteSpace(p.Cidade) && string.IsNullOrWhiteSpace(p.Estado) ? p.EnderecoCompleto : null, ct);
+            string.IsNullOrWhiteSpace(p.Cidade) && string.IsNullOrWhiteSpace(p.Estado) ? p.EnderecoCompleto : null, ct, nomeLocal: p.Nome);
 
     /// <summary>Grava a planta. As coordenadas são consultadas UMA vez e guardadas: só há nova
     /// consulta se o endereço mudou (e não foi posicionada à mão) ou se o usuário pedir.</summary>
@@ -597,23 +600,47 @@ public sealed partial class Servicos
         if (string.IsNullOrWhiteSpace(t.Cidade) && string.IsNullOrWhiteSpace(t.Estado) && string.IsNullOrWhiteSpace(t.Pais))
             return new GeoResultado(false, null, null, "", "Informe ao menos a cidade onde o técnico mora.");
         var r = await geo.BuscarHierarquicoAsync(t.Pais, t.Estado, t.Cidade, t.Endereco);
+        if (r.Ok && !Snapshot.Aproveitavel(r.Nivel))
+            r = r with { Ok = false, Mensagem = $"Endereço não encontrado (só o {(r.Nivel == "pais" ? "país" : "estado")}). Confira rua, número e cidade, cole o link do Google Maps ou marque a casa no mapa." };
         if (r.Ok)
         {
             t.CasaLat = r.Lat; t.CasaLon = r.Lon; t.CasaGeoNivel = r.Nivel;
             if (t.OrigemLat is null) { t.OrigemLat = r.Lat; t.OrigemLon = r.Lon; }
             Db.Tecnicos.Salvar(t, ator.Login);
         }
-        else if (limparSeFalhar && t.CasaLat is not null) { t.CasaLat = null; t.CasaLon = null; t.CasaGeoNivel = ""; Db.Tecnicos.Salvar(t, ator.Login); }
+        else if ((limparSeFalhar || !Snapshot.Aproveitavel(t.CasaGeoNivel)) && t.CasaLat is not null && t.CasaGeoNivel != "manual")
+        { t.CasaLat = null; t.CasaLon = null; t.CasaGeoNivel = ""; Db.Tecnicos.Salvar(t, ator.Login); }
         return r;
     }
 
+    /// <summary>Uma vez por base: posições gravadas antes da conferência de precisão que eram só estado/país
+    /// (ex.: centro do Brasil) deixam de valer — a planta volta a "pendente" e a casa fica sem posição até ser corrigida.</summary>
+    public (int plantas, int casas) RevisarPosicoesVagas()
+    {
+        if (Db.Cfg("geo_revisao") == "2") return (0, 0);
+        var sistema = new Ator { Login = "sistema", Nome = "Sistema", Papel = Roles.Admin };
+        var plantas = Db.Plantas.Onde(p => p.TemCoord && p.GeoStatus != "manual" && p.GeoNivel is "estado" or "pais");
+        foreach (var p in plantas) { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoNivel = ""; p.GeoFonte = "Posição anterior era só do estado/país: localize de novo, cole o link do Google Maps ou marque no mapa."; }
+        if (plantas.Count > 0) Db.Plantas.SalvarVarios(plantas, "sistema");
+        var casas = Db.Tecnicos.Onde(t => t.CasaLat is not null && t.CasaGeoNivel is "estado" or "pais");
+        foreach (var t in casas)
+        {
+            if (t.OrigemLat == t.CasaLat && t.OrigemLon == t.CasaLon) { t.OrigemLat = null; t.OrigemLon = null; }
+            t.CasaLat = null; t.CasaLon = null; t.CasaGeoNivel = "";
+        }
+        if (casas.Count > 0) Db.Tecnicos.SalvarVarios(casas, "sistema");
+        Db.SetCfg("geo_revisao", "2", "sistema");
+        if (plantas.Count + casas.Count > 0) Auditar(sistema, "geo.revisao", "config", "", $"Revisão de precisão do mapa: {plantas.Count} planta(s) e {casas.Count} casa(s) com posição só de estado/país voltaram a pendente");
+        return (plantas.Count, casas.Count);
+    }
+
     /// <summary>Posição da casa marcada à mão no mapa (quando o endereço não é encontrado com precisão).</summary>
-    public Tecnico DefinirCasaManual(Ator ator, string tecnicoId, double lat, double lon)
+    public Tecnico DefinirCasaManual(Ator ator, string tecnicoId, double lat, double lon, string origem = "manual")
     {
         ator.Exigir(Perm.EditarTecnicos);
         if (!Geo.CoordValida(lat, lon)) throw new ValidacaoException("Coordenadas inválidas.");
         var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
-        t.CasaLat = lat; t.CasaLon = lon; t.CasaGeoNivel = "manual";
+        t.CasaLat = lat; t.CasaLon = lon; t.CasaGeoNivel = origem == "link" ? "link" : "manual";
         Db.Tecnicos.Salvar(t, ator.Login);
         Auditar(ator, "tecnico.casa", "tecnico", t.Id, $"{t.Nome}: casa posicionada no mapa ({lat:0.#####}, {lon:0.#####})");
         return t;
@@ -631,12 +658,16 @@ public sealed partial class Servicos
         nome = (nome ?? "").Trim(); endereco = (endereco ?? "").Trim();
         if (nome.Length is < 2 or > 80) throw new ValidacaoException("Informe o nome do local (até 80 caracteres).");
         if ((lat.HasValue ^ lon.HasValue) || !(lat is null || Geo.CoordValida(lat, lon))) throw new ValidacaoException("Coordenadas inválidas.");
-        GeoResultado? r = null;
+        GeoResultado? r = null; var nivelAtual = Db.Cfg("howden_nivel");
+        var nivel = lat is null ? "" : Snapshot.Exata(nivelAtual) ? nivelAtual : "manual";
         if (lat is null && geo is { Configurado: true } && (endereco != "" || cidade != "" || estado != "" || pais != ""))
         {
-            r = await geo.BuscarHierarquicoAsync(pais, estado, cidade, endereco);
-            if (r.Ok) { lat = r.Lat; lon = r.Lon; }
+            r = await geo.BuscarHierarquicoAsync(pais, estado, cidade, endereco, nomeLocal: nome);
+            // a Howden só vale com o endereço EXATO: posição pela cidade/estado/país colocaria todo mundo no lugar errado
+            if (r.Ok && Snapshot.Exata(r.Nivel)) { lat = r.Lat; lon = r.Lon; nivel = r.Nivel; }
+            else if (r.Ok) r = r with { Ok = false, Mensagem = $"O serviço de mapas só achou {(r.Nivel == "cidade" ? "a cidade" : r.Nivel == "cep" ? "o CEP" : r.Nivel == "estado" ? "o estado" : "o país")}, não o endereço exato. Cole o link do Google Maps ou marque no mapa." };
         }
+        Db.SetCfg("howden_nivel", nivel, ator.Login);
         var ci = System.Globalization.CultureInfo.InvariantCulture;
         var texto = string.Join(", ", new[] { endereco, cidade, estado, pais }.Where(x => !string.IsNullOrWhiteSpace(x)));
         Db.SetCfg("howden_nome", nome, ator.Login); Db.SetCfg("howden_endereco", texto, ator.Login);

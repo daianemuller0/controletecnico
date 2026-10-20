@@ -1,0 +1,55 @@
+@* Garante a posição EXATA de um local: buscar pelo endereço, colar o link do Google Maps / coordenadas, ou clicar no mapa. *@
+@inject Geocoder Geo
+
+<div class="px">
+    <div class="px-status">
+        @if (Lat is null) { <span class="badge st-neg">@Icons.Svg("pin", "bico")Sem posição no mapa</span> }
+        else if (Snapshot.Exata(Nivel)) { <span class="badge st-pos">@Icons.Svg("check", "bico")Posição exata @(Nivel is "manual" or "link" ? "(marcada à mão)" : "(endereço encontrado)")</span> }
+        else { <span class="badge st-warn">@Icons.Svg("alert", "bico")Aproximada (@(Nivel == "cep" ? "CEP" : "cidade")) — confirme abaixo</span> }
+        @if (Lat is { } la && Lon is { } lo) { <span class="muted sm">@la.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture), @lo.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture)</span> }
+    </div>
+    @if (!Disabled)
+    {
+        <div class="px-link">
+            <input @bind="_link" @bind:event="oninput" @onkeydown="Tecla" placeholder="Cole aqui o link do Google Maps ou as coordenadas (ex.: -23.5505, -46.6333)" aria-label="Link do Google Maps ou coordenadas" />
+            <button type="button" class="btn-primary sm" @onclick="UsarLink" disabled="@(string.IsNullOrWhiteSpace(_link) || _lendo)">@Icons.Svg("check")@(_lendo ? "Lendo…" : "Usar")</button>
+        </div>
+        <div class="muted sm">No Google Maps: procure o local, <strong>clique com o botão direito no ponto exato</strong> e clique nas coordenadas (elas são copiadas) — ou use "Compartilhar → Copiar link". Também dá para clicar direto no mapa abaixo.</div>
+        @if (_msg is not null) { <div class="alert-box @(_ok ? "alert-ok" : "alert-erro") mt8">@Icons.Svg(_ok ? "check" : "alert")<div>@_msg</div></div> }
+        <MapaPicker Lat="@Lat" Lon="@Lon" OnMudou="@(x => Definir(x.lat, x.lon, "manual", "Posição marcada no mapa."))" />
+    }
+</div>
+
+@code {
+    [Parameter] public double? Lat { get; set; }
+    [Parameter] public double? Lon { get; set; }
+    /// <summary>Nível atual: endereco | cep | cidade | manual | link | "".</summary>
+    [Parameter] public string Nivel { get; set; } = "";
+    [Parameter] public bool Disabled { get; set; }
+    /// <summary>(lat, lon, origem: "link" | "manual")</summary>
+    [Parameter] public EventCallback<(double lat, double lon, string origem)> OnDefinir { get; set; }
+    private string _link = ""; private string? _msg; private bool _ok, _lendo;
+
+    private async Task Tecla(KeyboardEventArgs e) { if (e.Key == "Enter") await UsarLink(); }
+
+    private async Task UsarLink()
+    {
+        _msg = null; _lendo = true;
+        try
+        {
+            var c = await Geo.CoordenadasDoLinkAsync(_link);
+            if (c is null) { _ok = false; _msg = Geocoder_Ajuda(); return; }
+            await Definir(c.Value.lat, c.Value.lon, "link", "Posição exata definida pelo link/coordenadas.");
+            _link = "";
+        }
+        finally { _lendo = false; }
+    }
+
+    private static string Geocoder_Ajuda() => "Não encontrei coordenadas nesse texto. Cole o link do Google Maps (botão Compartilhar → Copiar link) ou as coordenadas no formato -23.5505, -46.6333.";
+
+    private async Task Definir(double lat, double lon, string origem, string msg)
+    {
+        Lat = Math.Round(lat, 6); Lon = Math.Round(lon, 6); Nivel = origem; _ok = true; _msg = msg;
+        await OnDefinir.InvokeAsync((Lat.Value, Lon.Value, origem));
+    }
+}

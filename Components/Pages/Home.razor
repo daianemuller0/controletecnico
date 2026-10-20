@@ -423,10 +423,12 @@ else
             {
                 chave = g.Chave, lat = pos.lat, lon = pos.lon, titulo = g.Titulo, novo = _revelar is int r2 && g == lista[^1] && r2 > 0,
                 cor = cores.Count == 1 ? cores[0] : "#004785", tracejado = !todosConf, viagem,
+                aprox = !todosConf && !viagem && g.Estados.Any(e => e.Precisao == "aproximada"),
                 iniciais = Avatar.Iniciais(g.Estados[0].Tecnico.Nome),
                 rotulo = viagem ? "Em deslocamento (posição no trajeto não rastreada)" : todosConf ? "Localização confirmada"
                     : g.Estados.All(e => e.LocalFonte == "howden") ? $"Na {_snap.HowdenNome} — disponível"
                     : g.Estados.All(e => e.LocalFonte == "casa") ? "Em casa (endereço do cadastro)" : "Localização prevista pela agenda",
+                aviso = g.Estados.Any(e => e.Precisao == "aproximada") && !todosConf ? "Posição APROXIMADA (só a cidade foi encontrada) — corrija o endereço no cadastro ou marque no mapa." : "",
                 tecnicos = g.Estados.Select(e => new { nome = $"{e.Tecnico.Nome} — {Ui.Op(e.Status).Label} ({(Posicao(e)!.Value.conf ? "confirmada" : "prevista")})", cor = Ui.Op(e.Status).Color }),
             });
         }

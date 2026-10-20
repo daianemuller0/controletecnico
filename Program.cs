@@ -249,6 +249,8 @@ app.MapGet("/export/vencimentos.csv", (HttpContext http, Db db) =>
 }).RequireAuthorization();
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+// revisão única da precisão das posições já gravadas (em segundo plano, não atrasa a abertura)
+_ = Task.Run(() => { try { var r = app.Services.GetRequiredService<Servicos>().RevisarPosicoesVagas(); if (r.plantas + r.casas > 0) Console.WriteLine($"[controletecnico]        mapa: {r.plantas} planta(s) e {r.casas} casa(s) com posição vaga (estado/país) voltaram a pendente."); } catch { } });
 Inicio.Etapa("Iniciando o servidor web …");
 app.Lifetime.ApplicationStarted.Register(() => Inicio.Pronto(app.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5090"));
 app.Run();

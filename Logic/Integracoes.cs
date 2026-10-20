@@ -21,7 +21,7 @@ public sealed class Geocoder
     private readonly SemaphoreSlim _ritmo = new(1, 1);
     private DateTime _ultimo = DateTime.MinValue;
     // Muitas plantas dividem cidade/estado/país: a mesma consulta (inclusive "não encontrado") nunca é repetida.
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede)> _cache = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede, int rank, string tipo)> _cache = new();
     public int ConsultasRealizadas { get; private set; }
     public int ConsultasEmCache { get; private set; }
 
@@ -49,7 +49,7 @@ public sealed class Geocoder
     /// cidade, a cidade dentro do estado e o estado dentro do país. Níveis sem dado informado são pulados.
     /// </summary>
     public async Task<GeoResultado> BuscarHierarquicoAsync(string? pais, string? estado, string? cidade, string? endereco,
-        string? textoLivre = null, CancellationToken ct = default)
+        string? textoLivre = null, CancellationToken ct = default, string? nomeLocal = null)
     {
         if (!Configurado) return new(false, null, null, "", Pendencia);
         pais = (pais ?? "").Trim(); estado = (estado ?? "").Trim(); cidade = (cidade ?? "").Trim(); endereco = (endereco ?? "").Trim();
@@ -69,6 +69,10 @@ public sealed class Geocoder
             var livre = string.Join(", ", new[] { rua, cidade, estado, pais }.Where(x => x != "").Distinct(StringComparer.OrdinalIgnoreCase));
             niveis.Add(("endereco", new Dictionary<string, string> { ["q"] = livre }));
         }
+        // pelo NOME do local (fábricas, refinarias, a própria Howden costumam estar cadastradas no mapa pelo nome)
+        // só quando não há endereço: com endereço, a busca pela rua já foi tentada (e o nome dobraria as consultas)
+        if (!string.IsNullOrWhiteSpace(nomeLocal) && endereco == "" && (cidade != "" || estado != ""))
+            niveis.Add(("endereco", new Dictionary<string, string> { ["q"] = string.Join(", ", new[] { nomeLocal!.Trim(), cidade, estado, pais }.Where(x => x != "")) }));
         if (cep != "" && brasil) niveis.Add(("cep", new Dictionary<string, string> { ["postalcode"] = cep, ["country"] = "Brasil" }));
         if (cidade != "") niveis.Add(("cidade", Q(pais, estado, cidade, null)));
         if (estado != "") niveis.Add(("estado", Q(pais, estado, null, null)));
@@ -76,14 +80,16 @@ public sealed class Geocoder
         if (niveis.Count == 0)
         {
             if (string.IsNullOrWhiteSpace(textoLivre)) return new(false, null, null, "", "Informe ao menos o país, o estado ou a cidade.");
-            var livre = await ConsultarAsync(new Dictionary<string, string> { ["q"] = textoLivre! }, ct);
-            return livre.ok ? new(true, livre.lat, livre.lon, "OpenStreetMap/Nominatim", livre.nome, "endereco") : new(false, null, null, "", livre.erro ?? "Endereço não localizado.");
+            var livre = await ConsultarComNivelAsync(new Dictionary<string, string> { ["q"] = textoLivre! }, "endereco", ct);
+            return livre.ok ? new(true, livre.lat, livre.lon, "OpenStreetMap/Nominatim", livre.nome, livre.nivel) : new(false, null, null, "", livre.erro ?? "Endereço não localizado.");
         }
         string? ultimoErro = null; var tentados = new List<string>();
         foreach (var (nivel, q) in niveis)
         {
-            var r = await ConsultarAsync(q, ct);
+            var r = await ConsultarComNivelAsync(q, nivel, ct);
             if (r.erro is not null && !r.ok && r.falhaDeRede) return new(false, null, null, "", r.erro, "", true);   // rede/serviço fora: não conclui "não existe"
+            // o serviço devolveu algo MAIS VAGO do que o pedido (ex.: pediu a rua e veio só "Brasil"): não vale para este nível
+            if (r.ok && Precisao(r.nivel) < Precisao(nivel)) { tentados.Add(nivel); continue; }
             if (r.ok)
             {
                 var msg = tentados.Count == 0 ? r.nome : $"{r.nome} — não encontrado: {string.Join(", ", tentados)}; posição aproximada ao nível de {nivel}.";
@@ -136,7 +142,45 @@ public sealed class Geocoder
         return d;
     }
 
-    private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede)> ConsultarAsync(Dictionary<string, string> parametros, CancellationToken ct)
+    /// <summary>Link curto do Google Maps (maps.app.goo.gl): segue o redirecionamento e lê as coordenadas do endereço final.</summary>
+    public async Task<(double lat, double lon)?> CoordenadasDoLinkAsync(string texto, CancellationToken ct = default)
+    {
+        if (Geo.ExtrairCoordenadas(texto) is { } direto) return direto;
+        if (!Geo.EhLinkCurto(texto)) return null;
+        try
+        {
+            var url = texto.Trim();
+            for (var i = 0; i < 6; i++)
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.UserAgent.ParseAdd("Mozilla/5.0 ControleTecnico");
+                using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                var destino = resp.Headers.Location?.ToString() ?? resp.RequestMessage?.RequestUri?.ToString() ?? "";
+                if (Geo.ExtrairCoordenadas(destino) is { } c) return c;
+                if (resp.Headers.Location is null) break;
+                url = resp.Headers.Location.IsAbsoluteUri ? resp.Headers.Location.ToString() : new Uri(new Uri(url), resp.Headers.Location).ToString();
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>Precisão de cada nível (maior = mais exato).</summary>
+    public static int Precisao(string nivel) => nivel switch { "manual" or "link" => 5, "endereco" => 4, "cep" => 3, "cidade" => 2, "estado" => 1, "pais" => 0, _ => -1 };
+
+    /// <summary>Nível que o resultado REALMENTE tem, pelo place_rank do Nominatim (rua 26+, bairro/cidade 13-25, estado 5-12, país até 4).</summary>
+    public static string NivelDoRank(int rank, string tipo) =>
+        tipo == "postcode" ? "cep" : rank >= 26 ? "endereco" : rank >= 13 ? "cidade" : rank >= 5 ? "estado" : "pais";
+
+    private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede, string nivel)> ConsultarComNivelAsync(Dictionary<string, string> q, string pedido, CancellationToken ct)
+    {
+        var r = await ConsultarAsync(q, ct);
+        if (!r.ok) return (r.ok, r.lat, r.lon, r.nome, r.erro, r.falhaDeRede, "");
+        var real = r.rank < 0 ? pedido : NivelDoRank(r.rank, r.tipo);           // sem rank (serviço compatível sem o campo): confia no pedido
+        return (true, r.lat, r.lon, r.nome, null, false, real);
+    }
+
+    private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede, int rank, string tipo)> ConsultarAsync(Dictionary<string, string> parametros, CancellationToken ct)
     {
         var chave = string.Join("&", parametros.OrderBy(kv => kv.Key).Select(kv => kv.Key + "=" + kv.Value.Trim().ToLowerInvariant()));
         if (_cache.TryGetValue(chave, out var guardado)) { ConsultasEmCache++; return guardado; }
@@ -145,7 +189,7 @@ public sealed class Geocoder
         return res;
     }
 
-    private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede)> ConsultarSemCacheAsync(Dictionary<string, string> parametros, CancellationToken ct)
+    private async Task<(bool ok, double lat, double lon, string nome, string? erro, bool falhaDeRede, int rank, string tipo)> ConsultarSemCacheAsync(Dictionary<string, string> parametros, CancellationToken ct)
     {
         await _ritmo.WaitAsync(ct);
         ConsultasRealizadas++;
@@ -160,15 +204,17 @@ public sealed class Geocoder
             req.Headers.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(Contato) ? "ControleTecnico/1.0" : $"ControleTecnico/1.0 ({Contato})");
             using var resp = await _http.SendAsync(req, ct);
             _ultimo = DateTime.UtcNow;
-            if (!resp.IsSuccessStatusCode) return (false, 0, 0, "", $"Serviço de geocodificação respondeu {(int)resp.StatusCode}.", true);
+            if (!resp.IsSuccessStatusCode) return (false, 0, 0, "", $"Serviço de geocodificação respondeu {(int)resp.StatusCode}.", true, -1, "");
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-            if (doc.RootElement.GetArrayLength() == 0) return (false, 0, 0, "", "Não encontrado.", false);
+            if (doc.RootElement.GetArrayLength() == 0) return (false, 0, 0, "", "Não encontrado.", false, -1, "");
             var e = doc.RootElement[0];
+            var rank = e.TryGetProperty("place_rank", out var pr) && pr.ValueKind == JsonValueKind.Number ? pr.GetInt32() : -1;
+            var tipo = e.TryGetProperty("addresstype", out var at) ? at.GetString() ?? "" : e.TryGetProperty("type", out var ty) ? ty.GetString() ?? "" : "";
             return (true, double.Parse(e.GetProperty("lat").GetString()!, CultureInfo.InvariantCulture), double.Parse(e.GetProperty("lon").GetString()!, CultureInfo.InvariantCulture),
-                e.TryGetProperty("display_name", out var dn) ? dn.GetString() ?? "" : "", null, false);
+                e.TryGetProperty("display_name", out var dn) ? dn.GetString() ?? "" : "", null, false, rank, tipo);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) { return (false, 0, 0, "", "Falha ao consultar o serviço: " + ex.Message, true); }
+        catch (Exception ex) { return (false, 0, 0, "", "Falha ao consultar o serviço: " + ex.Message, true, -1, ""); }
         finally { _ritmo.Release(); }
     }
 }

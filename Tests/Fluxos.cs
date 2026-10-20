@@ -795,7 +795,7 @@ public class VolumeTests
         for (var i = 0; i < 300 && job.Rodando; i++) await Task.Delay(50);
         Assert.False(job.Rodando); Assert.Null(job.Erro);
         Assert.Equal(200, job.Localizadas); Assert.Equal(0, job.Faltam());
-        Assert.Equal(5, chamadas);                                          // 5 cidades => 5 consultas, não 200
+        Assert.Equal(205, chamadas);                                        // sem endereço: 1 busca pelo nome de cada planta + 5 cidades (não 200)
         Assert.True(geo.ConsultasEmCache >= 195);
         Assert.True(a.Db.Store.FileCount("plantas") - antes <= 6, "gravação em lotes de 50, não uma por planta");
         Assert.All(a.Db.Plantas.Todos(), p => { Assert.True(p.TemCoord); Assert.Equal("cidade", p.GeoNivel); });
@@ -806,14 +806,14 @@ public class VolumeTests
     public async Task Servico_recusando_interrompe_o_job_sem_perder_o_que_ja_foi_feito()
     {
         using var a = new Amb(); var n = 0;
-        var handler = new CountingHandler(() => { n++; }, status: () => n > 2 ? System.Net.HttpStatusCode.Forbidden : System.Net.HttpStatusCode.OK);
+        var handler = new CountingHandler(() => { n++; }, status: () => n > 4 ? System.Net.HttpStatusCode.Forbidden : System.Net.HttpStatusCode.OK);
         var cfg = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:Contato"] = "ti@x.com", ["Geocoding:IntervaloMs"] = "0" }).Build();
         for (var i = 0; i < 20; i++) a.Db.Plantas.Salvar(new Planta { Nome = "P" + i, Pais = "Brasil", Estado = "SP", Cidade = "Cidade " + i });
         var job = new GeocodificacaoJob(a.Db, a.Svc, new Geocoder(new CountingFactory(handler), cfg));
         job.Iniciar(a.Admin); for (var i = 0; i < 300 && job.Rodando; i++) await Task.Delay(50);
         Assert.NotNull(job.Erro); Assert.Contains("Interrompido", job.Erro!);
         Assert.Equal(2, job.Localizadas); Assert.Equal(2, a.Db.Plantas.Onde(p => p.TemCoord).Count);      // as 2 primeiras ficaram gravadas
-        Assert.True(n <= 6);                                               // parou depois de 3 falhas seguidas, sem martelar o serviço
+        Assert.True(n <= 8);                                               // (2 consultas por planta: nome e cidade) parou depois de 3 falhas seguidas, sem martelar o serviço
     }
 
     private sealed class CountingHandler : HttpMessageHandler
@@ -823,7 +823,8 @@ public class VolumeTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
         {
             _n(); var st = _st?.Invoke() ?? System.Net.HttpStatusCode.OK;
-            return Task.FromResult(new HttpResponseMessage(st) { Content = new StringContent(st == System.Net.HttpStatusCode.OK ? "[{\"lat\":\"-23.1\",\"lon\":\"-47.1\",\"display_name\":\"x\"}]" : "") });
+            var livre = r.RequestUri!.Query.Contains("&q=");                    // busca pelo nome da planta: não acha
+            return Task.FromResult(new HttpResponseMessage(st) { Content = new StringContent(st != System.Net.HttpStatusCode.OK ? "" : livre ? "[]" : "[{\"lat\":\"-23.1\",\"lon\":\"-47.1\",\"display_name\":\"x\",\"place_rank\":16,\"addresstype\":\"city\"}]") });
         }
     }
     private sealed class CountingFactory : IHttpClientFactory { private readonly HttpMessageHandler _h; public CountingFactory(HttpMessageHandler h) => _h = h; public HttpClient CreateClient(string n) => new(_h); }
@@ -1111,4 +1112,73 @@ public class EnderecoCasaTests
         Assert.Equal(a.Db.Tecnicos.Obter(t.Id)!.FotoAnexoId, a.Svc.FotoDoUsuario("joao"));       // sem foto própria: usa a da ficha
         Assert.True(a.Svc.PodeAcessar(a.Consulta, a.Db.Anexos.Obter(a.Svc.FotoDoUsuario("maria"))!));
     }
+}
+
+public class MapaAssertivoTests
+{
+    private sealed class Fixo : HttpMessageHandler
+    {
+        public Func<string, string> Resp = _ => "[]";
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(Resp(Uri.UnescapeDataString(r.RequestUri!.Query))) });
+    }
+    private sealed class Fab : IHttpClientFactory { public HttpMessageHandler H = null!; public HttpClient CreateClient(string n) => new(H); }
+    private static Geocoder Geo(Func<string, string> resp) => new(new Fab { H = new Fixo { Resp = resp } },
+        new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:IntervaloMs"] = "0" }).Build());
+    private const string Brasil = "[{\"lat\":\"-10.33\",\"lon\":\"-53.2\",\"display_name\":\"Brasil\",\"place_rank\":4,\"addresstype\":\"country\"}]";
+    private const string Rua = "[{\"lat\":\"-19.93\",\"lon\":\"-44.05\",\"display_name\":\"Rua X, Contagem\",\"place_rank\":26,\"addresstype\":\"road\"}]";
+
+    [Fact]
+    public async Task Resultado_so_do_pais_nao_vale_como_endereco()
+    {
+        // o serviço devolve "Brasil" para tudo: nunca vira endereço (era o que punha a Howden no meio do Mato Grosso)
+        var r = await Geo(_ => Brasil).BuscarHierarquicoAsync("Brasil", "MG", "", "Rua Inexistente, 10");
+        Assert.True(r.Ok); Assert.Equal("pais", r.Nivel);
+        Assert.False(Snapshot.Aproveitavel(r.Nivel));
+        var r2 = await Geo(q => q.Contains("street=") || q.Contains("q=") ? Rua : Brasil).BuscarHierarquicoAsync("Brasil", "MG", "Contagem", "Rua X, 10");
+        Assert.Equal("endereco", r2.Nivel);
+    }
+
+    [Fact]
+    public async Task Howden_so_entra_no_mapa_com_posicao_exata_e_tecnico_aparece_nela()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        var r = await a.Svc.SalvarHowdenAsync(a.Admin, "Howden South America", "Rua Inexistente, 10", "", "MG", "Brasil", null, null, Geo(_ => Brasil));
+        Assert.False(r!.Ok); Assert.Null(a.Svc.Foto().HowdenLat);                       // não grava o centro do Brasil
+        a.Svc.DefinirLocalBase(a.Gestao, t.Id, Vocab.BaseHowden);
+        var s = a.Svc.Foto(); var est = AgendaEngine.EstadoEm(s, AgendaEngine.Eventos(s), s.Tecnicos[t.Id], DateTime.UtcNow, DateTime.UtcNow);
+        Assert.Null(est.Lat);                                                            // sem posição exata, não aparece em lugar errado
+        await a.Svc.SalvarHowdenAsync(a.Admin, "Howden South America", "Rua X, 10", "Contagem", "MG", "Brasil", -19.9312, -44.0533, null);
+        s = a.Svc.Foto(); est = AgendaEngine.EstadoEm(s, AgendaEngine.Eventos(s), s.Tecnicos[t.Id], DateTime.UtcNow, DateTime.UtcNow);
+        Assert.Equal(-19.9312, est.Lat); Assert.Equal("exata", est.Precisao);
+    }
+
+    [Fact]
+    public void Posicoes_vagas_ja_gravadas_sao_ignoradas_e_revisadas()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        var p = a.Db.Plantas.Salvar(new Planta { Nome = "Fábrica", Pais = "Brasil", Estado = "MG", Cidade = "Contagem", Lat = -10.33, Lon = -53.2, GeoStatus = "ok", GeoNivel = "pais" });
+        var tt = a.Db.Tecnicos.Obter(t.Id)!; tt.CasaLat = -10.33; tt.CasaLon = -53.2; tt.CasaGeoNivel = "pais"; a.Db.Tecnicos.Salvar(tt);
+        var s = a.Svc.Foto();
+        Assert.Null(s.Planta(p.Id)!.Lat); Assert.Null(s.Tecnicos[t.Id].CasaLat);         // na tela já não aparecem
+        var (np, nc) = a.Svc.RevisarPosicoesVagas();
+        Assert.Equal((1, 1), (np, nc));
+        Assert.Equal("pendente", a.Db.Plantas.Obter(p.Id)!.GeoStatus); Assert.Null(a.Db.Tecnicos.Obter(t.Id)!.CasaLat);
+        Assert.Equal((0, 0), a.Svc.RevisarPosicoesVagas());                              // roda uma vez só
+    }
+
+    [Theory]
+    [InlineData("-23.5505, -46.6333", -23.5505, -46.6333)]
+    [InlineData("-23,5505 -46,6333", -23.5505, -46.6333)]
+    [InlineData("https://www.google.com/maps/place/Howden/@-19.9312,-44.0533,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d-19.93125!4d-44.05331", -19.93125, -44.05331)]
+    [InlineData("https://www.google.com/maps?q=-19.93,-44.05", -19.93, -44.05)]
+    [InlineData("https://www.openstreetmap.org/#map=17/-19.93120/-44.05330", -19.9312, -44.0533)]
+    public void Le_coordenadas_de_link_ou_texto(string txt, double lat, double lon)
+    {
+        var c = ControleTecnico.Logic.Geo.ExtrairCoordenadas(txt);
+        Assert.NotNull(c); Assert.Equal(lat, c!.Value.lat, 5); Assert.Equal(lon, c.Value.lon, 5);
+    }
+
+    [Fact]
+    public void Texto_sem_coordenadas_nao_inventa() => Assert.Null(ControleTecnico.Logic.Geo.ExtrairCoordenadas("Rua das Flores, 120 - Sorocaba"));
 }

@@ -192,3 +192,13 @@ Ao criar uma viagem, a tela já traz a **lista de verificação**, os **document
 - **Menos arquivos**: a compactação roda a cada hora e consolida tabelas com 20+ arquivos.
 - **Abrir sem compilar**: `powershell -ExecutionPolicy Bypass -File .\publicar.ps1` publica a versão compilada e cria o atalho "Controle Tecnico" na Área de Trabalho (rode de novo depois de cada `git pull`). `dotnet run` recompila a cada abertura e demora.
 - Para voltar ao modo antigo: `Data:SincronizarEmSegundoPlano=false`.
+
+## Mapa assertivo (precisão das posições)
+
+- O serviço de mapas informa a **precisão real** do que encontrou (rua, bairro/cidade, estado, país). Um resultado mais vago do que o pedido **não vale** como endereço — antes, quando o endereço não era achado, o serviço devolvia "Brasil" e o ponto caía no centro do país (Mato Grosso).
+- **Nunca vão ao mapa** posições só de estado ou país. Posição pela **cidade/CEP** aparece com o marcador **≈ (aproximada)** e aviso no balão. Exata = endereço encontrado, link do Google Maps/coordenadas ou marcada no mapa.
+- **Howden South America**: só entra no mapa com posição **exata** (Administração → Configurações → Endereço da empresa → cole o link do Google Maps ou clique no mapa).
+- **Casa do técnico**: ficha → "Definir a posição exata" (link do Google Maps, coordenadas ou clique). Posições só de estado/país são descartadas.
+- **Plantas**: no cadastro, campo para colar o link do Google Maps além do mapa; busca também pelo **nome** do local quando não há endereço. Em Clientes e plantas, **Reconferir aproximadas** busca de novo o endereço exato das plantas posicionadas pela cidade (nunca piora uma posição). Filtro "Endereço exato / Aproximadas / Sem localização".
+- **Revisão automática** (uma vez): plantas e casas gravadas com posição só de estado/país voltam a pendente. Confirmações e trechos de viagem usam sempre a posição atual (corrigida) da planta.
+- Como pegar a posição exata no Google Maps: clique com o botão direito no ponto exato → clique nas coordenadas (copia) → cole no sistema. Ou "Compartilhar → Copiar link".

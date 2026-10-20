@@ -100,12 +100,12 @@ app.mapa = {
         }
         for (const g of dados.grupos || []) {
             const n = g.tecnicos.length;
-            const html = `<div class="mk ${g.tracejado ? 'mk-prev' : 'mk-conf'} ${g.viagem ? 'mk-viagem' : ''} ${g.novo ? 'mk-novo' : ''}" style="--c:${g.cor}">` +
-                `<span class="mk-n">${n > 1 ? n : g.iniciais}</span></div>`;
+            const html = `<div class="mk ${g.tracejado ? 'mk-prev' : 'mk-conf'} ${g.viagem ? 'mk-viagem' : ''} ${g.novo ? 'mk-novo' : ''} ${g.aprox ? 'mk-aprox' : ''}" style="--c:${g.cor}">` +
+                `<span class="mk-n">${n > 1 ? n : g.iniciais}</span>${g.aprox ? '<span class="mk-q">≈</span>' : ''}</div>`;
             const icon = L.divIcon({ html, className: 'mk-wrap', iconSize: [38, 38], iconAnchor: [19, 19] });
             const m = L.marker([g.lat, g.lon], { icon, title: g.titulo, keyboard: true, riseOnHover: true }).addTo(o.camada);
             const nomes = g.tecnicos.map(t => `<div class="mk-tip-l"><span class="mk-dot" style="background:${t.cor}"></span>${t.nome}</div>`).join('');
-            m.bindTooltip(`<div class="mk-tip"><strong>${g.titulo}</strong><div class="mk-tip-s">${g.rotulo}</div>${nomes}</div>`, { direction: 'top', offset: [0, -16] });
+            m.bindTooltip(`<div class="mk-tip"><strong>${g.titulo}</strong><div class="mk-tip-s">${g.rotulo}</div>${g.aviso ? `<div class="mk-tip-aviso">${g.aviso}</div>` : ''}${nomes}</div>`, { direction: 'top', offset: [0, -16] });
             m.on('click', () => o.ref && o.ref.invokeMethodAsync('AoClicarGrupo', g.chave));
             pts.push([g.lat, g.lon]);
         }

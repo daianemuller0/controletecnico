@@ -26,7 +26,8 @@ public sealed class BuscaPlantas
             _itens = plantas.Select(p =>
             {
                 var cliente = cli.GetValueOrDefault(p.ClienteId, "");
-                var geo = !p.TemCoord ? "pendente" : p.GeoStatus == "manual" ? "manual" : string.IsNullOrEmpty(p.GeoNivel) || p.GeoNivel == "endereco" ? "ok" : "aprox";
+                var nv = Snapshot.NivelPlanta(p);
+                var geo = !p.TemCoord || !Snapshot.Aproveitavel(nv) ? "pendente" : nv == "manual" ? "manual" : Snapshot.Exata(nv) ? "ok" : "aprox";
                 var chave = DocEngine.Norm($"{p.Nome} {cliente} {p.Cidade} {p.Estado} {p.Pais} {p.Rua} {p.Cep}");
                 return new PlantaItem(p.Id, p.ClienteId, p.Nome, cliente, p.Cidade, p.Estado, p.Pais, p.Rua, p.Ativo, geo, chave, DocEngine.Norm(p.Nome));
             }).OrderBy(i => i.Nome, StringComparer.OrdinalIgnoreCase).ToList();
