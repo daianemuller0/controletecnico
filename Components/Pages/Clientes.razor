@@ -104,6 +104,10 @@ else if (_aba == "plantas")
         <span class="muted sm"><strong>@_lista.Count.ToString("N0")</strong> resultado(s)</span>
     </div>
     @PainelJob()
+    @if (Job.AutomaticoLigado && !Job.Rodando && _plantas.Any(p => !p.TemCoord && p.GeoStatus != "manual"))
+    {
+        <div class="muted sm geo-auto">@Icons.Svg("info")As plantas sem localização são procuradas <strong>automaticamente</strong> em segundo plano (primeiro as usadas em viagens e compromissos, 1 consulta por segundo). Passe o mouse sobre "Sem localização" para ver o motivo.</div>
+    }
     @if (!string.IsNullOrEmpty(_msgGeo)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@_msgGeo</div></div> }
     <div class="table-wrap"><table class="grid-tbl pl-tbl">
         <thead><tr><th>Planta</th><th>Local</th><th>País</th><th>Localização no mapa</th><th></th></tr></thead>
@@ -114,7 +118,7 @@ else if (_aba == "plantas")
                 <td><div class="pl-nome">@RealceBusca(p.Nome)</div>@if (!string.IsNullOrEmpty(p.Cliente)) { <div class="muted sm">@p.Cliente</div> }@if (!p.Ativa) { <span class="tag">inativa</span> }</td>
                 <td>@if (string.IsNullOrWhiteSpace(p.Cidade)) { <span class="badge st-warn">sem cidade</span> } else { <span>@p.Cidade@(string.IsNullOrEmpty(p.Estado) ? "" : ", " + p.Estado)</span> }@if (!string.IsNullOrWhiteSpace(p.Rua)) { <div class="muted sm">@Ui.Corte(p.Rua, 60)</div> }</td>
                 <td>@p.Pais</td>
-                <td>@GeoChip(p.Geo)</td>
+                <td>@GeoChip(p.Geo, p.GeoMotivo)</td>
                 <td class="right nowrap"><span class="row-act" aria-hidden="true">@Icons.Svg(_pode ? "edit" : "eye")</span></td>
             </tr>
         }
@@ -395,10 +399,11 @@ else if (_aba == "importar" && _pode)
 
     private void AbrirPlanta(string id) { if (Db.Plantas.Obter(id) is { } p) EditarPlanta(p); }
 
-    private RenderFragment GeoChip(string g) => __builder =>
+    private RenderFragment GeoChip(string g, string motivo = "") => __builder =>
     {
         var (txt, css) = g switch { "ok" => ("Endereço exato", "st-pos"), "manual" => ("Exata (marcada)", "st-pos"), "aprox" => ("Aproximada", "st-warn"), _ => ("Sem localização", "st-neutral") };
-        <span class="badge @css">@Icons.Svg("pin", "bico")@txt</span>
+        <span class="badge @css" title="@motivo">@Icons.Svg("pin", "bico")@txt</span>
+        @if (g == "pendente" && !string.IsNullOrEmpty(motivo)) { <div class="muted xs geo-motivo">@Ui.Corte(motivo, 90)</div> }
     };
 
     private MarkupString RealceBusca(string nome)
@@ -551,7 +556,7 @@ else if (_aba == "importar" && _pode)
             <div>
                 @if (Job.Rodando)
                 {
-                    <strong>Localizando plantas no mapa… @Job.Feitas.ToString("N0") de @Job.Total.ToString("N0")</strong>
+                    <strong>@(Job.Automatico ? "Localização automática em segundo plano…" : "Localizando plantas no mapa…") @Job.Feitas.ToString("N0") de @Job.Total.ToString("N0")</strong>
                     <div class="barra"><i style="width:@((Job.Total == 0 ? 0 : 100.0 * Job.Feitas / Job.Total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></i></div>
                     <div class="sm">@Job.Localizadas.ToString("N0") localizadas · @Job.Pendentes.ToString("N0") sem localização · @Job.Atual@(Job.Restante is { } r ? $" · faltam ≈ {Tempo.Duracao(r)}" : "")</div>
                     <div class="sm muted">Roda no servidor: pode fechar esta página. Plantas que dividem a mesma cidade reaproveitam a consulta.</div>
@@ -559,7 +564,7 @@ else if (_aba == "importar" && _pode)
                 }
                 else
                 {
-                    <strong>Localização concluída: @Job.Localizadas.ToString("N0") localizada(s), @Job.Pendentes.ToString("N0") sem localização (de @Job.Total.ToString("N0"))</strong>
+                    <strong>@(Job.Automatico ? "Localização automática" : "Localização") @(Job.Erro is null ? "concluída" : Job.Automatico ? "pausada" : "interrompida"): @Job.Localizadas.ToString("N0") localizada(s), @Job.Pendentes.ToString("N0") sem localização (de @Job.Total.ToString("N0"))</strong>
                     @if (Job.Erro is not null) { <div class="sm">@Job.Erro</div> }
                     <div class="sm muted">Consultas ao serviço de mapas: @Geo.ConsultasRealizadas.ToString("N0") (evitadas pelo cache: @Geo.ConsultasEmCache.ToString("N0")).</div>
                 }

@@ -83,6 +83,8 @@ public class Planta : Entity
     /// <summary>Até onde a localização em cascata chegou: endereco | cidade | estado | pais (vazio = manual/pendente).</summary>
     public string GeoNivel { get; set; } = "";
     public DateTime? GeoEm { get; set; }
+    /// <summary>Última vez que o serviço de mapas foi consultado para esta planta (achando ou não): a localização automática não repete à toa.</summary>
+    public DateTime? GeoTentativaEm { get; set; }
     public string ContatoLocal { get; set; } = "";
     public string Acesso { get; set; } = "";
     public string Obs { get; set; } = "";

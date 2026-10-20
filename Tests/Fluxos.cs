@@ -850,6 +850,106 @@ public class EnderecoBrasileiroTests
     }
 }
 
+public class LocalizacaoAutomaticaTests
+{
+    private sealed class Mapa : HttpMessageHandler
+    {
+        public List<string> Cidades = new();
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            var pq = System.Web.HttpUtility.ParseQueryString(req.RequestUri!.Query);
+            var corpo = "[]";
+            if (!req.RequestUri.AbsolutePath.StartsWith("/api") && pq["city"] is { } c && pq["street"] is null)
+            {
+                Cidades.Add(c);
+                corpo = "[{\"lat\":\"-23.18\",\"lon\":\"-46.89\",\"display_name\":\"" + c + "\",\"place_rank\":16,\"addresstype\":\"city\"}]";
+            }
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(corpo) });
+        }
+    }
+    private sealed class Fab : IHttpClientFactory { public HttpMessageHandler H = null!; public HttpClient CreateClient(string n) => new(H); }
+    private static IConfiguration Cfg() => new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:IntervaloMs"] = "0", ["Geocoding:PhotonUrl"] = "" }).Build();
+
+    private static async Task Esperar(GeocodificacaoJob job) { for (var i = 0; i < 200 && job.Rodando; i++) await Task.Delay(50); Assert.False(job.Rodando); }
+
+    [Fact]
+    public void So_entram_as_nao_consultadas_versao_antiga_ou_ha_mais_de_30_dias()
+    {
+        var agora = DateTime.UtcNow; var versao = agora.AddDays(-1);
+        Planta P(DateTime? t, bool coord = false, string nivel = "cidade", string status = "ok") =>
+            new() { Nome = "P", Cidade = "X", GeoTentativaEm = t, Lat = coord ? -1 : null, Lon = coord ? -1 : null, GeoNivel = nivel, GeoStatus = coord ? status : "pendente" };
+        Assert.True(GeocodificacaoJob.ElegivelAutomatico(P(null), agora, versao));                    // importada, nunca consultada
+        Assert.False(GeocodificacaoJob.ElegivelAutomatico(P(agora.AddHours(-2)), agora, versao));      // já tentada com a busca atual
+        Assert.True(GeocodificacaoJob.ElegivelAutomatico(P(agora.AddDays(-3)), agora, versao));        // tentada com a versão antiga
+        Assert.True(GeocodificacaoJob.ElegivelAutomatico(P(agora.AddDays(-40)), agora, null));         // não achada há mais de 30 dias
+        Assert.True(GeocodificacaoJob.ElegivelAutomatico(P(agora.AddDays(-3), coord: true), agora, versao));          // aproximada de versão antiga: reconfere
+        Assert.False(GeocodificacaoJob.ElegivelAutomatico(P(agora.AddDays(-3), coord: true, nivel: "endereco"), agora, versao));
+        Assert.False(GeocodificacaoJob.ElegivelAutomatico(P(null, coord: true, status: "manual"), agora, versao));   // marcada à mão: nunca
+        Assert.False(GeocodificacaoJob.ElegivelAutomatico(new Planta { Nome = "Sem local", Pais = "" }, agora, versao));
+    }
+
+    [Fact]
+    public async Task Localiza_sozinha_as_pendentes_primeiro_as_usadas_em_viagens_e_nao_repete()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        var c = a.Svc.SalvarCliente(a.Admin, new Cliente { Nome = "Cli" });
+        // importadas: pendentes e nunca consultadas
+        var pa = a.Db.Plantas.Salvar(new Planta { ClienteId = c.Id, Nome = "A", Pais = "Brasil", Estado = "SP", Cidade = "Americana", GeoStatus = "pendente" });
+        var pz = a.Db.Plantas.Salvar(new Planta { ClienteId = c.Id, Nome = "Z", Pais = "Brasil", Estado = "SP", Cidade = "Zacarias", GeoStatus = "pendente" });
+        a.Db.Viagens.Salvar(new Viagem { PlantaId = pz.Id, TecnicoIds = t.Id, Status = Vocab.ViagemPlanejada });
+        var h = new Mapa(); var geo = new Geocoder(new Fab { H = h }, Cfg());
+        var job = new GeocodificacaoJob(a.Db, a.Svc, geo);
+        var auto = new LocalizacaoAutomaticaService(job, geo, a.Db, Cfg(), Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalizacaoAutomaticaService>.Instance);
+        Assert.Equal(2, job.FaltamAutomatico());
+        Assert.True(auto.Rodada(DateTime.UtcNow)); await Esperar(job);
+        Assert.Equal(new[] { "Zacarias", "Americana" }, h.Cidades);                                  // a da viagem primeiro
+        Assert.True(a.Db.Plantas.Obter(pa.Id)!.TemCoord); Assert.True(a.Db.Plantas.Obter(pz.Id)!.TemCoord);
+        Assert.Equal(0, job.FaltamAutomatico());
+        Assert.False(auto.Rodada(DateTime.UtcNow));                                                   // nada mais a fazer: não consulta de novo
+    }
+
+    [Fact]
+    public async Task Com_outro_computador_trabalhando_ou_parada_pelo_usuario_espera()
+    {
+        using var a = new Amb(); var c = a.Svc.SalvarCliente(a.Admin, new Cliente { Nome = "Cli" });
+        a.Db.Plantas.Salvar(new Planta { ClienteId = c.Id, Nome = "A", Pais = "Brasil", Estado = "SP", Cidade = "Americana", GeoStatus = "pendente" });
+        var geo = new Geocoder(new Fab { H = new Mapa() }, Cfg()); var job = new GeocodificacaoJob(a.Db, a.Svc, geo);
+        var auto = new LocalizacaoAutomaticaService(job, geo, a.Db, Cfg(), Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalizacaoAutomaticaService>.Instance);
+        a.Db.SetCfg("geo_auto_reserva", $"OUTRO-PC|{DateTime.UtcNow.AddMinutes(10):o}");
+        Assert.False(auto.Rodada(DateTime.UtcNow));
+        Assert.True(auto.Rodada(DateTime.UtcNow.AddMinutes(30)));                                    // a reserva do outro venceu
+        job.Parar(); await Esperar(job);
+        Assert.False(auto.Rodada(DateTime.UtcNow.AddMinutes(31)));                                   // quem clicou em Parar é respeitado
+    }
+
+    [Fact]
+    public async Task Rodada_longa_nao_desfaz_edicao_feita_no_meio_do_caminho()
+    {
+        using var a = new Amb(); var c = a.Svc.SalvarCliente(a.Admin, new Cliente { Nome = "Cli" });
+        var p = a.Db.Plantas.Salvar(new Planta { ClienteId = c.Id, Nome = "A", Pais = "Brasil", Estado = "SP", Cidade = "Americana", GeoStatus = "pendente" });
+        var bloqueio = new SemaphoreSlim(0);
+        var h = new Bloqueia { Liberar = bloqueio };
+        var geo = new Geocoder(new Fab { H = h }, Cfg()); var job = new GeocodificacaoJob(a.Db, a.Svc, geo);
+        Assert.True(job.IniciarAutomatico());
+        await h.Chegou.WaitAsync(TimeSpan.FromSeconds(5));
+        var ed = a.Db.Plantas.Obter(p.Id)!; ed.ContatoLocal = "João (portaria)"; a.Db.Plantas.Salvar(ed);   // alguém edita enquanto a rodada consulta
+        bloqueio.Release(100); await Esperar(job);
+        var fim = a.Db.Plantas.Obter(p.Id)!;
+        Assert.True(fim.TemCoord); Assert.Equal("João (portaria)", fim.ContatoLocal);
+    }
+    private sealed class Bloqueia : HttpMessageHandler
+    {
+        public SemaphoreSlim Liberar = null!; public SemaphoreSlim Chegou = new(0);
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            Chegou.Release(); await Liberar.WaitAsync(ct);
+            var pq = System.Web.HttpUtility.ParseQueryString(req.RequestUri!.Query);
+            var corpo = pq["city"] is { } c && pq["street"] is null ? "[{\"lat\":\"-22.7\",\"lon\":\"-47.3\",\"display_name\":\"" + c + "\",\"place_rank\":16,\"addresstype\":\"city\"}]" : "[]";
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(corpo) };
+        }
+    }
+}
+
 public class VolumeTests
 {
     [Fact]

@@ -12,6 +12,8 @@ public sealed record RotaResultado(bool Ok, double? Km, int? Minutos, string Men
 /// e, opcionalmente, Geocoding:BaseUrl. Sem configuração, NÃO simula: devolve "não configurado".</summary>
 public sealed class Geocoder
 {
+    /// <summary>Versão da busca em cascata. Quando muda, a localização automática tenta de novo as plantas pendentes/aproximadas.</summary>
+    public const int Versao = 3;
     private readonly HttpClient _http;
     private readonly string _base;
     private readonly string _contatoCfg;

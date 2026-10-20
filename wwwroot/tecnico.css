@@ -693,3 +693,5 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .conf-modo { display: flex; flex-wrap: wrap; margin-bottom: 10px; } .conf-modo button { display: inline-flex; align-items: center; gap: 6px; } .conf-modo svg { width: 14px; height: 14px; }
 .fld.casa-geo { flex-direction: row; align-items: center; justify-content: flex-start; } .casa-geo .tag svg { margin-right: 4px; vertical-align: -2px; } .casa-geo .casa-msg { flex-basis: 100%; margin: 0; } .casa-geo .casa-achado { flex-basis: 100%; }
 .mp > .muted svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; }
+.geo-motivo { margin-top: 3px; max-width: 260px; line-height: 1.3; } .muted.xs { font-size: 10.5px; }
+.geo-auto { margin: 4px 0 10px; } .geo-auto svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }

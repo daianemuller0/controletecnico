@@ -121,7 +121,7 @@ public sealed partial class Servicos
         return string.Join(", ", partes);
     }
 
-    private static string ChaveEndereco(Planta p) => DocEngine.Norm($"{p.Rua}|{p.Numero}|{p.Cep}|{p.Cidade}|{p.Estado}|{p.Pais}|{p.EnderecoCompleto}");
+    public static string ChaveEndereco(Planta p) => DocEngine.Norm($"{p.Rua}|{p.Numero}|{p.Cep}|{p.Cidade}|{p.Estado}|{p.Pais}|{p.EnderecoCompleto}");
 
     /// <summary>Só o nome da planta é obrigatório: a cidade pode faltar no cadastro (vem de planilha) e é pedida
     /// quando a planta for selecionada para enviar um técnico.</summary>
@@ -140,6 +140,7 @@ public sealed partial class Servicos
     /// <summary>Aplica o resultado da busca em cascata à planta.</summary>
     public static void AplicarGeo(Planta p, GeoResultado r)
     {
+        if (!r.ErroServico) p.GeoTentativaEm = DateTime.UtcNow;          // falha de rede não conta: tenta de novo depois
         // só estado/país não serve para o mapa: fica pendente, pedindo endereço completo ou a marcação no mapa
         if (r.Ok && !Snapshot.Aproveitavel(r.Nivel))
         { p.Lat = null; p.Lon = null; p.GeoStatus = "pendente"; p.GeoNivel = ""; p.GeoFonte = $"Endereço não encontrado (só o {(r.Nivel == "pais" ? "país" : "estado")}). Complete o endereço, cole o link do Google Maps ou marque no mapa."; return; }

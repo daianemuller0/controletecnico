@@ -3,7 +3,7 @@ using ControleTecnico.Models;
 
 namespace ControleTecnico.Logic;
 
-public sealed record PlantaItem(string Id, string ClienteId, string Nome, string Cliente, string Cidade, string Estado, string Pais, string Rua, bool Ativa, string Geo, string Chave, string NomeNorm);
+public sealed record PlantaItem(string Id, string ClienteId, string Nome, string Cliente, string Cidade, string Estado, string Pais, string Rua, bool Ativa, string Geo, string Chave, string NomeNorm, string GeoMotivo = "");
 
 /// <summary>Índice em memória para achar uma planta entre milhares: normaliza uma vez (sem acento/caixa) e filtra por TODAS as palavras
 /// digitadas, em qualquer campo (nome, cidade, estado, país, endereço, cliente). Reconstruído só quando o cadastro muda.</summary>
@@ -29,7 +29,11 @@ public sealed class BuscaPlantas
                 var nv = Snapshot.NivelPlanta(p);
                 var geo = !p.TemCoord || !Snapshot.Aproveitavel(nv) ? "pendente" : nv == "manual" ? "manual" : Snapshot.Exata(nv) ? "ok" : "aprox";
                 var chave = DocEngine.Norm($"{p.Nome} {cliente} {p.Cidade} {p.Estado} {p.Pais} {p.Rua} {p.Cep}");
-                return new PlantaItem(p.Id, p.ClienteId, p.Nome, cliente, p.Cidade, p.Estado, p.Pais, p.Rua, p.Ativo, geo, chave, DocEngine.Norm(p.Nome));
+                var motivo = geo != "pendente" ? p.GeoFonte
+                    : !Servicos.TemLocal(p) ? "Sem cidade, estado ou país: complete o cadastro ou marque no mapa."
+                    : p.GeoTentativaEm is null && string.IsNullOrEmpty(p.GeoFonte) ? "Ainda não consultada no serviço de mapas — a localização automática vai buscar."
+                    : string.IsNullOrEmpty(p.GeoFonte) ? "Não encontrada no serviço de mapas." : p.GeoFonte;
+                return new PlantaItem(p.Id, p.ClienteId, p.Nome, cliente, p.Cidade, p.Estado, p.Pais, p.Rua, p.Ativo, geo, chave, DocEngine.Norm(p.Nome), motivo);
             }).OrderBy(i => i.Nome, StringComparer.OrdinalIgnoreCase).ToList();
             _versao = _db.Plantas.Versao; _versaoCli = _db.Clientes.Versao;
         }

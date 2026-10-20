@@ -91,6 +91,7 @@ builder.Services.AddHttpClient("geo", c => c.Timeout = TimeSpan.FromSeconds(15))
 builder.Services.AddSingleton<Geocoder>();
 builder.Services.AddSingleton<Rota>();
 builder.Services.AddSingleton<GeocodificacaoJob>();
+builder.Services.AddHostedService<LocalizacaoAutomaticaService>();
 builder.Services.AddSingleton<LoginGuard>();
 builder.Services.AddScoped<Sessao>();
 
@@ -252,6 +253,11 @@ app.MapGet("/export/vencimentos.csv", (HttpContext http, Db db) =>
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 // revisão única da precisão das posições já gravadas (em segundo plano, não atrasa a abertura)
+_ = Task.Run(() =>
+{
+    // busca de endereços melhorou: a localização automática tenta de novo as pendentes/aproximadas (uma vez por versão)
+    try { var db = app.Services.GetRequiredService<Db>(); if (db.Cfg("geo_algoritmo") != Geocoder.Versao.ToString()) { db.SetCfg("geo_algoritmo_em", DateTime.UtcNow.ToString("o"), "sistema"); db.SetCfg("geo_algoritmo", Geocoder.Versao.ToString(), "sistema"); } } catch { }
+});
 _ = Task.Run(() => { try { var r = app.Services.GetRequiredService<Servicos>().RevisarPosicoesVagas(); if (r.plantas + r.casas > 0) Console.WriteLine($"[controletecnico]        mapa: {r.plantas} planta(s) e {r.casas} casa(s) com posição vaga (estado/país) voltaram a pendente."); } catch { } });
 Inicio.Etapa("Iniciando o servidor web …");
 app.Lifetime.ApplicationStarted.Register(() => Inicio.Pronto(app.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5090"));
