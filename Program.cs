@@ -33,10 +33,12 @@ builder.Services.AddAuthorization();
 // Dados: DuckDB sobre Parquet (mesmo padrão do Previsão). Anexos em disco ao lado.
 // A base inteira vive na pasta de rede compartilhada. Leitura por espelho local; gravação atômica na rede.
 var pastaDados = builder.Configuration["Data:Folder"] ?? @"\\BZVCPFIL003\proj_ramires$\DB\tec";
+Inicio.Etapa($"Conectando à base de dados em {pastaDados} …");
 ParquetStore store;
 try
 {
     store = new ParquetStore(pastaDados, builder.Configuration["Data:EspelhoLocal"], builder.Configuration.GetValue("Data:UsarEspelho", false));
+    Inicio.Etapa("Testando leitura e gravação na pasta …");
     var diag = store.Diagnosticar(contarArquivos: false);       // na inicialização só o teste de leitura/escrita (listar tudo pela VPN é lento)
     if (!diag.Ok) throw new InvalidOperationException($"A pasta de dados '{diag.Pasta}' está acessível, mas sem leitura e escrita: {diag.Mensagem}");
     Console.WriteLine($"[controletecnico] Base de dados: {diag.Pasta} (rede: {(diag.Rede ? "sim" : "não")}; espelho local: {diag.Espelho ?? "não usado"}; {diag.LatenciaMs} ms)");
@@ -97,6 +99,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<Db>();
     var arq = scope.ServiceProvider.GetRequiredService<Armazenamento>();
+    Inicio.Etapa("Conferindo usuários e cadastros …");
     if (Seed.BaseVazia(db))
     {
         var demo = app.Configuration.GetValue("Seed:Demo", false);
@@ -119,6 +122,7 @@ using (var scope = app.Services.CreateScope())
 // carrega todas as tabelas em memória já na inicialização (da cópia local, em paralelo): a primeira tela abre sem esperar
 {
     var dbW = app.Services.GetRequiredService<Db>();
+    Inicio.Etapa(store.Remoto ? "Carregando os dados (cópia local; na primeira vez neste computador baixa tudo da rede) …" : "Carregando os dados …");
     var sw = System.Diagnostics.Stopwatch.StartNew();
     Parallel.ForEach(dbW.Repos, new ParallelOptions { MaxDegreeOfParallelism = 6 }, r => { try { r.Aquecer(); } catch { } });
     Console.WriteLine($"[controletecnico] Dados carregados em {sw.ElapsedMilliseconds} ms{(store.Remoto ? " (cópia local; a rede é conferida em segundo plano)" : "")}.");
@@ -245,6 +249,8 @@ app.MapGet("/export/vencimentos.csv", (HttpContext http, Db db) =>
 }).RequireAuthorization();
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+Inicio.Etapa("Iniciando o servidor web …");
+app.Lifetime.ApplicationStarted.Register(() => Inicio.Pronto(app.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5090"));
 app.Run();
 return 0;
 

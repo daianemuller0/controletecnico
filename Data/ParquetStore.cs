@@ -192,6 +192,7 @@ public sealed class ParquetStore
             var locais = new DirectoryInfo(destino).GetFiles("*.parquet").ToDictionary(f => f.Name, f => f.Length, StringComparer.OrdinalIgnoreCase);
             // pela VPN cada cópia é dominada pela latência: copia vários arquivos ao mesmo tempo
             var faltando = rem.Where(f => !(locais.TryGetValue(f.Name, out var len) && len == f.Length)).ToList();
+            if (faltando.Count >= 20) Console.WriteLine($"[controletecnico]        baixando {faltando.Count} arquivo(s) de '{entity}' para a cópia local …");
             Parallel.ForEach(faltando, new ParallelOptions { MaxDegreeOfParallelism = 8 }, f =>
             {
                 var tmp = Path.Combine(destino, $"_c_{Guid.NewGuid():N}.tmp");
