@@ -41,7 +41,7 @@
         <input class="field busca" placeholder="Buscar técnico, cidade…" @bind="_busca" @bind:event="oninput" aria-label="Buscar técnico" />
         <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@_fEsp" ValueChanged="@(async (string v) => { _fEsp = v; })" Placeholder="Todas as especialidades" />
         <select class="field w-auto" @bind="_fPerfil" aria-label="Perfil"><option value="">Todos os perfis</option>@foreach (var p in Vocab.PerfisTecnico) { <option value="@p.Valor">@p.Rotulo</option> }</select>
-        <label class="chk-inline"><input type="checkbox" @bind="_soAtivos" />Somente ativos</label>
+        <button class="btn-ghost @(_inativos ? "on" : "")" aria-pressed="@_inativos" title="@(_inativos ? "Voltar para os técnicos ativos" : "Ver só os técnicos inativos")" @onclick="@(() => _inativos = !_inativos)">@Icons.Svg("user")@(_inativos ? $"Inativos ({_tecs.Count(t => !t.Ativo)})" : $"Ver inativos ({_tecs.Count(t => !t.Ativo)})")</button>
     </div>
     <div class="table-wrap"><table class="grid-tbl">
         <thead><tr><th>Técnico</th><th>Status agora</th><th>Onde mora</th><th>Especialidades</th><th>Próximo período disponível</th><th>Documentos</th></tr></thead>
@@ -63,7 +63,7 @@
         }
         </tbody>
     </table></div>
-    @if (!Filtrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("users")</div><h3>Nenhum técnico encontrado</h3></div> }
+    @if (!Filtrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("users")</div><h3>@(_inativos ? "Nenhum técnico inativo" : "Nenhum técnico encontrado")</h3></div> }
 }
 else if (_aba == "imp" && _ator.Pode(Perm.EditarTecnicos))
 {
@@ -262,7 +262,7 @@ else if (_aba == "apt")
     private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private List<Tecnico> _tecs = new(); private List<Evento> _eventos = new();
     private Dictionary<string, Estado> _estados = new(); private List<DocEngine.Linha> _venc = new();
-    private string _aba = "equipe", _busca = "", _fEsp = "", _fPerfil = ""; private bool _soAtivos, _aOutros;
+    private string _aba = "equipe", _busca = "", _fEsp = "", _fPerfil = ""; private bool _inativos, _aOutros;   // padrão: só os ativos; o botão troca para só os inativos
     private string _vTec = "", _vCat = "", _vNorma = "", _vSt = ""; private DateTime? _vDe, _vAte;
     private string _aPlanta = "", _aServ = ""; private bool _aSo; private DateTime _aDe, _aAte;
     private Requisito? _req; private List<string>? _erros;
@@ -287,7 +287,7 @@ else if (_aba == "apt")
         _venc = DocEngine.Vencimentos(_snap, DocEngine.Hoje(_snap.FusoPadrao)).Where(v => ids.Contains(v.Doc.TecnicoId)).ToList();
     }
 
-    private IEnumerable<Tecnico> Filtrados => _tecs.Where(t => (!_soAtivos || t.Ativo) && (_fPerfil == "" || (string.IsNullOrEmpty(t.Perfil) ? Vocab.PerfilCampo : t.Perfil) == _fPerfil)
+    private IEnumerable<Tecnico> Filtrados => _tecs.Where(t => t.Ativo != _inativos && (_fPerfil == "" || (string.IsNullOrEmpty(t.Perfil) ? Vocab.PerfilCampo : t.Perfil) == _fPerfil)
         && (string.IsNullOrEmpty(_fEsp) || Ui.Ids(t.EspecialidadeIds).Contains(_fEsp))
         && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{t.Nome} {t.Cidade} {t.Estado} {t.Matricula}").Contains(DocEngine.Norm(_busca)))).OrderBy(t => t.Nome);
 
