@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject Db Db
 @inject Sessao Sessao
 
@@ -11,6 +12,12 @@
                 @Icons.Svg("info")<strong>AMBIENTE DE DEMONSTRAÇÃO</strong><span>Todos os técnicos, clientes, viagens e documentos são fictícios.</span>
             </div>
         }
+        @if (_versaoNova is { } vn)
+        {
+            <div class="demo-banner versao-banner no-print" role="status">
+                @Icons.Svg("refresh")<strong>NOVA VERSÃO PUBLICADA (@vn)</strong><span>Feche a janela preta do Controle Técnico e abra de novo pelo atalho para atualizar.</span>
+            </div>
+        }
         <TopBar />
         <main class="content @(_apres ? "content-wide" : "")">
             @Body
@@ -21,7 +28,9 @@
 </div>
 
 @code {
-    private bool _apres;
-    protected override void OnInitialized() { _apres = Sessao.Apresentacao; Sessao.Mudou += Ao; }
+    private bool _apres; private string? _versaoNova = Lancador.VersaoNova;
+    protected override void OnInitialized() { _apres = Sessao.Apresentacao; Sessao.Mudou += Ao; Lancador.VersaoNovaPublicada += AoVersao; }
+    private void AoVersao() => InvokeAsync(() => { _versaoNova = Lancador.VersaoNova; StateHasChanged(); });
+    public void Dispose() { Sessao.Mudou -= Ao; Lancador.VersaoNovaPublicada -= AoVersao; }
     private void Ao() => InvokeAsync(() => { _apres = Sessao.Apresentacao; StateHasChanged(); });
 }

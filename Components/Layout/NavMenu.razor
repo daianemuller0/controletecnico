@@ -34,7 +34,7 @@
             </a>
         }
     </nav>
-    <div class="sidebar-footer"><div class="version">@Svc.NomeSistema · v1.0</div></div>
+    <div class="sidebar-footer"><div class="version">@Svc.NomeSistema · @(Lancador.Versao == "" ? "desenvolvimento" : "versão " + Lancador.Versao)</div></div>
 </aside>
 
 @code {

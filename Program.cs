@@ -9,7 +9,15 @@ using ControleTecnico.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
-var builder = WebApplication.CreateBuilder(args);
+// publicado: a pasta do programa é a raiz do conteúdo (wwwroot, appsettings.json), de onde quer que tenha sido aberto
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = Lancador.RaizConteudo() });
+var urlApp = builder.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5090";
+if (OperatingSystem.IsWindows()) try { Console.Title = "Controle Técnico" + (Lancador.Versao == "" ? "" : " · " + Lancador.Versao); } catch { }
+// segundo clique no atalho com o programa já aberto neste computador: só abre o navegador
+if (Lancador.Versao != "" && Lancador.JaAberto(urlApp)) { Console.WriteLine("[controletecnico] O Controle Técnico já está aberto neste computador: abrindo o navegador."); Lancador.AbrirNavegador(urlApp); return 0; }
+// aberto da pasta da rede: roda uma cópia local desta versão (rápido pela VPN e libera a rede para publicar)
+if (Lancador.AbrirCopiaLocal(args)) return 0;
+if (Lancador.Versao != "") Console.WriteLine($"[controletecnico] Versão {Lancador.Versao}. Mantenha esta janela aberta enquanto usa o sistema (pode minimizar); para encerrar, feche-a.");
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents(o =>
 {
@@ -260,7 +268,13 @@ _ = Task.Run(() =>
 });
 _ = Task.Run(() => { try { var r = app.Services.GetRequiredService<Servicos>().RevisarPosicoesVagas(); if (r.plantas + r.casas > 0) Console.WriteLine($"[controletecnico]        mapa: {r.plantas} planta(s) e {r.casas} casa(s) com posição vaga (estado/país) voltaram a pendente."); } catch { } });
 Inicio.Etapa("Iniciando o servidor web …");
-app.Lifetime.ApplicationStarted.Register(() => Inicio.Pronto(app.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5090"));
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    Inicio.Pronto(urlApp);
+    // versão publicada: abre o navegador sozinho (no "dotnet run" só mostra o endereço)
+    if (Lancador.Versao != "" || app.Configuration.GetValue("AbrirNavegador", false)) Lancador.AbrirNavegador(urlApp);
+    Lancador.VigiarVersaoNova();
+});
 app.Run();
 return 0;
 

@@ -190,7 +190,12 @@ Ao criar uma viagem, a tela já traz a **lista de verificação**, os **document
 - **Inicialização**: carrega todas as tabelas da cópia local em paralelo; só a primeira vez num computador baixa tudo (cópias em paralelo).
 - **Anexos, fotos e logos**: cada arquivo é baixado uma vez e guardado em `%LOCALAPPDATA%\ControleTecnico\arquivos_cache`.
 - **Menos arquivos**: a compactação roda a cada hora e consolida tabelas com 20+ arquivos.
-- **Abrir sem compilar**: `powershell -ExecutionPolicy Bypass -File .\publicar.ps1` publica a versão compilada e cria o atalho "Controle Tecnico" na Área de Trabalho (rode de novo depois de cada `git pull`). `dotnet run` recompila a cada abertura e demora.
+- **Publicar na rede** (para todos usarem, sem precisar do .NET instalado): `powershell -ExecutionPolicy Bypass -File .\publicar.ps1` compila um único **ControleTecnico.exe com o ícone da Howden** e publica em `\\BZVCPFIL003\proj_ramires$\Controletec` (outra pasta: `-Destino "..."`). Rode de novo depois de cada `git pull` com novidades.
+  - Na pasta da rede ficam: `ControleTecnico.exe`, `appsettings.json`, `wwwroot\`, `versao.txt`, `LEIA-ME.txt` e `Criar atalho na Area de Trabalho.cmd` (cada pessoa roda uma vez para ter o atalho com o ícone).
+  - Quem abre o .exe da rede recebe uma **cópia da versão no próprio computador** (`%LOCALAPPDATA%\ControleTecnico\versoes`, só na primeira vez de cada versão; guarda a atual e a anterior) e é a cópia que roda: abre rápido mesmo pela VPN e a pasta da rede fica livre para publicar com o sistema aberto nos outros computadores. Alterar o `appsettings.json` da rede também gera uma cópia nova.
+  - O navegador abre sozinho quando o sistema fica pronto; clicar de novo no atalho com o programa aberto só abre o navegador. A versão aparece no rodapé do menu e, quando uma versão nova é publicada, aparece o aviso **"Nova versão publicada"** (feche a janela preta e abra de novo).
+  - O ícone vem de `howden.ico` (logo completo nos tamanhos grandes, emblema nos pequenos), definido em `ApplicationIcon` no `.csproj`.
+  - `dotnet run` continua para desenvolvimento (recompila a cada abertura).
 - Para voltar ao modo antigo: `Data:SincronizarEmSegundoPlano=false`.
 
 ## Mapa assertivo (precisão das posições)

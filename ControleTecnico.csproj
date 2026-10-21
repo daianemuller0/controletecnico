@@ -9,6 +9,11 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <InvariantGlobalization>false</InvariantGlobalization>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- ícone do ControleTecnico.exe (Explorer, atalho, barra de tarefas): logo da Howden -->
+    <ApplicationIcon>howden.ico</ApplicationIcon>
+    <Product>Controle Técnico</Product>
+    <AssemblyTitle>Controle Técnico</AssemblyTitle>
+    <Company>Howden South America</Company>
   </PropertyGroup>
 
   <ItemGroup>
