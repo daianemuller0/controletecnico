@@ -950,6 +950,31 @@ public class LocalizacaoAutomaticaTests
     }
 }
 
+public class PresencaTests
+{
+    [Fact]
+    public void Fecha_quando_o_sistema_e_fechado_no_navegador_mas_nao_ao_recarregar()
+    {
+        Presenca.Reiniciar(); var t0 = DateTime.UtcNow;
+        Presenca.Vivo(); Thread.Sleep(20); Presenca.Saindo();                                   // fechou a aba
+        Assert.Null(Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddSeconds(5), t0));            // espera um pouco (pode ser recarregar)
+        Assert.Equal("o navegador foi fechado", Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddSeconds(13), t0));
+        Presenca.Saindo(); Thread.Sleep(20); Presenca.Vivo();                                   // recarregou: a página nova deu sinal
+        Assert.Null(Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddSeconds(30), t0));
+        Presenca.Conectou(); Presenca.Saindo();                                                 // outra aba interativa continua aberta
+        Assert.Null(Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddHours(5), t0));
+        Presenca.Desconectou();                                                                 // a última também fechou
+        Assert.Equal("o navegador foi fechado", Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddSeconds(13), t0));
+        Presenca.Reiniciar(); Presenca.Vivo();                                                  // navegador encerrado à força: sem aviso de saída
+        Assert.Null(Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddMinutes(5), t0));
+        Assert.Equal("nenhuma janela do sistema aberta há 10 minutos", Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddMinutes(11), t0));
+        Presenca.Reiniciar();
+        Assert.Null(Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddMinutes(2), DateTime.UtcNow));
+        Assert.Equal("nenhuma janela abriu o sistema", Presenca.MotivoParaEncerrar(DateTime.UtcNow.AddMinutes(4), DateTime.UtcNow));
+        Presenca.Reiniciar();
+    }
+}
+
 public class VolumeTests
 {
     [Fact]

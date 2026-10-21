@@ -18,6 +18,15 @@
     <script src="_framework/blazor.web.js"></script>
     <script src="lib/leaflet/leaflet.js"></script>
     <script src="app.js?v=@Ver"></script>
+    <script>
+        // presença: o programa publicado (sem janela) fecha sozinho quando o sistema é fechado no navegador
+        (function () {
+            function vivo() { try { fetch("/vivo", { method: "POST", keepalive: true, cache: "no-store" }).catch(function () { }); } catch (e) { } }
+            vivo(); setInterval(vivo, 20000);
+            addEventListener("pagehide", function () { try { navigator.sendBeacon("/saindo"); } catch (e) { } });
+            addEventListener("pageshow", function (e) { if (e.persisted) vivo(); });
+        })();
+    </script>
 </body>
 
 </html>

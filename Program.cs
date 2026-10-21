@@ -9,15 +9,33 @@ using ControleTecnico.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
+// publicado (sem janela): o que antes ia para a janela preta fica em %LOCALAPPDATA%\ControleTecnico\logs
+Lancador.RegistrarEmArquivo();
 // publicado: a pasta do programa é a raiz do conteúdo (wwwroot, appsettings.json), de onde quer que tenha sido aberto
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = Lancador.RaizConteudo() });
 var urlApp = builder.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5090";
 if (OperatingSystem.IsWindows()) try { Console.Title = "Controle Técnico" + (Lancador.Versao == "" ? "" : " · " + Lancador.Versao); } catch { }
-// segundo clique no atalho com o programa já aberto neste computador: só abre o navegador
-if (Lancador.Versao != "" && Lancador.JaAberto(urlApp)) { Console.WriteLine("[controletecnico] O Controle Técnico já está aberto neste computador: abrindo o navegador."); Lancador.AbrirNavegador(urlApp); return 0; }
+if (Lancador.Versao != "")
+{
+    switch (Lancador.JaAberto(urlApp))
+    {
+        // segundo clique no atalho com o programa já aberto (ou abrindo) neste computador: só abre o navegador
+        case Lancador.Situacao.MesmaVersao or Lancador.Situacao.Carregando:
+            Console.WriteLine("[controletecnico] O Controle Técnico já está aberto neste computador: abrindo o navegador.");
+            Lancador.AbrirNavegador(urlApp); return 0;
+        // versão antiga ainda aberta (ex.: reabriu logo depois de publicar): fecha a antiga e abre esta
+        case Lancador.Situacao.OutraVersao:
+            Console.WriteLine("[controletecnico] Fechando a versão anterior que estava aberta …");
+            if (!Lancador.EncerrarAberto(urlApp)) { Lancador.AbrirNavegador(urlApp); return 0; }
+            break;
+    }
+}
 // aberto da pasta da rede: roda uma cópia local desta versão (rápido pela VPN e libera a rede para publicar)
-if (Lancador.AbrirCopiaLocal(args)) return 0;
-if (Lancador.Versao != "") Console.WriteLine($"[controletecnico] Versão {Lancador.Versao}. Mantenha esta janela aberta enquanto usa o sistema (pode minimizar); para encerrar, feche-a.");
+if (Lancador.AbrirCopiaLocal(args, urlApp)) return 0;
+// tela de carregamento no navegador (logo + barra de progresso) enquanto o sistema abre
+TelaCarregando.Iniciar(urlApp);
+if (Lancador.Versao != "" && !Lancador.NavegadorAberto) Lancador.AbrirNavegador(urlApp);
+Inicio.Etapa("Preparando …", 3);
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents(o =>
 {
@@ -41,22 +59,34 @@ builder.Services.AddAuthorization();
 // Dados: DuckDB sobre Parquet (mesmo padrão do Previsão). Anexos em disco ao lado.
 // A base inteira vive na pasta de rede compartilhada. Leitura por espelho local; gravação atômica na rede.
 var pastaDados = builder.Configuration["Data:Folder"] ?? @"\\BZVCPFIL003\proj_ramires$\DB\tec";
-Inicio.Etapa($"Conectando à base de dados em {pastaDados} …");
 ParquetStore store;
-try
+for (var tentativa = 1; ; tentativa++)
 {
-    store = new ParquetStore(pastaDados, builder.Configuration["Data:EspelhoLocal"], builder.Configuration.GetValue("Data:UsarEspelho", false));
-    Inicio.Etapa("Testando leitura e gravação na pasta …");
-    var diag = store.Diagnosticar(contarArquivos: false);       // na inicialização só o teste de leitura/escrita (listar tudo pela VPN é lento)
-    if (!diag.Ok) throw new InvalidOperationException($"A pasta de dados '{diag.Pasta}' está acessível, mas sem leitura e escrita: {diag.Mensagem}");
-    Console.WriteLine($"[controletecnico] Base de dados: {diag.Pasta} (rede: {(diag.Rede ? "sim" : "não")}; espelho local: {diag.Espelho ?? "não usado"}; {diag.LatenciaMs} ms)");
-}
-catch (Exception ex)
-{
-    Console.Error.WriteLine("[controletecnico] ERRO: " + ex.Message);
-    Console.Error.WriteLine("O programa não inicia sem acesso à base compartilhada, para nunca gravar dados num lugar diferente do combinado. " +
-                            "Para desenvolvimento use a variável Data__Folder apontando para uma pasta local.");
-    return 1;
+    try
+    {
+        Inicio.Etapa("Conectando à base de dados …", 8); Inicio.Progresso(8, pastaDados);
+        store = new ParquetStore(pastaDados, builder.Configuration["Data:EspelhoLocal"], builder.Configuration.GetValue("Data:UsarEspelho", false));
+        Inicio.Etapa("Testando leitura e gravação na pasta …", 15);
+        var diag = store.Diagnosticar(contarArquivos: false);       // na inicialização só o teste de leitura/escrita (listar tudo pela VPN é lento)
+        if (!diag.Ok) throw new InvalidOperationException($"A pasta de dados '{diag.Pasta}' está acessível, mas sem leitura e escrita: {diag.Mensagem}");
+        Console.WriteLine($"[controletecnico] Base de dados: {diag.Pasta} (rede: {(diag.Rede ? "sim" : "não")}; espelho local: {diag.Espelho ?? "não usado"}; {diag.LatenciaMs} ms)");
+        break;
+    }
+    catch (Exception ex)
+    {
+        // publicado (sem janela): mostra na tela de carregamento e tenta de novo (ex.: VPN ainda conectando)
+        if (Lancador.Versao != "" && TelaCarregando.Ativa && tentativa < 60)
+        {
+            Console.Error.WriteLine("[controletecnico] Sem acesso à base: " + ex.Message);
+            Inicio.Falha($"Sem acesso à pasta da base de dados ({pastaDados}). Confira se a VPN está conectada — o sistema tenta de novo a cada 20 s.");
+            if (TelaCarregando.AguardarNovaTentativa(TimeSpan.FromSeconds(20))) continue;
+        }
+        Console.Error.WriteLine("[controletecnico] ERRO: " + ex.Message);
+        Console.Error.WriteLine("O programa não inicia sem acesso à base compartilhada, para nunca gravar dados num lugar diferente do combinado. " +
+                                "Para desenvolvimento use a variável Data__Folder apontando para uma pasta local.");
+        TelaCarregando.Parar();
+        return 1;
+    }
 }
 // Recuperação de acesso: dotnet run -- --redefinir-admin [--senha=NovaSenha]
 // Só quem tem acesso à pasta da base (e à máquina) consegue executar; não apaga nenhum dado.
@@ -100,6 +130,8 @@ builder.Services.AddSingleton<Geocoder>();
 builder.Services.AddSingleton<Rota>();
 builder.Services.AddSingleton<GeocodificacaoJob>();
 builder.Services.AddHostedService<LocalizacaoAutomaticaService>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, PresencaCircuitos>();
+builder.Services.AddHostedService<EncerrarAoFecharService>();
 builder.Services.AddSingleton<LoginGuard>();
 builder.Services.AddScoped<Sessao>();
 
@@ -110,7 +142,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<Db>();
     var arq = scope.ServiceProvider.GetRequiredService<Armazenamento>();
-    Inicio.Etapa("Conferindo usuários e cadastros …");
+    Inicio.Etapa("Conferindo usuários e cadastros …", 25);
     if (Seed.BaseVazia(db))
     {
         var demo = app.Configuration.GetValue("Seed:Demo", false);
@@ -133,9 +165,16 @@ using (var scope = app.Services.CreateScope())
 // carrega todas as tabelas em memória já na inicialização (da cópia local, em paralelo): a primeira tela abre sem esperar
 {
     var dbW = app.Services.GetRequiredService<Db>();
-    Inicio.Etapa(store.Remoto ? "Carregando os dados (cópia local; na primeira vez neste computador baixa tudo da rede) …" : "Carregando os dados …");
+    Inicio.Etapa(store.Remoto ? "Carregando os dados …" : "Carregando os dados …", 30);
+    if (store.Remoto) Inicio.Progresso(30, "Da cópia local; na primeira vez neste computador baixa tudo da rede (pode levar alguns minutos pela VPN).");
     var sw = System.Diagnostics.Stopwatch.StartNew();
-    Parallel.ForEach(dbW.Repos, new ParallelOptions { MaxDegreeOfParallelism = 6 }, r => { try { r.Aquecer(); } catch { } });
+    var repos = dbW.Repos; var prontas = 0;
+    Parallel.ForEach(repos, new ParallelOptions { MaxDegreeOfParallelism = 6 }, r =>
+    {
+        try { r.Aquecer(); } catch { }
+        var n = Interlocked.Increment(ref prontas);
+        Inicio.Progresso(30 + 60 * n / repos.Count, $"{n} de {repos.Count} tabelas carregadas");
+    });
     Console.WriteLine($"[controletecnico] Dados carregados em {sw.ElapsedMilliseconds} ms{(store.Remoto ? " (cópia local; a rede é conferida em segundo plano)" : "")}.");
 }
 
@@ -202,7 +241,20 @@ app.MapGet("/marca/{tipo}", (string tipo, HttpContext http, Servicos svc, Armaze
     return Results.Stream(s, a.ContentType);
 }).AllowAnonymous();
 
-app.MapGet("/saude", () => Results.Ok("ok")).AllowAnonymous();
+app.MapGet("/saude", (HttpContext http) => { http.Response.Headers["X-ControleTecnico-Versao"] = Lancador.Versao; return Results.Ok("ok"); }).AllowAnonymous();
+// tela de carregamento: quando o sistema responde aqui, a página entra sozinha
+app.MapGet("/progresso", (HttpContext http) => { http.Response.Headers.CacheControl = "no-store"; return Results.Json(new { pronto = true }); }).AllowAnonymous();
+// presença do navegador: o programa publicado fecha sozinho quando o sistema é fechado no navegador
+app.MapPost("/vivo", () => { Presenca.Vivo(); return Results.NoContent(); }).AllowAnonymous();
+app.MapPost("/saindo", () => { Presenca.Saindo(); return Results.NoContent(); }).AllowAnonymous();
+// versão nova aberta enquanto a antiga ainda rodava: a nova pede para a antiga fechar (só deste computador; o cabeçalho barra páginas de outros sites)
+app.MapPost("/encerrar", (HttpContext http, IHostApplicationLifetime vida) =>
+{
+    if (!System.Net.IPAddress.IsLoopback(http.Connection.RemoteIpAddress ?? System.Net.IPAddress.None) || http.Request.Headers["X-ControleTecnico"] != "encerrar") return Results.StatusCode(403);
+    Console.WriteLine("[controletecnico] Encerrando: uma versão nova foi aberta neste computador.");
+    _ = Task.Run(async () => { await Task.Delay(300); vida.StopApplication(); });
+    return Results.NoContent();
+}).AllowAnonymous();
 
 // ---- anexos: sempre mediados pelo servidor, com a regra de acesso ----
 app.MapGet("/download/{token}", (string token, HttpContext http, DownloadsTemporarios dl) =>
@@ -267,14 +319,15 @@ _ = Task.Run(() =>
     try { var db = app.Services.GetRequiredService<Db>(); if (db.Cfg("geo_algoritmo") != Geocoder.Versao.ToString()) { db.SetCfg("geo_algoritmo_em", DateTime.UtcNow.ToString("o"), "sistema"); db.SetCfg("geo_algoritmo", Geocoder.Versao.ToString(), "sistema"); } } catch { }
 });
 _ = Task.Run(() => { try { var r = app.Services.GetRequiredService<Servicos>().RevisarPosicoesVagas(); if (r.plantas + r.casas > 0) Console.WriteLine($"[controletecnico]        mapa: {r.plantas} planta(s) e {r.casas} casa(s) com posição vaga (estado/país) voltaram a pendente."); } catch { } });
-Inicio.Etapa("Iniciando o servidor web …");
+Inicio.Etapa("Iniciando o servidor web …", 95);
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     Inicio.Pronto(urlApp);
-    // versão publicada: abre o navegador sozinho (no "dotnet run" só mostra o endereço)
-    if (Lancador.Versao != "" || app.Configuration.GetValue("AbrirNavegador", false)) Lancador.AbrirNavegador(urlApp);
+    // a página de carregamento já está aberta (publicado) e entra sozinha; no "dotnet run" só mostra o endereço
+    if (!Lancador.NavegadorAberto && app.Configuration.GetValue("AbrirNavegador", false)) Lancador.AbrirNavegador(urlApp);
     Lancador.VigiarVersaoNova();
 });
+TelaCarregando.Parar();          // libera o endereço: a partir daqui quem responde é o sistema
 app.Run();
 return 0;
 

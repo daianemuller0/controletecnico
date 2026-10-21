@@ -19,7 +19,7 @@ if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 Write-Host "Compilando a versao $versao (Windows 64 bits, arquivo unico) ..."
 dotnet publish "$PSScriptRoot\ControleTecnico.csproj" -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
-    -p:DebugType=None -p:DebugSymbols=false -o $tmp --nologo
+    -p:DebugType=None -p:DebugSymbols=false -p:OutputType=WinExe -o $tmp --nologo
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar.' }
 Remove-Item (Join-Path $tmp 'web.config') -ErrorAction SilentlyContinue        # so serve para IIS
 Set-Content -Path (Join-Path $tmp 'versao.txt') -Value $versao -Encoding UTF8
@@ -39,10 +39,12 @@ Para abrir: de dois cliques em ControleTecnico.exe (ou no atalho da Area de Trab
 Para criar o atalho: de dois cliques em "Criar atalho na Area de Trabalho.cmd" (uma vez so).
 
 - Na primeira vez de cada versao, o programa e copiado para o seu computador (pode levar 1 a 2 minutos pela VPN).
-- Abre uma janela preta (o servidor do sistema) e o navegador em http://localhost:5090.
-  Mantenha a janela preta aberta enquanto usar o sistema (pode minimizar); para encerrar, feche-a.
+- Abre o navegador com a tela de carregamento (logo e barra de progresso) e entra sozinho no sistema (http://localhost:5090).
+- Nao abre janela preta: o servidor roda escondido e FECHA SOZINHO quando voce fecha o sistema no navegador.
 - Os dados ficam em \\BZVCPFIL003\proj_ramires$\DB\tec (a VPN precisa estar conectada fora da empresa).
-- Quando sair versao nova, aparece o aviso "Nova versao publicada": feche a janela preta e abra de novo.
+  Sem VPN, a tela de carregamento avisa e tenta de novo a cada 20 s.
+- Quando sair versao nova, aparece o aviso "Nova versao publicada": feche o sistema no navegador e abra de novo pelo atalho.
+- Registro de funcionamento (para suporte): %LOCALAPPDATA%\ControleTecnico\logs
 "@ | Set-Content -Encoding UTF8 (Join-Path $tmp 'LEIA-ME.txt')
 
 Write-Host "Copiando para $Destino ..."
