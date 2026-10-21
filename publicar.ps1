@@ -8,6 +8,8 @@
 param([string]$Destino = '\\BZVCPFIL003\proj_ramires$\Controletec')
 
 $ErrorActionPreference = 'Stop'
+$copia = Get-ChildItem $PSScriptRoot -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'ControleTecnico.csproj') } | Select-Object -First 1
+if ($copia) { Write-Host "Aviso: há outra cópia do projeto em $($copia.FullName) — ela é ignorada na compilação (pode mover ou apagar)." -ForegroundColor Yellow }
 $versao = Get-Date -Format 'yyyy.MM.dd-HHmm'
 try { $c = git -C $PSScriptRoot rev-parse --short HEAD 2>$null; if ($c) { $versao += "-$c" } } catch { }
 $tmp = Join-Path $env:TEMP 'ControleTecnico-publicar'

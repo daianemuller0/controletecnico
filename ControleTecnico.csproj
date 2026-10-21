@@ -14,6 +14,9 @@
     <Product>Controle Técnico</Product>
     <AssemblyTitle>Controle Técnico</AssemblyTitle>
     <Company>Howden South America</Company>
+    <!-- outra cópia do projeto clonada DENTRO desta pasta (ex.: C:\tecnicos\controletecnico\controletecnico) não entra na compilação:
+         sem isto tudo aparece duas vezes ("já define um membro chamado…") -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);controletecnico/**;ControleTecnico/**;controletecnico-*/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
