@@ -61,6 +61,7 @@ public sealed class Snapshot
             if (!string.IsNullOrEmpty(t.DestPlantaId) && plantas.TryGetValue(t.DestPlantaId, out var pd)) { t.DestLat = pd.Lat; t.DestLon = pd.Lon; }
             if (!string.IsNullOrEmpty(t.OrigemPlantaId) && plantas.TryGetValue(t.OrigemPlantaId, out var po)) { t.OrigemLat = po.Lat; t.OrigemLon = po.Lon; }
         }
+        Vocab.TiposIndExtras = Vocab.LerTiposExtras(db.Cfg(Vocab.CfgTiposCompromisso));
         var hNivel = db.Cfg("howden_nivel");
         var hExata = Exata(hNivel);
         var hNome = db.Cfg("howden_nome", "Howden South America");

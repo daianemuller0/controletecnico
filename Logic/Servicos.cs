@@ -450,12 +450,13 @@ public sealed partial class Servicos
         ator.Exigir(Perm.EditarAgenda);
         var erros = new List<string>();
         if (!Db.Tecnicos.Existe(i.TecnicoId)) erros.Add("Selecione o técnico.");
+        if (!Vocab.TipoIndPadrao(i.Tipo) && !Vocab.LerTiposExtras(Db.Cfg(Vocab.CfgTiposCompromisso)).Any(t => t.Key == i.Tipo)) erros.Add("Tipo de compromisso inválido.");
         if (i.Fim <= i.Ini) erros.Add("O término deve ser posterior ao início.");
         if (erros.Count > 0) throw new ValidacaoException(erros);
         var novo = string.IsNullOrEmpty(i.Id);
         Db.Indisponibilidades.Salvar(i, ator.Login);
         Auditar(ator, novo ? "indisponibilidade.criar" : "indisponibilidade.alterar", "indisponibilidade", i.Id,
-            $"{Vocab.TiposInd.First(t => t.Key == i.Tipo).Label} de {Db.Tecnicos.Obter(i.TecnicoId)?.Nome}: {Tempo.Hora(i.Ini, Db.FusoPadrao, null, true)} a {Tempo.Hora(i.Fim, Db.FusoPadrao, null, true)}");
+            $"{Vocab.RotuloInd(i.Tipo)} de {Db.Tecnicos.Obter(i.TecnicoId)?.Nome}: {Tempo.Hora(i.Ini, Db.FusoPadrao, null, true)} a {Tempo.Hora(i.Fim, Db.FusoPadrao, null, true)}");
         return i;
     }
 

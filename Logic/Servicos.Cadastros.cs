@@ -58,6 +58,38 @@ public sealed partial class Servicos
         return !usado;
     }
 
+    /// <summary>Novo tipo de compromisso (ex.: Treinamento, Integração, Exame médico). Devolve a chave.</summary>
+    public string CriarTipoCompromisso(Ator ator, string nome)
+    {
+        ator.Exigir(Perm.EditarAgenda);
+        nome = (nome ?? "").Trim().Replace("|", "/").Replace("\n", " ");
+        if (nome.Length is < 2 or > 40) throw new ValidacaoException("Informe o nome do tipo (2 a 40 caracteres).");
+        var extras = Vocab.LerTiposExtras(Db.Cfg(Vocab.CfgTiposCompromisso));
+        if (Vocab.TiposInd.Concat(extras).Any(t => DocEngine.Norm(t.Label) == DocEngine.Norm(nome)) || DocEngine.Norm(nome) is "atendimento" or "atendimento em planta")
+            throw new ValidacaoException($"Já existe o tipo \"{nome}\".");
+        var chave = "c_" + Repo<Indisponibilidade>.NovoId();
+        extras.Add((chave, nome));
+        Db.SetCfg(Vocab.CfgTiposCompromisso, Vocab.GravarTiposExtras(extras), ator.Login);
+        Vocab.TiposIndExtras = extras;
+        Auditar(ator, "agenda.tipo.criar", "config", chave, $"Novo tipo de compromisso: {nome}");
+        return chave;
+    }
+
+    /// <summary>Exclui um tipo criado pelos usuários (os de fábrica não saem). Não exclui se já houver compromisso desse tipo.</summary>
+    public void ExcluirTipoCompromisso(Ator ator, string chave)
+    {
+        ator.Exigir(Perm.EditarAgenda);
+        var extras = Vocab.LerTiposExtras(Db.Cfg(Vocab.CfgTiposCompromisso));
+        var t = extras.FirstOrDefault(x => x.Key == chave);
+        if (t.Key is null) throw new ValidacaoException("Só os tipos criados aqui podem ser excluídos.");
+        var usados = Db.Indisponibilidades.Onde(i => i.Tipo == chave).Count;
+        if (usados > 0) throw new ValidacaoException($"O tipo \"{t.Label}\" já está em {usados} compromisso(s); troque o tipo deles antes de excluir.");
+        extras.RemoveAll(x => x.Key == chave);
+        Db.SetCfg(Vocab.CfgTiposCompromisso, Vocab.GravarTiposExtras(extras), ator.Login);
+        Vocab.TiposIndExtras = extras;
+        Auditar(ator, "agenda.tipo.excluir", "config", chave, $"Tipo de compromisso excluído: {t.Label}");
+    }
+
     /// <summary>Exclui uma especialidade do cadastro e tira de todos os técnicos.</summary>
     public void ExcluirEspecialidade(Ator ator, string especialidadeId)
     {

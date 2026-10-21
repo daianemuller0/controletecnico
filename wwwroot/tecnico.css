@@ -701,3 +701,7 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .icon-btn.xs { width: 22px; height: 22px; min-width: 22px; padding: 0; } .icon-btn.xs svg { width: 12px; height: 12px; }
 .acoes-usr { display: inline-flex; gap: 6px; justify-content: flex-end; }
 .btn-ghost.perigo:hover { color: #c0392b; border-color: #e9b4ad; background: #fdf0ee; }
+.tipo-linha { display: flex; gap: 6px; align-items: center; } .tipo-linha .field, .tipo-linha select { flex: 1; min-width: 0; }
+.tipo-novo { margin-top: 6px; padding: 8px; border: 1px dashed var(--border); border-radius: 8px; display: grid; gap: 6px; font-weight: 400; }
+.tipo-extras { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; } .tag-x { border: 0; background: none; cursor: pointer; padding: 0 0 0 4px; color: inherit; font-size: 13px; line-height: 1; }
+.btn-primary.sm { padding: 6px 10px; font-size: 12px; }

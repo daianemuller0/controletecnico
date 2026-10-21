@@ -177,7 +177,8 @@ public static class AgendaEngine
             {
                 Id = $"i:{i.Id}", Fonte = "ind", FonteId = i.Id, TecnicoId = i.TecnicoId, Tipo = tipo, Ini = i.Ini, Fim = i.Fim,
                 Status = i.Provisoria ? "provisorio" : "confirmado",
-                Titulo = Vocab.Get(Vocab.TiposEvento, tipo).Label + (string.IsNullOrWhiteSpace(i.Motivo) ? "" : $" — {i.Motivo}"),
+                // tipo criado pelo usuário (ex.: Treinamento): aparece com o próprio nome, com a cor de bloqueio
+                Titulo = (Vocab.TipoIndPadrao(i.Tipo) ? Vocab.Get(Vocab.TiposEvento, tipo).Label : Vocab.RotuloInd(i.Tipo)) + (string.IsNullOrWhiteSpace(i.Motivo) ? "" : $" — {i.Motivo}"),
                 Obs = i.Motivo,
                 Fuso = s.Tecnico(i.TecnicoId)?.FusoHorario ?? "",
             });

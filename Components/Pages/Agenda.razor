@@ -303,11 +303,28 @@ else
 {
     <Dialogo Titulo="@(_form.Id == "" ? "Novo compromisso" : "Editar compromisso")" Largo="true" OnFechar="@(() => _form = null)" Erros="_errosForm">
         <div class="form-grid">
-            <label class="fld">Tipo
-                <select @bind="_form.Tipo" @bind:after="AoMudarTipoForm" disabled="@(_form.Id != "")">
-                    <option value="atendimento">Atendimento em planta</option>
-                    @foreach (var t in Vocab.TiposInd) { <option value="@t.Key">@t.Label</option> }
-                </select></label>
+            <div class="fld">Tipo
+                <div class="tipo-linha">
+                    <select class="field" @bind="_form.Tipo" @bind:after="AoMudarTipoForm" disabled="@(_form.Id != "")">
+                        <option value="atendimento">Atendimento em planta</option>
+                        @foreach (var t in Vocab.TiposIndTodos) { <option value="@t.Key">@t.Label</option> }
+                    </select>
+                    @if (_form.Id == "") { <button type="button" class="btn-ghost sm" title="Criar um tipo novo (ex.: Treinamento, Integração, Exame médico)" @onclick="@(() => { _novoTipoAberto = !_novoTipoAberto; _novoTipo = ""; })">@Icons.Svg("plus")Novo tipo</button> }
+                </div>
+                @if (_novoTipoAberto)
+                {
+                    <div class="tipo-novo">
+                        <div class="tipo-linha"><input class="field" @bind="_novoTipo" @bind:event="oninput" placeholder="Nome do tipo (ex.: Treinamento)" maxlength="40" @onkeydown="@(async e => { if (e.Key == "Enter") await CriarTipo(); })" />
+                            <button type="button" class="btn-primary sm" @onclick="CriarTipo">Adicionar</button></div>
+                        @if (Vocab.TiposIndExtras.Count > 0)
+                        {
+                            <div class="tipo-extras"><span class="muted sm">Criados:</span>
+                                @foreach (var x in Vocab.TiposIndExtras) { <span class="tag">@x.Label<button type="button" class="tag-x" title="Excluir o tipo @x.Label" aria-label="Excluir o tipo @x.Label" @onclick="@(() => ExcluirTipo(x.Key))">×</button></span> }</div>
+                        }
+                        <div class="muted sm">O técnico fica ocupado nesse compromisso, como numa indisponibilidade.</div>
+                    </div>
+                }
+            </div>
             @if (_form.Tipo == "atendimento")
             {
                 <label class="fld">Nº do projeto *<CampoLista Value="@_form.Projeto" ValueChanged="@((string x) => { _form.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
@@ -640,6 +657,20 @@ else
         _errosForm = null; _prevConf = new(); _prevApt = new(); _previaFeita = false;
     }
 
+    private bool _novoTipoAberto; private string _novoTipo = "";
+    private Task CriarTipo()
+    {
+        _errosForm = null;
+        try { var k = Svc.CriarTipoCompromisso(_ator, _novoTipo); Sessao.Avisar($"Tipo \"{_novoTipo.Trim()}\" criado."); _novoTipo = ""; _novoTipoAberto = false; _form!.Tipo = k; AoMudarTipoForm(); }
+        catch (Exception ex) { _errosForm = Ui.Erros(ex); }
+        return Task.CompletedTask;
+    }
+    private void ExcluirTipo(string k)
+    {
+        _errosForm = null;
+        try { Svc.ExcluirTipoCompromisso(_ator, k); if (_form?.Tipo == k) { _form.Tipo = Vocab.IndBloqueio; AoMudarTipoForm(); } Sessao.Avisar("Tipo excluído."); }
+        catch (Exception ex) { _errosForm = Ui.Erros(ex); }
+    }
     private void AoMudarTipoForm()
     {
         if (_form is null) return;

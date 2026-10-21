@@ -95,6 +95,18 @@ public static class Vocab
     {
         (IndFerias, "Férias"), (IndFolga, "Folga"), (IndAfastamento, "Afastamento"), (IndBloqueio, "Bloqueio / outra"),
     };
+    /// <summary>Tipos de compromisso criados pelos usuários (Agenda → Novo compromisso → Tipo → "+ Novo tipo"), guardados na
+    /// configuração. Funcionam como indisponibilidade (o técnico fica ocupado) e aparecem com o próprio nome.</summary>
+    public const string CfgTiposCompromisso = "tipos_compromisso";
+    public static IReadOnlyList<(string Key, string Label)> TiposIndExtras { get; set; } = Array.Empty<(string, string)>();
+    public static IEnumerable<(string Key, string Label)> TiposIndTodos => TiposInd.Concat(TiposIndExtras);
+    public static bool TipoIndPadrao(string? key) => TiposInd.Any(t => t.Key == key);
+    public static string RotuloInd(string? key) => TiposIndTodos.FirstOrDefault(t => t.Key == key).Label ?? "Bloqueio / outra";
+    /// <summary>Linhas "chave|Nome" da configuração.</summary>
+    public static List<(string Key, string Label)> LerTiposExtras(string cfg) =>
+        (cfg ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(l => l.Split('|', 2)).Where(p => p.Length == 2 && p[0] != "" && p[1].Trim() != "").Select(p => (p[0], p[1].Trim())).ToList();
+    public static string GravarTiposExtras(IEnumerable<(string Key, string Label)> tipos) => string.Join("\n", tipos.Select(t => $"{t.Key}|{t.Label}"));
 
     // ---- trechos ----
     public const string TrechoIda = "ida", TrechoRetorno = "retorno", TrechoEntre = "entre_plantas";

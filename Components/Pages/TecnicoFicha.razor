@@ -214,7 +214,7 @@ else
 {
     <Dialogo Titulo="@(string.IsNullOrEmpty(_ind1.Id) ? "Nova indisponibilidade" : "Editar indisponibilidade")" OnFechar="@(() => _ind1 = null)" Erros="_erros">
         <div class="form-grid">
-            <label class="fld">Tipo<select @bind="_ind1.Tipo" @bind:after="PreviaInd">@foreach (var tp in Vocab.TiposInd) {<option value="@tp.Key">@tp.Label</option>}</select></label>
+            <label class="fld">Tipo<select @bind="_ind1.Tipo" @bind:after="PreviaInd">@foreach (var tp in Vocab.TiposIndTodos) {<option value="@tp.Key">@tp.Label</option>}</select></label>
             <label class="fld chk"><input type="checkbox" @bind="_indInteiro" @bind:after="PreviaInd" />Dia(s) inteiro(s)</label>
             @if (_indInteiro)
             {

@@ -1025,6 +1025,27 @@ public class AjustesCadastroTests
     }
 }
 
+public class TiposCompromissoTests
+{
+    [Fact]
+    public void Cria_tipo_de_compromisso_usa_na_agenda_e_so_exclui_sem_uso()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        var k = a.Svc.CriarTipoCompromisso(a.Contr, "Treinamento");
+        Assert.Throws<ValidacaoException>(() => a.Svc.CriarTipoCompromisso(a.Contr, "treinamento"));      // repetido
+        Assert.Throws<ValidacaoException>(() => a.Svc.CriarTipoCompromisso(a.Contr, "Férias"));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.CriarTipoCompromisso(a.Consulta, "Reunião"));
+        var i = a.Svc.SalvarIndisponibilidade(a.Contr, new Indisponibilidade { TecnicoId = t.Id, Tipo = k, Ini = Amb.Fut(3), Fim = Amb.Fut(3, 17), Motivo = "NR-10" });
+        var s = a.Svc.Foto(); var ev = AgendaEngine.Eventos(s).Single(e => e.FonteId == i.Id);
+        Assert.Equal("Treinamento — NR-10", ev.Titulo); Assert.Equal(Vocab.EvBloqueio, ev.Tipo);          // ocupa o técnico como bloqueio
+        Assert.Throws<ValidacaoException>(() => a.Svc.ExcluirTipoCompromisso(a.Contr, k));               // em uso
+        a.Db.Indisponibilidades.Apagar(i.Id);
+        a.Svc.ExcluirTipoCompromisso(a.Contr, k);
+        Assert.DoesNotContain(Vocab.LerTiposExtras(a.Db.Cfg(Vocab.CfgTiposCompromisso)), x => x.Key == k);
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarIndisponibilidade(a.Contr, new Indisponibilidade { TecnicoId = t.Id, Tipo = "c_inexistente", Ini = Amb.Fut(3), Fim = Amb.Fut(3, 17) }));
+    }
+}
+
 public class VolumeTests
 {
     [Fact]
