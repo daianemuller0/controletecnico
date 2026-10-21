@@ -35,6 +35,9 @@ public class Tecnico : Entity
     public string JornadaInicio { get; set; } = "08:00";
     public string JornadaFim { get; set; } = "17:00";
     public string DiasUteis { get; set; } = "1,2,3,4,5"; // DayOfWeek, 0 = domingo
+    /// <summary>campo (padrão: sempre na disponibilidade) | esporadico | engenharia | terceiro | fabrica.
+    /// Os demais só aparecem na visão quando estão em viagem ou atendimento; cadastro e histórico continuam.</summary>
+    public string Perfil { get; set; } = "campo";
     public bool Ativo { get; set; } = true;
     public string Obs { get; set; } = "";
     public string FotoAnexoId { get; set; } = "";

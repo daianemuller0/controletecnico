@@ -41,6 +41,35 @@ public sealed partial class Servicos
         return e;
     }
 
+    /// <summary>Exclui um serviço do cadastro e tira de todos os técnicos. Se já foi usado em viagem, atendimento ou requisito,
+    /// fica só desativado (some das listas, mas o histórico continua mostrando o nome). Devolve true se apagou de vez.</summary>
+    public bool ExcluirServico(Ator ator, string servicoId)
+    {
+        ator.Exigir(Perm.EditarTecnicos);
+        var s = Db.Servicos.Obter(servicoId) ?? throw new ValidacaoException("Serviço não encontrado.");
+        var tecs = Db.Tecnicos.Onde(t => Snapshot.Ids(t.ServicoIds).Contains(servicoId));
+        foreach (var t in tecs) t.ServicoIds = Csv(Snapshot.Ids(t.ServicoIds).Where(x => x != servicoId));
+        if (tecs.Count > 0) Db.Tecnicos.SalvarVarios(tecs, ator.Login);
+        var usado = Db.Viagens.Onde(v => v.ServicoId == servicoId).Count > 0 || Db.Atendimentos.Onde(a => a.ServicoId == servicoId).Count > 0
+                    || Db.Requisitos.Onde(r => r.Escopo == "servico" && r.EscopoId == servicoId).Count > 0;
+        if (usado) { s.Ativo = false; Db.Servicos.Salvar(s, ator.Login); }
+        else Db.Servicos.Apagar(servicoId);
+        Auditar(ator, "servico.excluir", "servico", servicoId, $"Serviço {s.Nome} {(usado ? "desativado (já usado em viagens/requisitos)" : "excluído")}; retirado de {tecs.Count} técnico(s)");
+        return !usado;
+    }
+
+    /// <summary>Exclui uma especialidade do cadastro e tira de todos os técnicos.</summary>
+    public void ExcluirEspecialidade(Ator ator, string especialidadeId)
+    {
+        ator.Exigir(Perm.EditarTecnicos);
+        var e = Db.Especialidades.Obter(especialidadeId) ?? throw new ValidacaoException("Especialidade não encontrada.");
+        var tecs = Db.Tecnicos.Onde(t => Snapshot.Ids(t.EspecialidadeIds).Contains(especialidadeId));
+        foreach (var t in tecs) t.EspecialidadeIds = Csv(Snapshot.Ids(t.EspecialidadeIds).Where(x => x != especialidadeId));
+        if (tecs.Count > 0) Db.Tecnicos.SalvarVarios(tecs, ator.Login);
+        Db.Especialidades.Apagar(especialidadeId);
+        Auditar(ator, "especialidade.excluir", "especialidade", especialidadeId, $"Especialidade {e.Nome} excluída; retirada de {tecs.Count} técnico(s)");
+    }
+
     public Servico SalvarServico(Ator ator, Servico s)
     {
         if (!ator.Pode(Perm.EditarTecnicos)) ator.Exigir(Perm.EditarViagens);      // quem planeja viagens também cadastra serviços
@@ -411,6 +440,19 @@ public sealed partial class Servicos
         Db.Usuarios.Salvar(u, ator.Login);
         Auditar(ator, existente is null ? "usuario.criar" : "usuario.alterar", "usuario", u.Id, $"{u.Id} ({Roles.Label(u.Papel)})");
         return u;
+    }
+
+    /// <summary>Exclui o usuário (não entra mais). O histórico de alterações dele continua.</summary>
+    public void ExcluirUsuario(Ator ator, string login)
+    {
+        ator.Exigir(Perm.Administrar);
+        var u = Db.Usuarios.Obter(login) ?? throw new ValidacaoException("Usuário não encontrado.");
+        if (u.Id == ator.Login) throw new ValidacaoException("Você não pode excluir o seu próprio usuário.");
+        if (u.Papel == Roles.Admin && u.Ativo && Db.Usuarios.Onde(x => x.Papel == Roles.Admin && x.Ativo && x.Id != u.Id).Count == 0)
+            throw new ValidacaoException("Deve existir ao menos um administrador ativo.");
+        if (!string.IsNullOrEmpty(u.FotoAnexoId) && Db.Anexos.Obter(u.FotoAnexoId) is { } foto) Arquivos.Remover(foto);
+        Db.Usuarios.Apagar(u.Id);
+        Auditar(ator, "usuario.excluir", "usuario", u.Id, $"Usuário {u.Id} ({u.Nome}, {Roles.Label(u.Papel)}) excluído");
     }
 
     public void SalvarConfig(Ator ator, string alertas, string fusoPadrao, int confirmacaoHoras, string? contatoGeocodificacao = null)

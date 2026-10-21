@@ -110,7 +110,10 @@ public static class Seed
         var tAnd = T("tec_and", "André Martins", "T-009", "Curitiba", "PR", -25.4284, -49.2733, "esp_lub,esp_mec", "srv_prev", "+55 41 95555-0009");
         var tBru = T("tec_bru", "Bruno Teixeira", "T-010", "Sorocaba", "SP", -23.5015, -47.4526, "esp_vib", "srv_bal", "+55 15 95555-0010");
         tFer.JornadaInicio = "07:30"; tFer.JornadaFim = "16:30";
-        db.Tecnicos.SalvarVarios(new[] { tCarlos, tFer, tRafa, tJu, tMar, tPat, tThi, tLu, tAnd, tBru }, "seed");
+        // quem não é técnico de campo: só aparece na disponibilidade quando estiver em viagem ou atendimento
+        var tEng = T("tec_eng", "Eduardo Nogueira", "E-001", "São Paulo", "SP", -23.5505, -46.6333, "esp_vib", "srv_com", "+55 11 95555-0101"); tEng.Perfil = "engenharia";
+        var tTer = T("tec_ter", "Sérgio Campos (terceiro)", "X-001", "Campinas", "SP", -22.9099, -47.0626, "esp_mec", "srv_prev", "+55 19 95555-0102"); tTer.Perfil = "terceiro";
+        db.Tecnicos.SalvarVarios(new[] { tCarlos, tFer, tRafa, tJu, tMar, tPat, tThi, tLu, tAnd, tBru, tEng, tTer }, "seed");
 
         // ---- requisitos ----
         Requisito R(string esc, string escId, string nome, string cat, string norma, bool bloq, string obs = "") =>

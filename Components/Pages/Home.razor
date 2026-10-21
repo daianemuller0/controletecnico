@@ -55,6 +55,7 @@ else
 
         <span class="sep">·</span>
         <span>@_estados.Count técnico(s) ativos @(_estados.Count == 0 ? "" : "na visão")</span>
+        @if (_foraVisao > 0) { <span class="sep">·</span><span title="Engenharia, terceiros, fábrica e quem viaja esporadicamente só aparecem quando estão em viagem ou atendimento">@_foraVisao fora da visão (engenharia/terceiros/fábrica/esporádicos sem viagem)</span> }
     </div>
 
     <div class="filterbar op-filtros" role="search">
@@ -253,7 +254,7 @@ else
     private Snapshot _snap = new();
     private List<Evento> _eventos = new();
     private List<Conflito> _conflitos = new();
-    private List<Estado> _estados = new();
+    private List<Estado> _estados = new(); private int _foraVisao;
     private List<Estado> _visiveis = new();
     private List<Estado> _semMapa = new();
     private bool _carregando = true; private string? _erro;
@@ -321,8 +322,11 @@ else
     private void Calcular()
     {
         var agora = DateTime.UtcNow;
-        _estados = _snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id))
+        var todos = _snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id))
             .Select(t => AgendaEngine.EstadoEm(_snap, _eventos, t, _instante, agora)).ToList();
+        // engenharia, terceiros, fábrica e quem viaja esporadicamente: só entram na visão em viagem ou atendimento (nunca contam como disponíveis)
+        _estados = todos.Where(e => Vocab.NaVisao(e.Tecnico.Perfil, e.Status)).ToList();
+        _foraVisao = todos.Count - _estados.Count;
         var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet();
         HashSet<string> De(string st) => _estados.Where(e => e.Status == st).Select(e => e.Tecnico.Id).ToHashSet();
         _kDisp = De(Vocab.OpDisponivel); _kAtend = De(Vocab.OpAtendimento); _kViag = De(Vocab.OpViagem);

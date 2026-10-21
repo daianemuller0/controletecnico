@@ -72,8 +72,8 @@ else
         <label class="fld">Janela diária — fim<input type="time" value="@_v.JanelaFim" @onchange="e => _v.JanelaFim = e.Value?.ToString() ?? string.Empty" /></label>
         <label class="fld">Status<select @bind="_v.Status" @bind:after="Validar">@foreach (var s in Vocab.StatusViagem) {<option value="@s.Key">@s.Label</option>}</select></label>
         <div class="fld full"><span>Técnicos participantes *</span>
-            <div class="chk-grid">@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo || _tecs.Contains(t.Id)).OrderBy(t => t.Nome)) {
-                <label class="chk-inline"><input type="checkbox" checked="@_tecs.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome <span class="muted sm">@t.Cidade</span></label> }</div></div>
+            <div class="chk-grid">@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo || _tecs.Contains(t.Id)).OrderBy(t => Vocab.SempreDisponivel(t.Perfil) ? 0 : 1).ThenBy(t => t.Nome)) {
+                <label class="chk-inline"><input type="checkbox" checked="@_tecs.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome <span class="muted sm">@t.Cidade</span>@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(t.Perfil)</span> }</label> }</div></div>
         <label class="fld full">Observações<textarea @bind="_v.Obs"></textarea></label>
     </div>
 </div>

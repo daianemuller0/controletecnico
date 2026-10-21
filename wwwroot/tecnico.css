@@ -696,3 +696,8 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .geo-motivo { margin-top: 3px; max-width: 260px; line-height: 1.3; } .muted.xs { font-size: 10.5px; }
 .geo-auto { margin: 4px 0 10px; } .geo-auto svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
 .versao-banner { background: #e0f2fe; color: #075985; border-bottom-color: #93c5fd; position: static; }
+.tag.perfil-tag { background: #eef2ff; color: #3949ab; border-color: #c7d2fe; margin-left: 6px; font-size: 10.5px; }
+.chk-item { display: inline-flex; align-items: center; gap: 2px; } .chk-item .icon-btn.xs { opacity: .35; } .chk-item:hover .icon-btn.xs, .chk-item .icon-btn.xs:focus-visible { opacity: 1; }
+.icon-btn.xs { width: 22px; height: 22px; min-width: 22px; padding: 0; } .icon-btn.xs svg { width: 12px; height: 12px; }
+.acoes-usr { display: inline-flex; gap: 6px; justify-content: flex-end; }
+.btn-ghost.perigo:hover { color: #c0392b; border-color: #e9b4ad; background: #fdf0ee; }

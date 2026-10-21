@@ -975,6 +975,56 @@ public class PresencaTests
     }
 }
 
+public class AjustesCadastroTests
+{
+    [Fact]
+    public void Engenharia_terceiros_e_fabrica_so_entram_na_visao_em_viagem_ou_atendimento()
+    {
+        Assert.True(Vocab.NaVisao("campo", Vocab.OpDisponivel)); Assert.True(Vocab.NaVisao("", Vocab.OpSemProg));
+        foreach (var p in new[] { "esporadico", "engenharia", "terceiro", "fabrica" })
+        {
+            Assert.False(Vocab.NaVisao(p, Vocab.OpDisponivel)); Assert.False(Vocab.NaVisao(p, Vocab.OpSemProg));
+            Assert.True(Vocab.NaVisao(p, Vocab.OpViagem)); Assert.True(Vocab.NaVisao(p, Vocab.OpAtendimento));
+        }
+        using var a = new Amb();
+        var t = a.Svc.SalvarTecnico(a.Admin, new Tecnico { Nome = "Eng", Cidade = "Campinas", Estado = "SP", Perfil = "engenharia" });
+        a.Svc.SalvarTecnico(a.Admin, t);                                                   // continua engenharia ao salvar de novo
+        Assert.Equal("engenharia", a.Db.Tecnicos.Obter(t.Id)!.Perfil);
+        var s = a.Svc.Foto(); var est = AgendaEngine.EstadoEm(s, AgendaEngine.Eventos(s), s.Tecnicos[t.Id], DateTime.UtcNow, DateTime.UtcNow);
+        Assert.False(Vocab.NaVisao(t.Perfil, est.Status));                                 // sem viagem: não aparece como disponível
+    }
+
+    [Fact]
+    public void Excluir_servico_tira_dos_tecnicos_e_so_desativa_se_ja_foi_usado()
+    {
+        using var a = new Amb();
+        var s1 = a.Svc.SalvarServico(a.Admin, new Servico { Nome = "Serviço errado" });
+        var s2 = a.Svc.SalvarServico(a.Admin, new Servico { Nome = "Serviço usado" });
+        var t = a.Svc.SalvarTecnico(a.Admin, new Tecnico { Nome = "T", Cidade = "X", ServicoIds = $"{s1.Id},{s2.Id}" });
+        a.Db.Viagens.Salvar(new Viagem { ServicoId = s2.Id, TecnicoIds = t.Id });
+        Assert.True(a.Svc.ExcluirServico(a.Admin, s1.Id));
+        Assert.Null(a.Db.Servicos.Obter(s1.Id));
+        Assert.False(a.Svc.ExcluirServico(a.Admin, s2.Id));
+        Assert.False(a.Db.Servicos.Obter(s2.Id)!.Ativo);                                  // histórico ainda mostra o nome
+        Assert.Equal("", a.Db.Tecnicos.Obter(t.Id)!.ServicoIds);
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.ExcluirServico(a.Contr, s2.Id));
+    }
+
+    [Fact]
+    public void Excluir_usuario_protege_o_proprio_e_o_ultimo_administrador()
+    {
+        using var a = new Amb();
+        a.Svc.SalvarUsuario(a.Admin, new Usuario { Id = "admin", Nome = "Admin", Papel = Roles.Admin, Ativo = true }, "senha-forte-1");
+        a.Svc.SalvarUsuario(a.Admin, new Usuario { Id = "rayssa", Nome = "Rayssa", Papel = Roles.Controladoria, Ativo = true }, "senha-forte-1");
+        Assert.Throws<ValidacaoException>(() => a.Svc.ExcluirUsuario(a.Admin, "admin"));     // o próprio
+        a.Svc.ExcluirUsuario(a.Admin, "rayssa");
+        Assert.Null(a.Db.Usuarios.Obter("rayssa"));
+        var outro = new Ator { Login = "outro", Nome = "Outro", Papel = Roles.Admin };
+        Assert.Throws<ValidacaoException>(() => a.Svc.ExcluirUsuario(outro, "admin"));       // último administrador ativo
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.ExcluirUsuario(a.Gestao, "admin"));
+    }
+}
+
 public class VolumeTests
 {
     [Fact]

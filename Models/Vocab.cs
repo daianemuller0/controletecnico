@@ -43,6 +43,23 @@ public static class Vocab
         ("logistica", "Logística (voo, hotel, carro)", "plane", "#d9822b"), ("financeiro", "Financeiro", "dollar", "#1f9254"), ("outro", "Anotação", "edit", "#6b7a90"),
     };
     public const string BaseCasa = "casa", BaseHowden = "howden";
+
+    /// <summary>Perfil de quem viaja. Só o técnico de campo aparece sempre na disponibilidade; os outros entram na visão
+    /// apenas quando estão em viagem ou atendimento (cadastro e histórico continuam, e podem ser escalados a qualquer hora).</summary>
+    public const string PerfilCampo = "campo";
+    public static readonly (string Valor, string Rotulo, string Dica)[] PerfisTecnico =
+    {
+        (PerfilCampo, "Técnico de campo", "sempre aparece na disponibilidade"),
+        ("esporadico", "Viaja esporadicamente", "só aparece quando está em viagem ou atendimento"),
+        ("engenharia", "Engenharia", "só aparece quando está em viagem ou atendimento"),
+        ("terceiro", "Terceiros", "só aparece quando está em viagem ou atendimento"),
+        ("fabrica", "Fábrica", "só aparece quando está em viagem ou atendimento"),
+    };
+    public static string PerfilRotulo(string? p) => PerfisTecnico.FirstOrDefault(x => x.Valor == (string.IsNullOrEmpty(p) ? PerfilCampo : p)).Rotulo ?? p ?? "";
+    /// <summary>Entra sempre na disponibilidade (mapa, contagens, quem pode atender)?</summary>
+    public static bool SempreDisponivel(string? perfil) => string.IsNullOrEmpty(perfil) || perfil == PerfilCampo;
+    /// <summary>Na visão do momento: técnico de campo sempre; os demais só em viagem ou atendimento.</summary>
+    public static bool NaVisao(string? perfil, string status) => SempreDisponivel(perfil) || status is OpViagem or OpAtendimento;
     public const string OpDisponivel = "disponivel", OpAtendimento = "atendimento", OpViagem = "viagem",
         OpFerias = "ferias", OpIndisponivel = "indisponivel", OpSemProg = "semprog";
 

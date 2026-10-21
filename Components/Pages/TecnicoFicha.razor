@@ -25,7 +25,7 @@ else
             <div class="ficha-ident">
                 <h1>@_t.Nome @if (!_t.Ativo) { <span class="tag neg">inativo</span> }</h1>
                 <div class="muted">@_t.Matricula @(string.IsNullOrEmpty(_t.Matricula) ? "" : "·") @_t.Cidade@(string.IsNullOrEmpty(_t.Estado) ? "" : "/" + _t.Estado), @_t.Pais</div>
-                <div class="ficha-chips"><StatusBadge Item="@it" />
+                <div class="ficha-chips">@if (!Vocab.SempreDisponivel(_t.Perfil) && _est is not null && !Vocab.NaVisao(_t.Perfil, _est.Status)) { <span class="tag perfil-tag" title="Só aparece na disponibilidade quando estiver em viagem ou atendimento">@Vocab.PerfilRotulo(_t.Perfil) · fora da disponibilidade</span> } else { <StatusBadge Item="@it" />@if (!Vocab.SempreDisponivel(_t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(_t.Perfil)</span> } }
                     @foreach (var e in _t.EspecialidadeIds.Split(',', StringSplitOptions.RemoveEmptyEntries)) { if (_snap.Especialidades.TryGetValue(e, out var esp)) { <span class="tag">@esp.Nome</span> } }</div>
             </div>
             <div class="ficha-resumo">
@@ -52,6 +52,8 @@ else
                     <label class="fld">Nome *<input @bind="_f.Nome" /></label>
                     <label class="fld">Identificador interno<input @bind="_f.Matricula" /></label>
                     <label class="fld chk"><input type="checkbox" @bind="_f.Ativo" />Técnico ativo</label>
+                    <label class="fld">Perfil <span class="hint">@(Vocab.PerfisTecnico.FirstOrDefault(p => p.Valor == (string.IsNullOrEmpty(_f.Perfil) ? Vocab.PerfilCampo : _f.Perfil)).Dica)</span>
+                        <select @bind="_f.Perfil">@foreach (var p in Vocab.PerfisTecnico) { <option value="@p.Valor">@p.Rotulo</option> }</select></label>
                     @if (_verContato)
                     {
                         <label class="fld">Telefone<input @bind="_f.Telefone" /></label>
@@ -98,18 +100,34 @@ else
                     <div class="c6">
                         <h3 class="sec nm">Especialidades</h3>
                         <div class="chk-grid">@foreach (var e in _snap.Especialidades.Values.OrderBy(e => e.Nome)) {
-                            <label class="chk-inline"><input type="checkbox" disabled="@(!_pode)" checked="@Ui.Ids(_t.EspecialidadeIds).Contains(e.Id)" @onchange="x => Alternar(true, e.Id, (bool)x.Value!)" />@e.Nome</label> }</div>
+                            <span class="chk-item"><label class="chk-inline"><input type="checkbox" disabled="@(!_pode)" checked="@Ui.Ids(_t.EspecialidadeIds).Contains(e.Id)" @onchange="x => Alternar(true, e.Id, (bool)x.Value!)" />@e.Nome</label>
+                                @if (_pode) { <button type="button" class="icon-btn perigo xs" title="Excluir a especialidade do cadastro" aria-label="Excluir @e.Nome" @onclick="@(() => _excluirCad = ("esp", e.Id, e.Nome))">@Icons.Svg("trash")</button> }</span> }</div>
                         @if (_pode) { <div class="add-row"><input class="field" placeholder="Nova especialidade…" @bind="_novaEsp" /><button class="btn-ghost" @onclick="AddEsp">Adicionar</button></div> }
                     </div>
                     <div class="c6">
                         <h3 class="sec nm">Serviços que pode executar</h3>
-                        <div class="chk-grid">@foreach (var s in _snap.Servicos.Values.OrderBy(s => s.Nome)) {
-                            <label class="chk-inline"><input type="checkbox" disabled="@(!_pode)" checked="@Ui.Ids(_t.ServicoIds).Contains(s.Id)" @onchange="x => Alternar(false, s.Id, (bool)x.Value!)" />@s.Nome</label> }</div>
+                        <div class="chk-grid">@foreach (var s in _snap.Servicos.Values.Where(s => s.Ativo || Ui.Ids(_t.ServicoIds).Contains(s.Id)).OrderBy(s => s.Nome)) {
+                            <span class="chk-item"><label class="chk-inline"><input type="checkbox" disabled="@(!_pode)" checked="@Ui.Ids(_t.ServicoIds).Contains(s.Id)" @onchange="x => Alternar(false, s.Id, (bool)x.Value!)" />@s.Nome</label>
+                                @if (_pode) { <button type="button" class="icon-btn perigo xs" title="Excluir o serviço do cadastro" aria-label="Excluir @s.Nome" @onclick="@(() => _excluirCad = ("serv", s.Id, s.Nome))">@Icons.Svg("trash")</button> }</span> }</div>
                         @if (_pode) { <div class="add-row"><input class="field" placeholder="Novo serviço…" @bind="_novoServ" /><button class="btn-ghost" @onclick="AddServ">Adicionar</button></div> }
                     </div>
                 </div>
                 @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+                <p class="muted sm mt8">Desmarcar tira só deste técnico. A lixeira exclui do cadastro e de todos os técnicos.</p>
             </div>
+            @if (_excluirCad is { } xc)
+            {
+                <Dialogo Titulo="@(xc.tipo == "serv" ? "Excluir serviço" : "Excluir especialidade")" OnFechar="@(() => _excluirCad = null)" Erros="_erros">
+                    <ChildContent>
+                        <p class="confirma-txt">Excluir <strong>@xc.nome</strong> do cadastro?</p>
+                        <p class="muted">Sai da lista de todos os técnicos.@(xc.tipo == "serv" ? " Se já foi usado em alguma viagem ou requisito, fica só desativado para o histórico continuar mostrando o nome." : "")</p>
+                    </ChildContent>
+                    <Rodape>
+                        <button class="btn-ghost" @onclick="@(() => _excluirCad = null)">Não</button>
+                        <button class="btn-danger" @onclick="ConfirmarExclusaoCad">@Icons.Svg("trash")Sim, excluir</button>
+                    </Rodape>
+                </Dialogo>
+            }
             break;
 
         case "agenda":
@@ -336,6 +354,19 @@ else
         var t = _t.Copia<Tecnico>();
         if (esp) t.EspecialidadeIds = Servicos.Csv(lista); else t.ServicoIds = Servicos.Csv(lista);
         try { Svc.SalvarTecnico(_ator, t); Carregar(); Sessao.Avisar("Salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+    private (string tipo, string id, string nome)? _excluirCad;
+    private void ConfirmarExclusaoCad()
+    {
+        _erros = null;
+        try
+        {
+            var (tipo, id, nome) = _excluirCad!.Value;
+            if (tipo == "serv") Sessao.Avisar(Svc.ExcluirServico(_ator, id) ? $"Serviço {nome} excluído." : $"Serviço {nome} desativado (já usado em viagens).");
+            else { Svc.ExcluirEspecialidade(_ator, id); Sessao.Avisar($"Especialidade {nome} excluída."); }
+            _excluirCad = null; Carregar();
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
     private void AddEsp() { try { Svc.SalvarEspecialidade(_ator, new Especialidade { Nome = _novaEsp }); _novaEsp = ""; Carregar(); Sessao.Avisar("Especialidade adicionada."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
     private void AddServ() { try { Svc.SalvarServico(_ator, new Servico { Nome = _novoServ }); _novoServ = ""; Carregar(); Sessao.Avisar("Serviço adicionado."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }

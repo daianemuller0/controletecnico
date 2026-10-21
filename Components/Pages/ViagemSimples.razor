@@ -64,8 +64,8 @@ else
             <label class="fld">Serviço
                 <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
             <div class="fld full"><span>Técnicos</span>
-                <div class="chips-tec">@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo || _tecs.Contains(t.Id)).OrderBy(t => t.Nome)) {
-                    <label class="chk-inline"><input type="checkbox" checked="@_tecs.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome</label> }</div></div>
+                <div class="chips-tec">@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo || _tecs.Contains(t.Id)).OrderBy(t => Vocab.SempreDisponivel(t.Perfil) ? 0 : 1).ThenBy(t => t.Nome)) {
+                    <label class="chk-inline"><input type="checkbox" checked="@_tecs.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(t.Perfil)</span> }</label> }</div></div>
         </div>
     </div>
 

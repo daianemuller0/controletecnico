@@ -40,6 +40,7 @@
     <div class="toolbar">
         <input class="field busca" placeholder="Buscar técnico, cidade…" @bind="_busca" @bind:event="oninput" aria-label="Buscar técnico" />
         <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@_fEsp" ValueChanged="@(async (string v) => { _fEsp = v; })" Placeholder="Todas as especialidades" />
+        <select class="field w-auto" @bind="_fPerfil" aria-label="Perfil"><option value="">Todos os perfis</option>@foreach (var p in Vocab.PerfisTecnico) { <option value="@p.Valor">@p.Rotulo</option> }</select>
         <label class="chk-inline"><input type="checkbox" @bind="_soAtivos" />Somente ativos</label>
     </div>
     <div class="table-wrap"><table class="grid-tbl">
@@ -52,8 +53,8 @@
             var nv = venc.Count(v => v.Status == Vocab.DocVencido); var np = venc.Count(v => v.Status == Vocab.DocProximo);
             var livre = e is null ? null : AgendaEngine.ProximoLivre(_snap, _eventos, t, DateTime.UtcNow);
             <tr>
-                <td><a class="lnk-tec" href="/tecnicos/@t.Id"><Avatar Nome="@t.Nome" FotoId="@t.FotoAnexoId" Cor="@it.Color" Tam="sm" /><strong>@t.Nome</strong></a>@if (!t.Ativo) { <span class="tag neg">inativo</span> }</td>
-                <td><StatusBadge Item="@it" /></td>
+                <td><a class="lnk-tec" href="/tecnicos/@t.Id"><Avatar Nome="@t.Nome" FotoId="@t.FotoAnexoId" Cor="@it.Color" Tam="sm" /><strong>@t.Nome</strong></a>@if (!t.Ativo) { <span class="tag neg">inativo</span> }@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(t.Perfil)</span> }</td>
+                <td>@if (!Vocab.SempreDisponivel(t.Perfil) && e is not null && !Vocab.NaVisao(t.Perfil, e.Status)) { <span class="muted sm" title="Só aparece na disponibilidade quando estiver em viagem ou atendimento">Fora da disponibilidade</span> } else { <StatusBadge Item="@it" /> }</td>
                 <td>@t.Cidade@(string.IsNullOrEmpty(t.Estado) ? "" : "/" + t.Estado)</td>
                 <td>@string.Join(", ", Ui.Ids(t.EspecialidadeIds).Select(i => _snap.Especialidades.GetValueOrDefault(i)?.Nome).Where(n => n != null))</td>
                 <td>@(livre is { } l ? (l.fim is null ? $"a partir de {l.ini:dd/MM}" : $"{l.ini:dd/MM} a {l.fim:dd/MM}") : "—")</td>
@@ -214,6 +215,7 @@ else if (_aba == "apt")
                     <div class="fld">Planta<SeletorPlanta Value="@_aPlanta" ValueChanged="id => _aPlanta = id ?? string.Empty" Vazio="— qualquer —" Placeholder="— qualquer —" /></div>
                     <label class="fld">Serviço<SeletorLista Itens="@(_snap.Servicos.Values.OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_aServ" ValueChanged="@(async (string v) => { _aServ = v; })" Placeholder="— qualquer —" /></label>
                     <label class="fld chk"><input type="checkbox" @bind="_aSo" />Só livres e aptos</label>
+                    <label class="fld chk full"><input type="checkbox" @bind="_aOutros" />Incluir engenharia, terceiros, fábrica e quem viaja esporadicamente</label>
                     <label class="fld">Início<input type="date" value="@Ui.DataInput(_aDe)" @onchange="e => _aDe = Ui.DoDataInput(e.Value?.ToString()) ?? _aDe" /></label>
                     <label class="fld">Término<input type="date" value="@Ui.DataInput(_aAte)" @onchange="e => _aAte = Ui.DoDataInput(e.Value?.ToString()) ?? _aAte" /></label>
                 </div>
@@ -260,7 +262,7 @@ else if (_aba == "apt")
     private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private List<Tecnico> _tecs = new(); private List<Evento> _eventos = new();
     private Dictionary<string, Estado> _estados = new(); private List<DocEngine.Linha> _venc = new();
-    private string _aba = "equipe", _busca = "", _fEsp = ""; private bool _soAtivos;
+    private string _aba = "equipe", _busca = "", _fEsp = "", _fPerfil = ""; private bool _soAtivos, _aOutros;
     private string _vTec = "", _vCat = "", _vNorma = "", _vSt = ""; private DateTime? _vDe, _vAte;
     private string _aPlanta = "", _aServ = ""; private bool _aSo; private DateTime _aDe, _aAte;
     private Requisito? _req; private List<string>? _erros;
@@ -285,7 +287,7 @@ else if (_aba == "apt")
         _venc = DocEngine.Vencimentos(_snap, DocEngine.Hoje(_snap.FusoPadrao)).Where(v => ids.Contains(v.Doc.TecnicoId)).ToList();
     }
 
-    private IEnumerable<Tecnico> Filtrados => _tecs.Where(t => (!_soAtivos || t.Ativo)
+    private IEnumerable<Tecnico> Filtrados => _tecs.Where(t => (!_soAtivos || t.Ativo) && (_fPerfil == "" || (string.IsNullOrEmpty(t.Perfil) ? Vocab.PerfilCampo : t.Perfil) == _fPerfil)
         && (string.IsNullOrEmpty(_fEsp) || Ui.Ids(t.EspecialidadeIds).Contains(_fEsp))
         && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{t.Nome} {t.Cidade} {t.Estado} {t.Matricula}").Contains(DocEngine.Norm(_busca)))).OrderBy(t => t.Nome);
 
@@ -306,6 +308,7 @@ else if (_aba == "apt")
         var hoje = DocEngine.Hoje(_snap.FusoPadrao);
         foreach (var t in _tecs.Where(t => t.Ativo))
         {
+            if (!_aOutros && !Vocab.SempreDisponivel(t.Perfil)) continue;      // não contam como disponíveis, salvo se pedir
             if (!string.IsNullOrEmpty(_aServ) && Ui.Ids(t.ServicoIds).Length > 0 && !Ui.Ids(t.ServicoIds).Contains(_aServ)) continue;
             var dias = AgendaEngine.Dias(_snap, _eventos, t, Tempo.ParaLocal(ini, t.FusoHorario).Date, Tempo.ParaLocal(fim, t.FusoHorario).Date);
             var util = dias.Where(d => d.Situacao != "naoutil").ToList();

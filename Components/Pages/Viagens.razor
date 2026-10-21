@@ -33,7 +33,8 @@
 
 <div class="toolbar">
     <input class="field busca" placeholder="Buscar projeto, código, cliente, destino, equipamento…" @bind="_busca" @bind:event="oninput" aria-label="Buscar viagem" />
-    <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_fTec" ValueChanged="@(async (string v) => { _fTec = v; })" Placeholder="Todos os técnicos" />
+    <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id) && t.Ativo != _inativos).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_fTec" ValueChanged="@(async (string v) => { _fTec = v; })" Placeholder="@(_inativos ? "Todos os inativos" : "Todos os técnicos")" />
+    <button class="btn-ghost @(_inativos ? "on" : "")" aria-pressed="@_inativos" title="Mostra só os técnicos inativos (e as viagens deles)" @onclick="@(() => { _inativos = !_inativos; _fTec = ""; })">@Icons.Svg("user")Somente inativos</button>
     <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; })" Placeholder="Todos os clientes" />
     <select class="field w-auto" @bind="_fModal"><option value="">Carro e avião</option><option value="carro">Com trecho de carro</option><option value="aviao">Com trecho de avião</option></select>
     <label class="chk-inline"><input type="checkbox" @bind="_futuras" />Só a partir de hoje</label>
@@ -82,14 +83,14 @@
     private List<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> _lista = new();
     private string _busca = "", _fSt = "", _fTec = "", _fCli = "", _fModal = ""; private bool _futuras;
 
-    private Viagem? _excluir; private List<string>? _erros; private bool _minhas, _souEquipe;
+    private Viagem? _excluir; private List<string>? _erros; private bool _minhas, _souEquipe, _inativos;
 
     protected override async Task OnInitializedAsync()
     {
         _ator = await Sessao.AtorAsync(); Sessao.Mudou += Ao;
         Carregar();
         _souEquipe = Svc.EquipeControle().Any(u => u.Id == _ator.Login);
-        _minhas = _lista.Any(l => l.v.ResponsavelLogin == _ator.Login);
+        _minhas = false;          // abre sempre em "Todas as viagens"; "Minhas viagens" é só um atalho
     }
 
     private void ConfirmarExclusao()
@@ -128,7 +129,8 @@
     public void Dispose() => Sessao.Mudou -= Ao;
 
     private IEnumerable<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> Filtradas => _lista
-        .Where(l => (!_minhas || l.v.ResponsavelLogin == _ator.Login) && (_fSt == "" || l.v.Status == _fSt) && (_fTec == "" || Ui.Ids(l.v.TecnicoIds).Contains(_fTec)) && (_fCli == "" || l.v.ClienteId == _fCli)
+        .Where(l => (!_minhas || l.v.ResponsavelLogin == _ator.Login) && (_fSt == "" || l.v.Status == _fSt) && (_fTec == "" || Ui.Ids(l.v.TecnicoIds).Contains(_fTec))
+            && (!_inativos || Ui.Ids(l.v.TecnicoIds).Any(i => _snap.Tecnico(i) is { Ativo: false })) && (_fCli == "" || l.v.ClienteId == _fCli)
             && (_fModal == "" || l.modais.Contains(_fModal)) && (!_futuras || (l.fim ?? DateTime.MaxValue) >= DateTime.UtcNow)
             && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{l.v.Projeto} {l.v.Codigo} {l.v.Responsavel} {_snap.Cliente(l.v.ClienteId)?.Nome} {l.v.Destino} {l.v.Origem} {l.v.Equipamentos}").Contains(DocEngine.Norm(_busca))))
         .OrderByDescending(l => l.ini ?? DateTime.MaxValue);

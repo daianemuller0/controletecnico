@@ -406,7 +406,8 @@ else
     private static string Pct(double f) => (f * 100).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
     private string NomeTec(string id) => _snap.Tecnico(id)?.Nome ?? id;
     private IEnumerable<Tecnico> TecnicosVisiveis => _snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome);
-    private List<Tecnico> TecnicosLinha() => TecnicosVisiveis.Where(t => t.Ativo && (_tecSel.Count == 0 || _tecSel.Contains(t.Id))).ToList();
+    // engenharia/terceiros/fábrica/esporádicos: só ganham linha quando têm compromisso (ou quando escolhidos no filtro)
+    private List<Tecnico> TecnicosLinha() => TecnicosVisiveis.Where(t => t.Ativo && (_tecSel.Count == 0 ? Vocab.SempreDisponivel(t.Perfil) || _eventos.Any(e => e.TecnicoId == t.Id && e.Fonte != "ind" && e.Status != "cancelado" && e.Cruza(_rs, _re)) : _tecSel.Contains(t.Id))).ToList();
     private bool PodeArrastar(Evento e) => _ator.Pode(Perm.EditarAgenda);
 
     protected override async Task OnInitializedAsync()

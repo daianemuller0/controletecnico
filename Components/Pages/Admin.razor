@@ -20,7 +20,6 @@
     @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "marca" ? "active" : "")" @onclick='() => _aba = "marca"'>Identidade visual</button> }
     @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "arm" ? "active" : "")" @onclick='() => _aba = "arm"'>Armazenamento</button> }
     <button class="tab @(_aba == "aud" ? "active" : "")" @onclick='() => _aba = "aud"'>Histórico de alterações</button>
-    @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "demo" ? "active" : "")" @onclick='() => _aba = "demo"'>Dados</button> }
 </div>
 
 @if (_aba == "usr" && _ator.Pode(Perm.Administrar))
@@ -33,7 +32,10 @@
         {
             <tr><td><code>@u.Id</code></td><td>@if (Svc.FotoDoUsuario(u.Id) is { Length: > 0 } fu) { <img class="user-av-mini" src="/arquivos/@fu" alt="" /> } @u.Nome</td><td><span class="tag">@Roles.Label(u.Papel)</span></td><td>@if (u.EquipeControle) { <span class="badge st-info">@Icons.Svg("check", "bico")Sim</span> }</td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
                 <td><span class="badge @(u.Ativo ? "st-pos" : "st-neutral")">@(u.Ativo ? "Ativo" : "Inativo")</span></td>
-                <td class="right"><button class="row-act" @onclick="() => EditarUsuario(u)" title="Editar">@Icons.Svg("edit")</button></td></tr>
+                <td class="right"><span class="acoes-usr">
+                    <button class="btn-ghost sm" @onclick="() => EditarUsuario(u)" title="Editar dados, perfil e senha">@Icons.Svg("edit")Editar</button>
+                    @if (u.Id != _ator.Login) { <button class="btn-ghost sm perigo" @onclick="() => { _excluirU = u; _erros = null; }" title="Excluir usuário">@Icons.Svg("trash")Excluir</button> }
+                </span></td></tr>
         }
         </tbody>
     </table></div>
@@ -172,7 +174,7 @@ else if (_aba == "arm" && _ator.Pode(Perm.Administrar))
         <div class="modal-actions"><button class="btn-ghost" @onclick="Compactar">@Icons.Svg("layers")Compactar agora</button></div>
     </div>
 }
-else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
+else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
 {
     <div class="panel">
         <div class="panel-head"><div class="panel-title">Ambiente de demonstração</div></div>
@@ -185,6 +187,19 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     </div>
 }
 
+@if (_excluirU is not null)
+{
+    <Dialogo Titulo="Excluir usuário" OnFechar="@(() => _excluirU = null)" Erros="_erros">
+        <ChildContent>
+            <p class="confirma-txt">Você tem certeza que quer excluir o usuário <strong>@_excluirU.Nome</strong> (<code>@_excluirU.Id</code>)?</p>
+            <p class="muted">Ele deixa de entrar no sistema. O que ele fez continua no histórico de alterações. Para só bloquear o acesso por um tempo, use Editar → desmarque "Usuário ativo".</p>
+        </ChildContent>
+        <Rodape>
+            <button class="btn-ghost" @onclick="@(() => _excluirU = null)">Não</button>
+            <button class="btn-danger" @onclick="ConfirmarExcluirUsuario">@Icons.Svg("trash")Sim, excluir</button>
+        </Rodape>
+    </Dialogo>
+}
 @if (_u is not null)
 {
     <Dialogo Titulo="@(_novoU ? "Novo usuário" : "Editar usuário")" OnFechar="@(() => _u = null)" Erros="_erros">
@@ -227,7 +242,7 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     {
         _ator = await Sessao.AtorAsync();
         _aba = _ator.Pode(Perm.Administrar) ? "usr" : "aud"; Carregar();
-        if (AbaQuery is "marca" or "apres" or "cfg" or "usr" or "aud" or "arm" or "demo") _aba = AbaQuery;
+        if (AbaQuery is "marca" or "apres" or "cfg" or "usr" or "aud" or "arm") _aba = AbaQuery;
         ApCarregar(); HowdenCarregar(); _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _contatoGeo = Db.Cfg("geocoding_contato");
     }
     private void Carregar() { _usuarios = Db.Usuarios.Todos().OrderBy(u => u.Id).ToList(); _aud = Db.Auditorias.Todos().OrderByDescending(a => a.Quando).ToList(); }
@@ -292,6 +307,13 @@ else if (_aba == "demo" && _ator.Pode(Perm.Administrar))
     private async Task FotoUsuario(InputFileChangeEventArgs e)
     {
         try { await using var st = e.File.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.DefinirFotoUsuarioAsync(_ator, _u!.Id, e.File.Name, st); _u.FotoAnexoId = Db.Usuarios.Obter(_u.Id)!.FotoAnexoId; Carregar(); Sessao.Avisar("Foto do usuário atualizada."); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+    private Usuario? _excluirU;
+    private void ConfirmarExcluirUsuario()
+    {
+        _erros = null;
+        try { var n = _excluirU!.Nome; Svc.ExcluirUsuario(_ator, _excluirU.Id); _excluirU = null; Carregar(); Sessao.Avisar($"Usuário {n} excluído."); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
     private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar("Usuário salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
