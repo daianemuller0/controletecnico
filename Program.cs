@@ -30,6 +30,13 @@ if (Lancador.Versao != "")
             break;
     }
 }
+// "dotnet run" com o sistema já aberto neste computador (versão publicada ou outro teste): explica em vez de falhar no meio
+if (Lancador.Versao == "" && Lancador.JaAberto(urlApp) != Lancador.Situacao.Fechado)
+{
+    Console.Error.WriteLine($"[controletecnico] ERRO: já existe um Controle Técnico aberto neste computador em {urlApp}.");
+    Console.Error.WriteLine("[controletecnico] Feche-o antes (abas do sistema no navegador e a janela/terminal onde ele roda) ou rode:  powershell -ExecutionPolicy Bypass -File .\\diagnostico.ps1 -Corrigir");
+    return 1;
+}
 // aberto da pasta da rede: roda uma cópia local desta versão (rápido pela VPN e libera a rede para publicar)
 if (Lancador.AbrirCopiaLocal(args, urlApp)) return 0;
 // tela de carregamento no navegador (logo + barra de progresso) enquanto o sistema abre
@@ -178,6 +185,10 @@ using (var scope = app.Services.CreateScope())
     Console.WriteLine($"[controletecnico] Dados carregados em {sw.ElapsedMilliseconds} ms{(store.Remoto ? " (cópia local; a rede é conferida em segundo plano)" : "")}.");
     // deixa claro em que base abriu (evita confundir o teste de demonstração com a base real)
     Console.WriteLine($"[controletecnico] Ambiente: {(dbW.Demo ? "DEMONSTRAÇÃO (dados fictícios)" : "DADOS REAIS")} · base {pastaDados}");
+    // pasta trocada por variável de ambiente (ex.: sobrou de um teste): avisa de onde veio e como desfazer
+    if (Environment.GetEnvironmentVariable("Data__Folder") is { Length: > 0 } envPasta)
+        Console.WriteLine($"[controletecnico] ATENÇÃO: a base está vindo da variável de ambiente Data__Folder ({envPasta}), não do appsettings.json. " +
+                          "Para voltar à base da rede: powershell -ExecutionPolicy Bypass -File .\\diagnostico.ps1 -Corrigir  e abra um terminal novo.");
 }
 
 app.Use(async (ctx, next) =>
