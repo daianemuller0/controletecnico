@@ -725,3 +725,15 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .tv[style*="--rh:26px"] .tv-dia .ds, .tv[style*="--rh:34px"] .tv-dia .ds { display: none; }
 .translado-add { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 2px; }
 .diaria.translado { border-style: dashed; }
+/* feriados */
+:root { --feriado: #fde8ec; --feriado-forte: #be185d; }
+.cel-feriado, .tl-cel.cel-feriado, .tv-cel.cel-feriado { background: var(--feriado) !important; }
+.tv-dia.feriado, .tl-diacab.feriado { background: var(--feriado); color: var(--feriado-forte); }
+.tv-dia .fer { flex-basis: 100%; font-size: 9.5px; font-weight: 700; color: var(--feriado-forte); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mes-cel.feriado { background: var(--feriado); } .mes-fer { font-size: 10px; font-weight: 700; color: var(--feriado-forte); line-height: 1.2; }
+.amostra.cel-feriado { background: var(--feriado); border: 1px solid #f5b5c4; }
+.fer-topo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; } .fer-topo strong { font-size: 16px; }
+.fer-ponto { display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: var(--feriado-forte); margin-right: 7px; }
+.fer-novo { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; } .fer-novo .grow { flex: 1; min-width: 220px; }
+tr.muted td { color: var(--muted); }
+.tv[style*="--rh:26px"] .tv-dia .fer { display: none; }

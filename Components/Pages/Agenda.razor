@@ -22,6 +22,7 @@
             <button class="btn-primary" @onclick="NovoCompromisso">@Icons.Svg("plus")Novo compromisso</button>
             <a class="btn-ghost" href="/viagens/novo">@Icons.Svg("plane")Nova viagem</a>
         }
+        <button class="btn-ghost" @onclick="AbrirFeriados" title="Feriados nacionais e os cadastrados pela equipe">@Icons.Svg("calendar")Feriados</button>
         <button class="btn-ghost @(_conflitos.Count > 0 ? "alerta" : "")" @onclick="@(() => _verConflitos = true)" title="Sobreposições e deslocamentos a verificar">
             @Icons.Svg("alert")Conflitos (@_conflitos.Count)
         </button>
@@ -91,6 +92,7 @@
     <span class="leg"><i class="amostra ev-prov"></i>Provisório (rascunho)</span>
     <span class="leg"><i class="amostra ev-x"></i>Com conflito</span>
     @if (_view == "linha" && _mostraLivres) { <span class="leg"><i class="amostra cel-livre"></i>Dia livre na jornada</span> }
+    <span class="leg"><i class="amostra cel-feriado"></i>Feriado</span>
     <span class="muted sm">Horários no fuso @_snap.FusoPadrao; eventos em outro fuso mostram o deslocamento (UTC±).</span>
 </div>
 
@@ -125,7 +127,7 @@ else
                 <div class="tl-trilha tl-diasgrid">
                     @foreach (var d in diasLoc)
                     {
-                        <div class="tl-diacab @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "")">
+                        <div class="tl-diacab @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "") @(_feriados.ContainsKey(d) ? "feriado" : "")" title="@(_feriados.TryGetValue(d, out var fh) ? "Feriado: " + fh : "")">
                             <span class="dd">@d.ToString("dd")</span><span class="ds">@d.ToString("ddd", Tempo.Pt)</span>@if (d.Day == 1 || d == diasLoc[0]) { <span class="dm">@d.ToString(diasLoc.Count > 45 ? "MMM/yy" : "MMM", Tempo.Pt)</span> }
                         </div>
                     }
@@ -147,8 +149,9 @@ else
                             @foreach (var d in diasLoc)
                             {
                                 var sit = _mostraLivres ? _livres.GetValueOrDefault((t.Id, d)) : null;
-                                <div class="tl-cel @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "") @(sit == "livre" ? "cel-livre" : sit == "parcial" ? "cel-parcial" : sit == "provisorio" ? "cel-prov" : "")"
-                                     data-drop="@t.Id|@d.ToString("yyyy-MM-dd")" title="@(sit == "livre" ? "Dia livre na jornada" : sit == "parcial" ? "Parcialmente ocupado" : "")"></div>
+                                var ferH = _feriados.GetValueOrDefault(d);
+                                <div class="tl-cel @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "") @(ferH is not null ? "cel-feriado" : sit == "livre" ? "cel-livre" : sit == "parcial" ? "cel-parcial" : sit == "provisorio" ? "cel-prov" : "")"
+                                     data-drop="@t.Id|@d.ToString("yyyy-MM-dd")" title="@(ferH is not null ? "Feriado: " + ferH : sit == "livre" ? "Dia livre na jornada" : sit == "parcial" ? "Parcialmente ocupado" : "")"></div>
                             }
                         </div>
                         @if (DateTime.UtcNow >= rs && DateTime.UtcNow <= re) { <div class="tl-agora" style="left:@Pct((DateTime.UtcNow - rs).TotalMinutes / total)%" title="Agora"></div> }
@@ -192,8 +195,10 @@ else
                 <div class="tv-dias">
                     @foreach (var d in diasLoc)
                     {
-                        <div class="tv-dia @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "")">
+                        var fer = _feriados.GetValueOrDefault(d);
+                        <div class="tv-dia @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "") @(fer is null ? "" : "feriado")" title="@(fer is null ? "" : "Feriado: " + fer)">
                             <span class="dd">@d.ToString("dd")</span><span class="ds">@d.ToString("ddd", Tempo.Pt)</span>@if (d.Day == 1 || d == diasLoc[0]) { <span class="dm">@d.ToString("MMM/yy", Tempo.Pt)</span> }
+                            @if (fer is not null) { <span class="fer">@fer</span> }
                         </div>
                     }
                 </div>
@@ -206,8 +211,9 @@ else
                         @foreach (var d in diasLoc)
                         {
                             var sit = _mostraLivres ? _livres.GetValueOrDefault((t.Id, d)) : null;
-                            <div class="tv-cel @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "") @(sit == "livre" ? "cel-livre" : sit == "parcial" ? "cel-parcial" : sit == "provisorio" ? "cel-prov" : "")"
-                                 data-drop="@t.Id|@d.ToString("yyyy-MM-dd")" title="@(sit == "livre" ? "Dia livre na jornada" : sit == "parcial" ? "Parcialmente ocupado" : "")"></div>
+                            var ferC = _feriados.GetValueOrDefault(d);
+                            <div class="tv-cel @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "") @(ferC is not null ? "cel-feriado" : sit == "livre" ? "cel-livre" : sit == "parcial" ? "cel-parcial" : sit == "provisorio" ? "cel-prov" : "")"
+                                 data-drop="@t.Id|@d.ToString("yyyy-MM-dd")" title="@(ferC is not null ? "Feriado: " + ferC : sit == "livre" ? "Dia livre na jornada" : sit == "parcial" ? "Parcialmente ocupado" : "")"></div>
                         }
                         @if (DateTime.UtcNow >= rs && DateTime.UtcNow <= re) { <div class="tl-agora h" style="top:@Pct((DateTime.UtcNow - rs).TotalMinutes / total)%" title="Agora"></div> }
                         @foreach (var (ev, lane, _) in lanes)
@@ -235,8 +241,10 @@ else
             {
                 var ini = U(d); var fim = U(d.AddDays(1));
                 var evs = _visiveis.Where(e => e.Cruza(ini, fim)).OrderBy(e => e.Ini).ToList();
-                <div class="mes-cel @(d.Month != _ref.Month ? "fora" : "") @(d == hojeLoc ? "hoje" : "") @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "")" data-drop="*|@d.ToString("yyyy-MM-dd")">
+                var ferM = _feriados.GetValueOrDefault(d);
+                <div class="mes-cel @(d.Month != _ref.Month ? "fora" : "") @(d == hojeLoc ? "hoje" : "") @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(ferM is null ? "" : "feriado")" data-drop="*|@d.ToString("yyyy-MM-dd")" title="@(ferM is null ? "" : "Feriado: " + ferM)">
                     <button class="mes-dia" @onclick="() => IrDia(d)" title="Ver a partir deste dia na linha do tempo">@d.Day</button>
+                    @if (ferM is not null) { <span class="mes-fer">@ferM</span> }
                     @foreach (var ev in evs.Take(4))
                     {
                         <button class="@ClasseEv(ev) mes-ev" style="--c:@Ui.TipoEv(ev.Tipo).Color" title="@Dica(ev)" aria-label="@Dica(ev)"
@@ -328,6 +336,37 @@ else
 }
 
 @* ----------------------------- lista de conflitos ----------------------------- *@
+@if (_verFeriados)
+{
+    <Dialogo Titulo="@($"Feriados de {_anoFer}")" Largo="true" OnFechar="@(() => _verFeriados = false)" Erros="_errosFer">
+        <div class="fer-topo">
+            <button class="icon-btn" @onclick="@(() => _anoFer--)" aria-label="Ano anterior">@Icons.Svg("chevron-left")</button>
+            <strong>@_anoFer</strong>
+            <button class="icon-btn" @onclick="@(() => _anoFer++)" aria-label="Próximo ano">@Icons.Svg("chevron-right")</button>
+            <span class="muted sm">Os nacionais (inclusive Carnaval, Sexta-feira Santa e Corpus Christi) entram sozinhos. Cadastre aqui os estaduais, municipais e da empresa.</span>
+        </div>
+        <div class="table-wrap"><table class="grid-tbl">
+            <thead><tr><th>Data</th><th>Dia</th><th>Feriado</th><th>Origem</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var f in Feriados.DoAno(_snap.FeriadosCfg, _anoFer))
+            {
+                <tr class="@(f.Dia < DateTime.Today ? "muted" : "")"><td>@f.Dia.ToString("dd/MM/yyyy")</td><td>@f.Dia.ToString("dddd", Tempo.Pt)</td><td><span class="fer-ponto"></span>@f.Nome</td>
+                    <td>@(f.Nacional ? "Nacional" : f.Anual ? "Cadastrado · todo ano" : "Cadastrado")</td>
+                    <td class="right">@if (!f.Nacional && _ator.Pode(Perm.EditarAgenda)) { <button class="icon-btn perigo xs" title="Excluir feriado" aria-label="Excluir @f.Nome" @onclick="() => ExcluirFeriado(f)">@Icons.Svg("trash")</button> }</td></tr>
+            }
+            </tbody>
+        </table></div>
+        @if (_ator.Pode(Perm.EditarAgenda))
+        {
+            <div class="fer-novo">
+                <label class="fld">Data<input type="date" @bind="_ferDia" /></label>
+                <label class="fld grow">Nome<input @bind="_ferNome" maxlength="60" placeholder="Ex.: Aniversário de Jundiaí, Revolução Constitucionalista (SP)" /></label>
+                <label class="fld chk"><input type="checkbox" @bind="_ferAnual" />Repete todo ano</label>
+                <button class="btn-primary" @onclick="AdicionarFeriado">@Icons.Svg("plus")Adicionar</button>
+            </div>
+        }
+    </Dialogo>
+}
 @if (_verConflitos)
 {
     <Dialogo Titulo="@($"Conflitos de agenda ({_conflitos.Count})")" Largo="true" OnFechar="@(() => _verConflitos = false)">
@@ -570,9 +609,25 @@ else
         _rs = U(_rsLocal); _re = U(_reLocal);
     }
 
+    private Dictionary<DateTime, string> _feriados = new();
+    private bool _verFeriados, _ferAnual = true; private int _anoFer; private DateTime _ferDia = DateTime.Today; private string _ferNome = ""; private List<string>? _errosFer;
+    private void AbrirFeriados() { _anoFer = _ref.Year; _errosFer = null; _verFeriados = true; }
+    private void AdicionarFeriado()
+    {
+        _errosFer = null;
+        try { Svc.AdicionarFeriado(_ator, _ferDia, _ferNome, _ferAnual); Sessao.Avisar($"Feriado \"{_ferNome.Trim()}\" cadastrado."); _ferNome = ""; _anoFer = _ferDia.Year; _snap = Svc.Foto(); Montar(); }
+        catch (Exception ex) { _errosFer = Ui.Erros(ex); }
+    }
+    private void ExcluirFeriado(Feriados.Feriado f)
+    {
+        _errosFer = null;
+        try { Svc.ExcluirFeriado(_ator, f.Chave, f.Nome); Sessao.Avisar("Feriado excluído."); _snap = Svc.Foto(); Montar(); }
+        catch (Exception ex) { _errosFer = Ui.Erros(ex); }
+    }
     private void Montar()
     {
         CalcularFaixa();
+        _feriados = Feriados.DoPeriodo(_snap.FeriadosCfg, _rsLocal, _reLocal);
         var tecs = TecnicosLinha().Select(t => t.Id).ToHashSet();
         IEnumerable<Evento> q = _eventos.Where(e => e.Status != "cancelado" && tecs.Contains(e.TecnicoId) && e.Cruza(_rs, _re) && !_tiposOcultos.Contains(e.Tipo));
         if (!_mostraProv) q = q.Where(e => !e.Provisorio);

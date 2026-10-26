@@ -58,6 +58,30 @@ public sealed partial class Servicos
         return !usado;
     }
 
+    /// <summary>Cadastra um feriado (estadual, municipal, da empresa). anual = repete todo ano no mesmo dia.</summary>
+    public void AdicionarFeriado(Ator ator, DateTime dia, string nome, bool anual)
+    {
+        ator.Exigir(Perm.EditarAgenda);
+        nome = (nome ?? "").Trim().Replace("|", "/").Replace("\n", " ");
+        if (nome.Length is < 2 or > 60) throw new ValidacaoException("Informe o nome do feriado (2 a 60 caracteres).");
+        if (dia == default) throw new ValidacaoException("Informe a data do feriado.");
+        var chave = anual ? dia.ToString("MM-dd") : dia.ToString("yyyy-MM-dd");
+        var itens = Feriados.LerCadastrados(Db.Cfg(Feriados.CfgChave));
+        if (itens.Any(i => i.Chave == chave && DocEngine.Norm(i.Nome) == DocEngine.Norm(nome))) throw new ValidacaoException("Esse feriado já está cadastrado.");
+        itens.Add((chave, nome));
+        Db.SetCfg(Feriados.CfgChave, Feriados.Gravar(itens), ator.Login);
+        Auditar(ator, "feriado.criar", "config", chave, $"Feriado {nome} em {(anual ? dia.ToString("dd/MM") + " (todo ano)" : dia.ToString("dd/MM/yyyy"))}");
+    }
+
+    public void ExcluirFeriado(Ator ator, string chave, string nome)
+    {
+        ator.Exigir(Perm.EditarAgenda);
+        var itens = Feriados.LerCadastrados(Db.Cfg(Feriados.CfgChave));
+        if (itens.RemoveAll(i => i.Chave == chave && i.Nome == nome) == 0) throw new ValidacaoException("Feriado não encontrado (os nacionais não podem ser excluídos).");
+        Db.SetCfg(Feriados.CfgChave, Feriados.Gravar(itens), ator.Login);
+        Auditar(ator, "feriado.excluir", "config", chave, $"Feriado {nome} excluído");
+    }
+
     /// <summary>Novo tipo de compromisso (ex.: Treinamento, Integração, Exame médico). Devolve a chave.</summary>
     public string CriarTipoCompromisso(Ator ator, string nome)
     {

@@ -17,6 +17,8 @@ public sealed class Snapshot
     public Dictionary<string, Servico> Servicos { get; init; } = new();
     public Dictionary<string, Especialidade> Especialidades { get; init; } = new();
     public List<ConfirmacaoLocal> Confirmacoes { get; init; } = new();
+    /// <summary>Feriados cadastrados pela equipe (os nacionais são calculados): ver Feriados.</summary>
+    public string FeriadosCfg { get; init; } = "";
     public List<Documento> Documentos { get; init; } = new();
     public List<Requisito> Requisitos { get; init; } = new();
     public string FusoPadrao { get; init; } = "America/Sao_Paulo";
@@ -81,7 +83,7 @@ public sealed class Snapshot
             Tecnicos = tecnicos, Viagens = db.Viagens.Todos().ToDictionary(x => x.Id), Trechos = trechos,
             Atendimentos = db.Atendimentos.Todos(), Indisp = db.Indisponibilidades.Todos(), Plantas = plantas,
             Clientes = db.Clientes.Todos().ToDictionary(x => x.Id), Servicos = db.Servicos.Todos().ToDictionary(x => x.Id),
-            Especialidades = db.Especialidades.Todos().ToDictionary(x => x.Id), Confirmacoes = confs,
+            Especialidades = db.Especialidades.Todos().ToDictionary(x => x.Id), Confirmacoes = confs, FeriadosCfg = db.Cfg(Feriados.CfgChave),
             Documentos = db.Documentos.Todos(), Requisitos = db.Requisitos.Todos(),
             FusoPadrao = db.FusoPadrao, DiasAlerta = db.DiasAlerta, ConfirmacaoHoras = db.ConfirmacaoValidadeHoras,
             HowdenNome = hNome, HowdenEndereco = db.Cfg("howden_endereco"), HowdenNivel = hNivel,

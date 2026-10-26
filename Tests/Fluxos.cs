@@ -1046,6 +1046,31 @@ public class TiposCompromissoTests
     }
 }
 
+public class FeriadosTests
+{
+    [Fact]
+    public void Feriados_nacionais_incluem_os_moveis_e_os_cadastrados_pela_equipe()
+    {
+        Assert.Equal(new DateTime(2026, 4, 5), Feriados.Pascoa(2026)); Assert.Equal(new DateTime(2025, 4, 20), Feriados.Pascoa(2025));
+        var f26 = Feriados.DoAno("", 2026).ToDictionary(f => f.Dia, f => f.Nome);
+        Assert.StartsWith("Carnaval", f26[new DateTime(2026, 2, 16)]); Assert.StartsWith("Carnaval", f26[new DateTime(2026, 2, 17)]);
+        Assert.Equal("Sexta-feira Santa", f26[new DateTime(2026, 4, 3)]); Assert.StartsWith("Corpus Christi", f26[new DateTime(2026, 6, 4)]);
+        Assert.Equal("Finados", f26[new DateTime(2026, 11, 2)]); Assert.Contains("Consciência Negra", f26[new DateTime(2026, 11, 20)]);
+
+        using var a = new Amb();
+        a.Svc.AdicionarFeriado(a.Contr, new DateTime(2026, 7, 9), "Revolução Constitucionalista (SP)", anual: true);
+        a.Svc.AdicionarFeriado(a.Contr, new DateTime(2026, 12, 14), "Aniversário de Jundiaí", anual: false);
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.AdicionarFeriado(a.Consulta, new DateTime(2026, 1, 25), "Aniversário de SP", true));
+        var cfg = a.Svc.Foto().FeriadosCfg;
+        Assert.Contains(Feriados.DoAno(cfg, 2027), f => f.Dia == new DateTime(2027, 7, 9));            // todo ano
+        Assert.DoesNotContain(Feriados.DoAno(cfg, 2027), f => f.Nome == "Aniversário de Jundiaí");       // só em 2026
+        var periodo = Feriados.DoPeriodo(cfg, new DateTime(2026, 12, 1), new DateTime(2026, 12, 31));
+        Assert.Equal(new[] { new DateTime(2026, 12, 14), new DateTime(2026, 12, 25) }, periodo.Keys.OrderBy(d => d).ToArray());
+        a.Svc.ExcluirFeriado(a.Contr, "2026-12-14", "Aniversário de Jundiaí");
+        Assert.DoesNotContain(Feriados.DoAno(a.Svc.Foto().FeriadosCfg, 2026), f => f.Nome == "Aniversário de Jundiaí");
+    }
+}
+
 public class VolumeTests
 {
     [Fact]
