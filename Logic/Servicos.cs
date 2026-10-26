@@ -163,9 +163,11 @@ public sealed partial class Servicos
             v.Responsavel = string.IsNullOrWhiteSpace(u.Nome) ? u.Id : u.Nome;
         }
         // cliente contratante (opcional): só guarda quando é outro cliente, diferente do dono da planta (cliente final)
-        v.ContratanteId = (v.ContratanteId ?? "").Trim();
-        if (v.ContratanteId != "" && !Db.Clientes.Existe(v.ContratanteId)) throw new ValidacaoException("Cliente (contratante) não encontrado.");
-        if (v.ContratanteId != "" && v.ContratanteId == (Db.Plantas.Obter(v.PlantaId)?.ClienteId ?? v.ClienteId)) v.ContratanteId = "";
+        // (escolhido na mesma lista do cliente final; igual ao cliente final = em aberto)
+        v.ContratantePlantaId = (v.ContratantePlantaId ?? "").Trim();
+        if (v.ContratantePlantaId == v.PlantaId) v.ContratantePlantaId = "";
+        if (v.ContratantePlantaId != "" && Db.Plantas.Obter(v.ContratantePlantaId) is null) throw new ValidacaoException("Cliente (contratante) não encontrado.");
+        v.ContratanteId = v.ContratantePlantaId == "" ? "" : Db.Plantas.Obter(v.ContratantePlantaId)!.ClienteId;
         var res = Validar(v, trechos, atends);
         if (res.Erros.Count > 0) throw new ValidacaoException(res.Erros);
 

@@ -1074,18 +1074,18 @@ public class FeriadosTests
 public class ContratanteTests
 {
     [Fact]
-    public void Viagem_guarda_cliente_contratante_opcional_e_cliente_final_vem_da_planta()
+    public void Viagem_guarda_cliente_contratante_opcional_da_mesma_lista_do_cliente_final()
     {
         using var a = new Amb(); var t = a.NovoTec(); var p = a.NovaPlanta("Usina X");
-        var contratista = a.Svc.SalvarCliente(a.Admin, new Cliente { Nome = "Contratista Y" });
-        var v = a.Svc.SalvarViagem(a.Admin, new Viagem { Projeto = "4500001", PlantaId = p.Id, ClienteId = p.ClienteId, ContratanteId = contratista.Id, TecnicoIds = t.Id, Status = Vocab.ViagemRascunho }, new(), new());
+        var contratista = a.NovaPlanta("Contratista Y · Matriz");                                       // mesma lista do cliente final
+        var v = a.Svc.SalvarViagem(a.Admin, new Viagem { Projeto = "4500001", PlantaId = p.Id, ContratantePlantaId = contratista.Id, TecnicoIds = t.Id, Status = Vocab.ViagemRascunho }, new(), new());
         var salvo = a.Db.Viagens.Obter(v.Id)!;
-        Assert.Equal(contratista.Id, salvo.ContratanteId); Assert.Equal(p.ClienteId, salvo.ClienteId);   // cliente final = dono da planta
-        var v2 = a.Svc.SalvarViagem(a.Admin, new Viagem { Projeto = "4500002", PlantaId = p.Id, ClienteId = p.ClienteId, ContratanteId = p.ClienteId, TecnicoIds = t.Id, Status = Vocab.ViagemRascunho }, new(), new());
-        Assert.Equal("", a.Db.Viagens.Obter(v2.Id)!.ContratanteId);                                      // igual ao cliente final: não repete
-        var v3 = a.Svc.SalvarViagem(a.Admin, new Viagem { Projeto = "4500003", PlantaId = p.Id, ClienteId = p.ClienteId, TecnicoIds = t.Id, Status = Vocab.ViagemRascunho }, new(), new());
-        Assert.Equal("", a.Db.Viagens.Obter(v3.Id)!.ContratanteId);                                      // em aberto
-        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarViagem(a.Admin, new Viagem { Projeto = "4500004", PlantaId = p.Id, ContratanteId = "nao-existe", TecnicoIds = t.Id, Status = Vocab.ViagemRascunho }, new(), new()));
+        Assert.Equal(contratista.Id, salvo.ContratantePlantaId); Assert.Equal(contratista.ClienteId, salvo.ContratanteId);
+        var v2 = a.Svc.SalvarViagem(a.Admin, new Viagem { Projeto = "4500002", PlantaId = p.Id, ContratantePlantaId = p.Id, TecnicoIds = t.Id, Status = Vocab.ViagemRascunho }, new(), new());
+        Assert.Equal("", a.Db.Viagens.Obter(v2.Id)!.ContratantePlantaId);                               // igual ao cliente final: não repete
+        var v3 = a.Svc.SalvarViagem(a.Admin, new Viagem { Projeto = "4500003", PlantaId = p.Id, TecnicoIds = t.Id, Status = Vocab.ViagemRascunho }, new(), new());
+        Assert.Equal("", a.Db.Viagens.Obter(v3.Id)!.ContratantePlantaId);                               // em aberto
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarViagem(a.Admin, new Viagem { Projeto = "4500004", PlantaId = p.Id, ContratantePlantaId = "nao-existe", TecnicoIds = t.Id, Status = Vocab.ViagemRascunho }, new(), new()));
     }
 }
 

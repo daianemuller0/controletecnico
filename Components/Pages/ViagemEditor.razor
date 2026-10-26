@@ -57,8 +57,8 @@ else
     <div class="form-grid g3">
         <label class="fld">Nº do projeto *<CampoLista Value="@_v.Projeto" ValueChanged="@((string x) => { _v.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
         <div class="fld full"><span>Equipamentos <span class="hint">um ou mais</span></span><CampoEquipamentos Value="@_v.Equipamentos" ValueChanged="@((string x) => { _v.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" Disabled="@(!_pode)" /></div>
-        <label class="fld">Cliente (contratante) <span class="hint">opcional</span>
-            <SeletorLista Itens="@(_snap.Clientes.Values.Where(c => c.Ativo || c.Id == _v.ContratanteId).OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_v.ContratanteId" ValueChanged="@(async (string v) => { _v.ContratanteId = v ?? ""; })" Placeholder="— mesmo do cliente final —" Criar="CriarCli" RotuloCriar="cliente" /></label>
+        <div class="fld">Cliente (contratante) <span class="hint">opcional</span>
+            <SeletorPlanta Value="@_v.ContratantePlantaId" ValueChanged="@((string? id) => { _v.ContratantePlantaId = id ?? string.Empty; })" Vazio="— mesmo do cliente final —" Placeholder="— mesmo do cliente final —" /></div>
         <label class="fld">Cliente final<SeletorLista Itens="@(_snap.Clientes.Values.Where(c => c.Ativo).OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_v.ClienteId" ValueChanged="@(async (string v) => { _v.ClienteId = v; AoCliente(); })" Placeholder="— selecione —" Criar="CriarCli" RotuloCriar="cliente" /></label>
         <div class="fld">Planta do cliente final<SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" /></div>
         <label class="fld">Serviço previsto<SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
