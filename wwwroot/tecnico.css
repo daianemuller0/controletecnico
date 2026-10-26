@@ -723,3 +723,5 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .tv-ev .ev-txt { white-space: normal; line-height: 1.2; font-size: 11px; flex: 1; text-align: left; word-break: break-word; }
 .tv { --dw: 92px; } .tv-dia { flex-wrap: wrap; align-content: center; row-gap: 0; line-height: 1.15; } .tv-dia .dm { flex-basis: 100%; }
 .tv[style*="--rh:26px"] .tv-dia .ds, .tv[style*="--rh:34px"] .tv-dia .ds { display: none; }
+.translado-add { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 2px; }
+.diaria.translado { border-style: dashed; }
