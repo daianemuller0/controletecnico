@@ -705,3 +705,21 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .tipo-novo { margin-top: 6px; padding: 8px; border: 1px dashed var(--border); border-radius: 8px; display: grid; gap: 6px; font-weight: 400; }
 .tipo-extras { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; } .tag-x { border: 0; background: none; cursor: pointer; padding: 0 0 0 4px; color: inherit; font-size: 13px; line-height: 1; }
 .btn-primary.sm { padding: 6px 10px; font-size: 12px; }
+/* linha do tempo com técnicos nas colunas e dias nas linhas */
+.tv { --dw: 84px; min-width: calc(var(--dw) + var(--nt) * 132px); }
+.tv-cab, .tv-corpo { display: grid; grid-template-columns: var(--dw) repeat(var(--nt), minmax(132px, 1fr)); }
+.tv-cab { position: sticky; top: 0; z-index: 4; background: var(--panel-2); border-bottom: 1px solid var(--border); }
+.tv-canto { position: sticky; left: 0; z-index: 5; background: var(--panel-2); padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; border-right: 1px solid var(--border); display: flex; align-items: flex-end; }
+.tv-tec { padding: 8px 6px; border-left: 1px solid var(--border); display: flex; align-items: center; gap: 4px; justify-content: space-between; min-width: 0; font-size: 12px; font-weight: 600; }
+.tv-tec-a { display: flex; align-items: center; gap: 6px; color: var(--text); min-width: 0; } .tv-tec-a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-dias { position: sticky; left: 0; z-index: 3; background: var(--panel); border-right: 1px solid var(--border); }
+.tv-dia { height: var(--rh); border-bottom: 1px solid var(--border); padding: 3px 8px; display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); box-sizing: border-box; }
+.tv-dia .dd { font-weight: 800; font-size: 13px; } .tv-dia .ds { text-transform: uppercase; opacity: .7; } .tv-dia .dm { font-size: 9.5px; color: var(--primary); font-weight: 700; text-transform: uppercase; }
+.tv-dia.hoje { background: #e4effb; color: var(--primary); } .tv-dia.fds { background: repeating-linear-gradient(135deg, #f3f5f9 0 6px, #eceff5 6px 12px); }
+.tv-col { position: relative; border-left: 1px solid var(--border); }
+.tv-cel { height: var(--rh); border-bottom: 1px solid var(--border); box-sizing: border-box; }
+.tv-cel.fds { background: repeating-linear-gradient(135deg, #f3f5f9 0 6px, #eceff5 6px 12px); } .tv-cel.hoje { box-shadow: inset 0 0 0 9999px rgba(0, 71, 133, .04); }
+.tv-ev { position: absolute; min-height: 18px; align-items: flex-start; padding: 3px 5px; overflow: hidden; z-index: 2; }
+.tv-ev .ev-txt { white-space: normal; line-height: 1.2; font-size: 11px; flex: 1; text-align: left; word-break: break-word; }
+.tv { --dw: 92px; } .tv-dia { flex-wrap: wrap; align-content: center; row-gap: 0; line-height: 1.15; } .tv-dia .dm { flex-basis: 100%; }
+.tv[style*="--rh:26px"] .tv-dia .ds, .tv[style*="--rh:34px"] .tv-dia .ds { display: none; }

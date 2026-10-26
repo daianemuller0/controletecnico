@@ -49,6 +49,7 @@
             <div class="segmented sm" aria-label="Atalhos de período">
                 @foreach (var (n, r) in Atalhos) { <button class="@(_dias == n ? "active" : "")" @onclick="() => { _dias = n; Montar(); }">@r</button> }
             </div>
+            <button class="btn-ghost sm" title="Trocar os eixos da linha do tempo" @onclick="@(() => _tecColunas = !_tecColunas)">@Icons.Svg("refresh")@(_tecColunas ? "Técnicos nas linhas" : "Técnicos nas colunas")</button>
         </div>
     }
     <div class="ag-filtros">
@@ -100,9 +101,8 @@ else
     <div id="agenda-dnd" class="ag-area">
         @switch (_view)
         {
-            case "linha": @LinhaDoTempo(); break;
             case "mes": @Mes(); break;
-            default: @LinhaDoTempo(); break;
+            default: if (_tecColunas) { @LinhaDoTempoVertical(); } else { @LinhaDoTempo(); } break;
         }
     </div>
     @if (_visiveis.Count == 0)
@@ -164,6 +164,64 @@ else
                     </div>
                 </div>
             }
+        </div>
+    };
+
+    /// <summary>Linha do tempo com os técnicos nas colunas (eixo x) e os dias nas linhas (eixo y).</summary>
+    private RenderFragment LinhaDoTempoVertical() => __builder =>
+    {
+        var tecs = TecnicosLinha();
+        var rs = _rs; var re = _re; var total = (re - rs).TotalMinutes;
+        var diasLoc = Enumerable.Range(0, (int)Math.Round((_reLocal - _rsLocal).TotalDays)).Select(i => _rsLocal.AddDays(i)).ToList();
+        var hojeLoc = L(DateTime.UtcNow).Date;
+        var rh = diasLoc.Count > 45 ? 26 : diasLoc.Count > 21 ? 34 : 46;          // altura de cada dia (px)
+        var altura = diasLoc.Count * rh;
+        <div class="tv" style="--nt:@Math.Max(1, tecs.Count);--rh:@(rh)px">
+            <div class="tv-cab">
+                <div class="tv-canto">Dia</div>
+                @foreach (var t in tecs)
+                {
+                    var est = _estadosAgora.GetValueOrDefault(t.Id);
+                    <div class="tv-tec">
+                        <a href="/tecnicos/@t.Id" class="tv-tec-a" title="@t.Nome"><Avatar Nome="@t.Nome" FotoId="@t.FotoAnexoId" Cor="@Ui.Op(est?.Status ?? Vocab.OpSemProg).Color" Tam="sm" /><span>@t.Nome</span></a>
+                        @if (est is not null) { <span class="tl-st" title="@Ui.Op(est.Status).Label agora">@Icons.Svg(Ui.Op(est.Status).Icon)</span> }
+                    </div>
+                }
+            </div>
+            <div class="tv-corpo">
+                <div class="tv-dias">
+                    @foreach (var d in diasLoc)
+                    {
+                        <div class="tv-dia @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "")">
+                            <span class="dd">@d.ToString("dd")</span><span class="ds">@d.ToString("ddd", Tempo.Pt)</span>@if (d.Day == 1 || d == diasLoc[0]) { <span class="dm">@d.ToString("MMM/yy", Tempo.Pt)</span> }
+                        </div>
+                    }
+                </div>
+                @foreach (var t in tecs)
+                {
+                    var evs = _visiveis.Where(e => e.TecnicoId == t.Id).OrderBy(e => e.Ini).ToList();
+                    var lanes = Lanes(evs);
+                    var nl = Math.Max(1, lanes.Count == 0 ? 1 : lanes.Max(x => x.lane) + 1);
+                    <div class="tv-col" style="height:@(altura)px">
+                        @foreach (var d in diasLoc)
+                        {
+                            var sit = _mostraLivres ? _livres.GetValueOrDefault((t.Id, d)) : null;
+                            <div class="tv-cel @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == hojeLoc ? "hoje" : "") @(sit == "livre" ? "cel-livre" : sit == "parcial" ? "cel-parcial" : sit == "provisorio" ? "cel-prov" : "")"
+                                 data-drop="@t.Id|@d.ToString("yyyy-MM-dd")" title="@(sit == "livre" ? "Dia livre na jornada" : sit == "parcial" ? "Parcialmente ocupado" : "")"></div>
+                        }
+                        @if (DateTime.UtcNow >= rs && DateTime.UtcNow <= re) { <div class="tl-agora h" style="top:@Pct((DateTime.UtcNow - rs).TotalMinutes / total)%" title="Agora"></div> }
+                        @foreach (var (ev, lane, _) in lanes)
+                        {
+                            var ini = ev.Ini < rs ? rs : ev.Ini; var fim = ev.Fim > re ? re : ev.Fim;
+                            <button class="@ClasseEv(ev) tv-ev" style="top:@Pct((ini - rs).TotalMinutes / total)%;height:@Pct((fim - ini).TotalMinutes / total)%;left:calc(@Pct(lane / (double)nl)% + 2px);width:calc(@Pct(1.0 / nl)% - 4px);--c:@Ui.TipoEv(ev.Tipo).Color"
+                                    title="@Dica(ev)" aria-label="@Dica(ev)" draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@L(ev.Ini).ToString("yyyy-MM-dd")"
+                                    @onclick="() => AbrirEvento(ev)">
+                                @Icons.Svg(Ui.TipoEv(ev.Tipo).Icon, "ev-ico")<span class="ev-txt">@ev.Titulo</span>@if (_confIds.Contains(ev.Id)) { <span class="ev-x-ico" title="Conflito">!</span> }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
         </div>
     };
 
@@ -409,6 +467,7 @@ else
     private Dictionary<(string, DateTime), string> _livres = new();
     private bool _carregando = true; private string? _erro;
 
+    private bool _tecColunas = true;      // linha do tempo: técnicos nas colunas (x) e dias nas linhas (y)
     private string _view = "linha"; private DateTime _ref = DateTime.Today; private int _dias = 14;
     private HashSet<string> _tecSel = new(), _tiposOcultos = new();
     private bool _mostraProv = true, _mostraLivres = true, _soConflito, _popTec, _popTipo, _verConflitos;
