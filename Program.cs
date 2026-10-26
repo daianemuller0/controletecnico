@@ -176,6 +176,8 @@ using (var scope = app.Services.CreateScope())
         Inicio.Progresso(30 + 60 * n / repos.Count, $"{n} de {repos.Count} tabelas carregadas");
     });
     Console.WriteLine($"[controletecnico] Dados carregados em {sw.ElapsedMilliseconds} ms{(store.Remoto ? " (cópia local; a rede é conferida em segundo plano)" : "")}.");
+    // deixa claro em que base abriu (evita confundir o teste de demonstração com a base real)
+    Console.WriteLine($"[controletecnico] Ambiente: {(dbW.Demo ? "DEMONSTRAÇÃO (dados fictícios)" : "DADOS REAIS")} · base {pastaDados}");
 }
 
 app.Use(async (ctx, next) =>
