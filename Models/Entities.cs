@@ -104,6 +104,9 @@ public class Viagem : Entity
     public string Equipamentos { get; set; } = "";
     /// <summary>Login da responsável pela viagem (equipe de controle). "Minhas viagens" filtra por ele.</summary>
     public string ResponsavelLogin { get; set; } = "";
+    /// <summary>Cliente que comprou o serviço quando é diferente do cliente final (ex.: um contratista). Opcional.
+    /// O cliente final é o dono da planta (PlantaId/ClienteId), onde o técnico vai.</summary>
+    public string ContratanteId { get; set; } = "";
     /// <summary>Lista de verificação (JSON): itens, feito, quem e quando.</summary>
     public string Checklist { get; set; } = "";
     // ---- e-mail da Ordem de Serviço (textos editados pela equipe, guardados para o próximo envio)

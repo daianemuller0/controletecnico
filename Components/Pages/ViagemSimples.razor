@@ -60,7 +60,9 @@ else
                     @if (!string.IsNullOrEmpty(_v.ResponsavelLogin) && !_equipe.Any(u => u.Id == _v.ResponsavelLogin)) { <option value="@_v.ResponsavelLogin">@_v.Responsavel</option> }
                 </select>
                 @if (_equipe.Count == 0) { <span class="hint">Marque as usuárias da equipe de controle em Administração → Usuários.</span> }</label>
-            <div class="fld">Planta <SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" Placeholder="Buscar planta por nome, cidade, estado, país…" /></div>
+            <label class="fld">Cliente (contratante) <span class="hint">opcional · quem comprou, quando não é o cliente final</span>
+                <SeletorLista Itens="@(_snap.Clientes.Values.Where(c => c.Ativo || c.Id == _v.ContratanteId).OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_v.ContratanteId" ValueChanged="@(async (string v) => { _v.ContratanteId = v ?? ""; })" Placeholder="— mesmo do cliente final —" Criar="CriarCli" RotuloCriar="cliente" /></label>
+            <div class="fld">Cliente final (planta) * <span class="hint">onde o técnico vai</span><SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" Placeholder="Buscar planta por nome, cidade, estado, país…" /></div>
             <label class="fld">Serviço
                 <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
             <div class="fld full"><span>Técnicos</span>

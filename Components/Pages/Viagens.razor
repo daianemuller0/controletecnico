@@ -41,7 +41,7 @@
 </div>
 
 <div class="table-wrap"><table class="grid-tbl">
-    <thead><tr><th>Projeto</th><th>Viagem</th><th>Cliente / destino</th><th>Técnicos</th><th>Período</th><th>Transporte</th><th>Horas prev./real.</th><th>Responsável</th><th>Lista de verificação</th><th>Status</th><th>Pendências</th>@if (_ator.Pode(Perm.EditarViagens)) { <th></th> }</tr></thead>
+    <thead><tr><th>Projeto</th><th>Viagem</th><th>Cliente final / destino</th><th>Técnicos</th><th>Período</th><th>Transporte</th><th>Horas prev./real.</th><th>Responsável</th><th>Lista de verificação</th><th>Status</th><th>Pendências</th>@if (_ator.Pode(Perm.EditarViagens)) { <th></th> }</tr></thead>
     <tbody>
     @foreach (var l in Filtradas)
     {
@@ -49,7 +49,7 @@
             <td>@if (string.IsNullOrWhiteSpace(l.v.Projeto)) { <span class="proj-tag vazio" title="Viagem sem número de projeto">sem projeto</span> } else { <a href="/viagens/@l.v.Id" class="proj-tag">@l.v.Projeto</a> }
                 @if (Ui.Linhas(l.v.Equipamentos) is { Count: > 0 } eqs) { <div class="muted sm" title="@string.Join(", ", eqs)">@eqs.Count equipamento(s)</div> }</td>
             <td><a href="/viagens/@l.v.Id"><strong>@l.v.Codigo</strong></a><div class="muted sm">@l.v.Responsavel</div></td>
-            <td>@_snap.Cliente(l.v.ClienteId)?.Nome<div class="muted sm">@l.v.Destino</div></td>
+            <td>@_snap.Cliente(l.v.ClienteId)?.Nome<div class="muted sm">@l.v.Destino</div>@if (_snap.Cliente(l.v.ContratanteId) is { } ct && ct.Id != l.v.ClienteId) { <div class="sm contratante" title="Cliente que comprou (contratante)">via @ct.Nome</div> }</td>
             <td>@string.Join(", ", Ui.Ids(l.v.TecnicoIds).Select(i => _snap.Tecnico(i)?.Nome?.Split(' ')[0]))</td>
             <td>@(l.ini is null ? "—" : Ui.Periodo(l.ini.Value, l.fim!.Value, null, _snap))</td>
             <td>@foreach (var m in l.modais) { <span class="tag">@(m == "aviao" ? "Avião" : m == "carro" ? "Carro" : "Outro")</span> }</td>
@@ -130,8 +130,8 @@
 
     private IEnumerable<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> Filtradas => _lista
         .Where(l => (!_minhas || l.v.ResponsavelLogin == _ator.Login) && (_fSt == "" || l.v.Status == _fSt) && (_fTec == "" || Ui.Ids(l.v.TecnicoIds).Contains(_fTec))
-            && (!_inativos || Ui.Ids(l.v.TecnicoIds).Any(i => _snap.Tecnico(i) is { Ativo: false })) && (_fCli == "" || l.v.ClienteId == _fCli)
+            && (!_inativos || Ui.Ids(l.v.TecnicoIds).Any(i => _snap.Tecnico(i) is { Ativo: false })) && (_fCli == "" || l.v.ClienteId == _fCli || l.v.ContratanteId == _fCli)
             && (_fModal == "" || l.modais.Contains(_fModal)) && (!_futuras || (l.fim ?? DateTime.MaxValue) >= DateTime.UtcNow)
-            && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{l.v.Projeto} {l.v.Codigo} {l.v.Responsavel} {_snap.Cliente(l.v.ClienteId)?.Nome} {l.v.Destino} {l.v.Origem} {l.v.Equipamentos}").Contains(DocEngine.Norm(_busca))))
+            && (string.IsNullOrWhiteSpace(_busca) || DocEngine.Norm($"{l.v.Projeto} {l.v.Codigo} {l.v.Responsavel} {_snap.Cliente(l.v.ClienteId)?.Nome} {_snap.Cliente(l.v.ContratanteId)?.Nome} {l.v.Destino} {l.v.Origem} {l.v.Equipamentos}").Contains(DocEngine.Norm(_busca))))
         .OrderByDescending(l => l.ini ?? DateTime.MaxValue);
 }

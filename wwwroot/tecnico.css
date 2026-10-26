@@ -737,3 +737,4 @@ body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
 .fer-novo { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; } .fer-novo .grow { flex: 1; min-width: 220px; }
 tr.muted td { color: var(--muted); }
 .tv[style*="--rh:26px"] .tv-dia .fer { display: none; }
+.contratante { color: var(--primary); font-weight: 600; }

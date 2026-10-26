@@ -162,6 +162,10 @@ public sealed partial class Servicos
             var u = Db.Usuarios.Obter(v.ResponsavelLogin) ?? throw new ValidacaoException("Responsável da viagem não encontrado.");
             v.Responsavel = string.IsNullOrWhiteSpace(u.Nome) ? u.Id : u.Nome;
         }
+        // cliente contratante (opcional): só guarda quando é outro cliente, diferente do dono da planta (cliente final)
+        v.ContratanteId = (v.ContratanteId ?? "").Trim();
+        if (v.ContratanteId != "" && !Db.Clientes.Existe(v.ContratanteId)) throw new ValidacaoException("Cliente (contratante) não encontrado.");
+        if (v.ContratanteId != "" && v.ContratanteId == (Db.Plantas.Obter(v.PlantaId)?.ClienteId ?? v.ClienteId)) v.ContratanteId = "";
         var res = Validar(v, trechos, atends);
         if (res.Erros.Count > 0) throw new ValidacaoException(res.Erros);
 
