@@ -1,0 +1,101 @@
+@* Novo projeto (com modelo opcional) e edição dos dados do projeto. *@
+@inject Servicos Svc
+@inject Sessao Sessao
+@inject NavigationManager Nav
+
+<Dialogo Titulo="@(Novo ? "Novo projeto de manutenção" : $"Editar {Projeto.Codigo}")" Largo="true" Erros="_erros" OnFechar="OnFechar">
+    <ChildContent>
+        <div class="form-grid pl-form">
+            <label class="fld full">Nome do projeto *<input @bind="_p.Nome" maxlength="160" placeholder="Ex.: Revisão geral do compressor C-201" /></label>
+            <label class="fld full">Descrição<textarea rows="2" @bind="_p.Descricao"></textarea></label>
+            <label class="fld">Unidade / planta (o cliente vem dela)<SeletorPlanta Value="@_p.PlantaId" ValueChanged="@((string v) => { _p.PlantaId = v ?? ""; })" PermitirCriar="false" Placeholder="Buscar unidade…" /></label>
+            <label class="fld">Área / setor<input @bind="_p.Area" maxlength="80" /></label>
+            <label class="fld">Equipamento<input @bind="_p.Equipamento" maxlength="120" placeholder="TAG ou descrição" /></label>
+            <label class="fld">Tipo de manutenção<select @bind="_p.Tipo">@foreach (var t in PlVocab.Tipos) { <option value="@t.Key">@t.Label</option> }</select></label>
+            <label class="fld">Responsável principal
+                <select @bind="_p.Responsavel"><option value="">— selecione —</option>
+                    @foreach (var p in Pessoas) { <option value="@p.Chave">@p.Nome · @p.Tipo</option> }
+                    @if (_p.Responsavel != "" && Pessoas.All(p => p.Chave != _p.Responsavel)) { <option value="@_p.Responsavel">@D.NomePessoa(_p.Responsavel) (inativo)</option> }
+                </select></label>
+            <label class="fld">Prioridade<select @bind="_p.Prioridade">@foreach (var s in PlVocab.Prioridades) { <option value="@s.Key">@s.Label</option> }</select></label>
+            <label class="fld">Status<select @bind="_p.Status">@foreach (var s in PlVocab.StatusProjeto) { <option value="@s.Key">@s.Label</option> }</select></label>
+            <label class="fld">Início previsto @if (Novo && _modelo != "") { <span class="hint">obrigatório com modelo</span> }<input type="date" value="@Ui.DataInput(_p.IniPrev)" @onchange="@(e => _p.IniPrev = Ui.DoDataInput(e.Value?.ToString()))" /></label>
+            <label class="fld">Conclusão prevista @if (Novo && _modelo != "") { <span class="hint">vazio = soma das etapas</span> }<input type="date" value="@Ui.DataInput(_p.FimPrev)" @onchange="@(e => _p.FimPrev = Ui.DoDataInput(e.Value?.ToString()))" /></label>
+            @if (!Novo)
+            {
+                <label class="fld">Início real<input type="date" value="@Ui.DataInput(_p.IniReal)" @onchange="@(e => _p.IniReal = Ui.DoDataInput(e.Value?.ToString()))" /></label>
+                <label class="fld">Conclusão real<input type="date" value="@Ui.DataInput(_p.FimReal)" @onchange="@(e => _p.FimReal = Ui.DoDataInput(e.Value?.ToString()))" /></label>
+                @if (!D.AtivDe(_p.Id).Any())
+                {
+                    <label class="fld">Conclusão (%) <span class="hint">sem atividades, o % é informado aqui</span><input type="number" min="0" max="100" step="5" @bind="_p.ProgressoManual" /></label>
+                }
+            }
+            else
+            {
+                <label class="fld">Modelo de projeto
+                    <select @bind="_modelo"><option value="">— em branco —</option>
+                        @foreach (var m in _modelos) { <option value="@m.Id">@m.Nome (@m.Etapas etapas@(m.Padrao ? "" : " · da equipe"))</option> }
+                    </select></label>
+            }
+            <div class="fld full"><span class="pl-lbl">Equipe envolvida <span class="hint">@_equipe.Count selecionada(s)</span></span>
+                <input class="field" placeholder="Filtrar pessoas…" @bind="_buscaEq" @bind:event="oninput" />
+                <div class="pl-equipe-sel">
+                    @foreach (var p in Pessoas.Where(p => Ui.Contem(p.Nome, _buscaEq) || _equipe.Contains(p.Chave)))
+                    {
+                        <label class="pl-chk"><input type="checkbox" checked="@_equipe.Contains(p.Chave)" @onchange="@(e => { if (e.Value is true) _equipe.Add(p.Chave); else _equipe.Remove(p.Chave); })" /> @p.Nome <span class="muted sm">@p.Tipo</span></label>
+                    }
+                </div>
+            </div>
+            <label class="fld full">Observações<textarea rows="2" @bind="_p.Obs"></textarea></label>
+            @if (Ator.Pode(Perm.PlannerCustos))
+            {
+                <div class="full pl-sec-tit">@Icons.Svg("dollar")Custos <span class="hint">visível só para quem tem permissão financeira</span></div>
+                <label class="fld">Custo planejado (R$)<input type="number" min="0" step="0.01" @bind="_p.CustoPlanejado" /></label>
+                <label class="fld">Materiais (R$)<input type="number" min="0" step="0.01" @bind="_p.CustoMateriais" /></label>
+                <label class="fld">Mão de obra (R$)<input type="number" min="0" step="0.01" @bind="_p.CustoMaoObra" /></label>
+                <label class="fld">Terceiros (R$)<input type="number" min="0" step="0.01" @bind="_p.CustoTerceiros" /></label>
+                <label class="fld">Outros (R$)<input type="number" min="0" step="0.01" @bind="_p.CustoOutros" /></label>
+                <label class="fld">Observação de custos<input @bind="_p.CustoObs" maxlength="200" /></label>
+            }
+        </div>
+    </ChildContent>
+    <Rodape>
+        <button type="button" class="btn-ghost" @onclick="OnFechar">Cancelar</button>
+        <button type="button" class="btn-primary" disabled="@_salvando" @onclick="Salvar">@Icons.Svg("check")@(Novo ? "Criar projeto" : "Salvar")</button>
+    </Rodape>
+</Dialogo>
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter, EditorRequired] public PlProjeto Projeto { get; set; } = default!;
+    [Parameter] public List<(string Chave, string Nome, string Tipo)> Pessoas { get; set; } = new();
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public EventCallback<PlProjeto> OnSalvo { get; set; }
+
+    private PlProjeto _p = new(); private DateTime? _versao; private HashSet<string> _equipe = new();
+    private List<(string Id, string Nome, string Tipo, int Etapas, bool Padrao)> _modelos = new();
+    private string _modelo = "", _buscaEq = ""; private List<string>? _erros; private bool _salvando;
+    private bool Novo => string.IsNullOrEmpty(Projeto.Id);
+
+    protected override void OnInitialized()
+    {
+        _p = Projeto.Copia<PlProjeto>(); _versao = Novo ? null : Projeto.AtualizadoEm;
+        _equipe = Snapshot.Ids(_p.Equipe).ToHashSet();
+        if (Novo) _modelos = Svc.PlannerModelos();
+    }
+
+    private async Task Salvar()
+    {
+        _erros = null; _salvando = true;
+        try
+        {
+            _p.Equipe = string.Join(",", _equipe);
+            var salvo = Novo ? Svc.CriarProjeto(Ator, _p, _modelo) : Svc.SalvarProjeto(Ator, _p, _versao);
+            Sessao.Avisar(Novo ? $"Projeto {salvo.Codigo} criado." : "Projeto salvo.");
+            await OnSalvo.InvokeAsync(salvo);
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _salvando = false;
+    }
+}

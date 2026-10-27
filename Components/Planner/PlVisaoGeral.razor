@@ -1,0 +1,174 @@
+@* Visão geral (dashboard) do Planner: indicadores, gráficos e o que precisa de atenção. Tudo calculado dos registros filtrados. *@
+@using System.Globalization
+
+@{
+    var ind = PlannerRelatorio.Calcular(D, Projetos, Atividades);
+    var h = D.Hoje;
+    var ativos = Projetos.Where(p => !PlVocab.Encerrado(p.Status)).ToList();
+    // concluídos contam mesmo quando o filtro padrão esconde os encerrados das demais visões
+    var fEnc = Filtro.Copia(); fEnc.Encerrados = true;
+    var comEncerrados = fEnc.Projetos(D, Eu);
+    var indEnc = PlannerRelatorio.Calcular(D, comEncerrados, new());
+}
+<div class="pl-kpis">
+    @Kpi("Projetos ativos", ind.Ativos.ToString(), $"{ind.Total} no filtro", "layers", "", null)
+    @Kpi("Em andamento", ind.Andamento.ToString(), $"{ind.EmEspera} em espera", "play", "", "andamento")
+    @Kpi("Atrasados", ind.Atrasados.ToString(), ind.Atrasados == 0 ? "nenhum" : $"atraso médio {ind.AtrasoMedio:0} dia(s)", "alert", ind.Atrasados > 0 ? "neg" : "pos", "atrasados")
+    @Kpi("Vencem em 7 dias", ind.VencendoSemana.ToString(), "conclusão prevista", "clock", ind.VencendoSemana > 0 ? "warn" : "", "vencendo")
+    @Kpi("Concluídos no mês", indEnc.ConcluidosMes.ToString(), indEnc.Concluidos == 0 ? "nenhum concluído ainda" : $"{indEnc.PctNoPrazo:0}% de todos no prazo", "check", "pos", "concluidos")
+    @Kpi("Aguardando materiais", Projetos.Count(p => new PlFiltro().AguardaMateriais(D, p) && !PlVocab.Encerrado(p.Status)).ToString(), $"{ind.MateriaisPendentes} material(is) pendente(s)", "layers", "warn", "materiais")
+    @Kpi("Atividades atrasadas", ind.AtivAtrasadas.ToString(), $"{ind.AtivBloqueadas} bloqueada(s)", "flag", ind.AtivAtrasadas > 0 ? "neg" : "", null)
+    @Kpi("Conclusão média", $"{ind.ProgressoMedio:0}%", "dos projetos ativos", "trend", "", null)
+</div>
+
+<div class="gp-grid pl-dash">
+    <div class="gp-card">
+        <h3>Projetos por status</h3>
+        @{ var porSt = PlVocab.StatusProjeto.Select(s => (s.Label, s.Color, (double)Projetos.Count(p => p.Status == s.Key))).Where(x => x.Item3 > 0).ToList(); }
+        @if (porSt.Count == 0) { <div class="dv-vazio">Sem projetos no filtro.</div> }
+        else
+        {
+            <div class="gp-donut-wrap">@Donut(porSt, Projetos.Count.ToString(), "projetos")
+                <ul class="gp-leg">@foreach (var x in porSt) { <li><i style="background:@x.Color"></i>@x.Label<strong>@x.Item3</strong></li> }</ul></div>
+        }
+    </div>
+    <div class="gp-card">
+        <h3>Ativos por prioridade</h3>
+        @{ var porPr = PlVocab.Prioridades.Reverse().Select(s => (s.Label, s.Color, (double)ativos.Count(p => p.Prioridade == s.Key))).Where(x => x.Item3 > 0).ToList(); }
+        @if (porPr.Count == 0) { <div class="dv-vazio">Nenhum projeto ativo.</div> }
+        else
+        {
+            <div class="gp-donut-wrap">@Donut(porPr, ativos.Count.ToString(), "ativos")
+                <ul class="gp-leg">@foreach (var x in porPr) { <li><i style="background:@x.Color"></i>@x.Label<strong>@x.Item3</strong></li> }</ul></div>
+        }
+    </div>
+    <div class="gp-card">
+        <h3>Concluídos por mês <span class="hint">últimos 6 meses</span></h3>
+        @{ var meses = PlannerRelatorio.ConcluidosPorMes(D, comEncerrados); var mx = Math.Max(1, meses.Max(m => m.NoPrazo + m.ComAtraso)); }
+        <div class="gp-barras">
+            @foreach (var m in meses)
+            {
+                <div class="gp-col" title="@m.Mes.ToString("MMMM/yyyy", Pt): @m.NoPrazo no prazo, @m.ComAtraso com atraso">
+                    <div class="gp-pilha">
+                        <span style="height:@Pct(m.NoPrazo, mx);background:#1f9254"></span><span style="height:@Pct(m.ComAtraso, mx);background:#d9822b"></span>
+                    </div>
+                    <div class="gp-val">@(m.NoPrazo + m.ComAtraso)</div><div class="gp-rot">@m.Mes.ToString("MMM", Pt)</div>
+                </div>
+            }
+        </div>
+        <div class="gp-leg-h"><span><i style="background:#1f9254"></i>No prazo</span><span><i style="background:#d9822b"></i>Com atraso</span></div>
+    </div>
+
+    <div class="gp-card gp-largo">
+        <h3>Previsto × realizado <span class="hint">conclusão esperada hoje (pelo cronograma) e a real</span></h3>
+        @{ var pv = ativos.Select(p => (p, prev: PlannerEngine.ProgressoPrevisto(p, D.AtivDe(p.Id), h), real: PlannerEngine.Progresso(p, D.AtivDe(p.Id)))).OrderByDescending(x => x.prev - x.real).Take(8).ToList(); }
+        @if (pv.Count == 0) { <div class="dv-vazio">Nenhum projeto ativo.</div> }
+        @foreach (var x in pv)
+        {
+            <div class="pl-pv">
+                <a class="pl-pv-n" href="/planner/projetos/@x.p.Id" title="@x.p.Nome">@x.p.Codigo · @x.p.Nome</a>
+                <div class="pl-pv-barra" title="Previsto @x.prev% · realizado @x.real%">
+                    <span class="pl-pv-real @(x.real + 10 < x.prev ? "neg" : x.real < x.prev ? "warn" : "pos")" style="width:@x.real%"></span>
+                    <i class="pl-pv-mark" style="left:@x.prev%"></i>
+                </div>
+                <span class="pl-pv-v"><strong>@x.real%</strong> <span class="muted">/ @x.prev%</span></span>
+            </div>
+        }
+        <div class="gp-leg-h"><span><i style="background:#1f9254"></i>Realizado</span><span><i style="background:#16233a;width:3px"></i>Previsto para hoje</span></div>
+    </div>
+
+    <div class="gp-card">
+        <h3>Pendências por responsável <span class="hint">atividades abertas</span></h3>
+        @{ var pend = Atividades.Where(a => !PlVocab.AtivEncerrada(a.Status)).GroupBy(a => a.Responsavel).Select(g => (nome: g.Key == "" ? "(sem responsável)" : D.NomePessoa(g.Key), n: g.Count(), atr: g.Count(a => PlannerEngine.Atrasada(a, h)))).OrderByDescending(x => x.n).Take(8).ToList(); var pm = Math.Max(1, pend.Select(x => x.n).DefaultIfEmpty(0).Max()); }
+        @if (pend.Count == 0) { <div class="dv-vazio">Nenhuma atividade aberta.</div> }
+        @foreach (var x in pend)
+        {
+            <div class="gp-hb"><div class="gp-hb-r"><span>@x.nome</span><strong>@x.n @if (x.atr > 0) { <span class="neg sm">(@x.atr atrasada@(x.atr > 1 ? "s" : ""))</span> }</strong></div>
+                <div class="gp-hb-t"><span style="width:@Pct(x.n, pm);@(x.atr > 0 ? "background:#c0392b" : "")"></span></div></div>
+        }
+    </div>
+
+    <div class="gp-card">
+        <h3>Próximos vencimentos <span class="hint">conclusão prevista</span></h3>
+        @{ var prox = ativos.Where(p => p.FimPrev is { } f && f.Date >= h).OrderBy(p => p.FimPrev).Take(8).ToList(); }
+        @if (prox.Count == 0) { <div class="dv-vazio">Nenhum vencimento futuro.</div> }
+        <ul class="pl-lista-mini">
+            @foreach (var p in prox)
+            {
+                var dias = (int)(p.FimPrev!.Value.Date - h).TotalDays;
+                <li><a href="/planner/projetos/@p.Id">@p.Codigo · @p.Nome</a><span class="@(dias <= 3 ? "warn" : "muted") sm">@(dias == 0 ? "hoje" : $"em {dias} dia(s)") · @p.FimPrev!.Value.ToString("dd/MM")</span></li>
+            }
+        </ul>
+    </div>
+
+    <div class="gp-card">
+        <h3>Ranking de atenção <span class="hint">atraso, prioridade, bloqueios e desvio</span></h3>
+        @{ var rank = ativos.Select(p => (p, pts: PlannerEngine.PontosAtencao(D, p))).Where(x => x.pts > PlVocab.PesoPrioridade(x.p.Prioridade) * 2 + 2).OrderByDescending(x => x.pts).Take(8).ToList(); }
+        @if (rank.Count == 0) { <div class="dv-vazio">Nenhum projeto em situação de atenção.</div> }
+        <ol class="pl-rank">
+            @foreach (var x in rank)
+            {
+                <li><a href="/planner/projetos/@x.p.Id">@x.p.Codigo · @x.p.Nome</a>
+                    <span class="sm">@if (PlannerEngine.Atrasado(x.p, h)) { <span class="tag neg">@PlannerEngine.DiasAtraso(x.p.FimPrev, h)d atraso</span> }
+                        <StatusBadge Item="@PlVocab.Get(PlVocab.Prioridades, x.p.Prioridade)" /></span></li>
+            }
+        </ol>
+    </div>
+
+    <div class="gp-card gp-largo">
+        <h3>Atenção necessária <span class="hint">@Alertas.Count(a => !Vistos.Contains(a.Chave)) não visto(s)</span></h3>
+        <PlListaAlertas Alertas="@Alertas.Where(a => !Vistos.Contains(a.Chave)).ToList()" Vistos="Vistos" OnVisto="OnVisto" Max="12" />
+    </div>
+
+    <div class="gp-card">
+        <h3>Críticos e atrasados</h3>
+        @{ var crit = ativos.Where(p => p.Prioridade == "critica" || PlannerEngine.Atrasado(p, h)).OrderByDescending(p => PlannerEngine.DiasAtraso(p.FimPrev, h)).Take(8).ToList(); }
+        @if (crit.Count == 0) { <div class="dv-vazio">Nenhum projeto crítico ou atrasado.</div> }
+        <ul class="pl-lista-mini">
+            @foreach (var p in crit)
+            {
+                <li><a href="/planner/projetos/@p.Id">@p.Codigo · @p.Nome</a>
+                    <span class="sm">@if (PlannerEngine.Atrasado(p, h)) { <span class="neg">@PlannerEngine.DiasAtraso(p.FimPrev, h) dia(s) de atraso</span> } else { <span class="muted">prioridade crítica</span> } · @D.NomePessoa(p.Responsavel)</span></li>
+            }
+        </ul>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter] public List<PlProjeto> Projetos { get; set; } = new();
+    [Parameter] public List<PlAtividade> Atividades { get; set; } = new();
+    [Parameter] public Ator Ator { get; set; } = new();
+    [Parameter] public PlFiltro Filtro { get; set; } = new();
+    [Parameter] public string Eu { get; set; } = "";
+    [Parameter] public List<PlAlerta> Alertas { get; set; } = new();
+    [Parameter] public HashSet<string> Vistos { get; set; } = new();
+    [Parameter] public EventCallback<PlAlerta> OnVisto { get; set; }
+    [Parameter] public EventCallback<string> OnAtalho { get; set; }
+
+    private static readonly CultureInfo Pt = new("pt-BR");
+    private static string Pct(double v, double max) => (max <= 0 ? 0 : v / max * 100).ToString("0.#", CultureInfo.InvariantCulture) + "%";
+
+    private RenderFragment Kpi(string rot, string valor, string sub, string ico, string acento, string? atalho) => __builder =>
+    {
+        <button type="button" class="pl-kpi @(acento == "" ? "" : "accent-" + acento) @(atalho is null ? "sem-atalho" : "")" disabled="@(atalho is null)" @onclick="() => OnAtalho.InvokeAsync(atalho)" title="@(atalho is null ? rot : "Ver a lista: " + rot)">
+            <span class="kpi-ico">@Icons.Svg(ico)</span>
+            <span class="pl-kpi-txt"><span class="kpi-label">@rot</span><span class="kpi-value">@valor</span><span class="pl-kpi-sub">@sub</span></span>
+        </button>
+    };
+
+    private RenderFragment Donut(List<(string rot, string cor, double n)> itens, string centro, string legenda) => __builder =>
+    {
+        var tot = itens.Sum(x => x.n); const double R = 52, C = 2 * Math.PI * R; double acum = 0;
+        <svg viewBox="0 0 140 140" class="gp-donut" role="img" aria-label="@legenda">
+            <circle cx="70" cy="70" r="@R.ToString(CultureInfo.InvariantCulture)" fill="none" stroke="#e8edf3" stroke-width="20" />
+            @foreach (var x in itens)
+            {
+                var len = tot == 0 ? 0 : C * x.n / tot;
+                <circle cx="70" cy="70" r="@R.ToString(CultureInfo.InvariantCulture)" fill="none" stroke="@x.cor" stroke-width="20" stroke-dasharray="@len.ToString("0.##", CultureInfo.InvariantCulture) @((C - len).ToString("0.##", CultureInfo.InvariantCulture))" stroke-dashoffset="@((-acum).ToString("0.##", CultureInfo.InvariantCulture))" transform="rotate(-90 70 70)"><title>@x.rot: @x.n</title></circle>
+                acum += len;
+            }
+            <text x="70" y="68" text-anchor="middle" class="gp-dn">@centro</text><text x="70" y="86" text-anchor="middle" class="gp-dl">@legenda</text>
+        </svg>
+    };
+}

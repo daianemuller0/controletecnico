@@ -193,3 +193,48 @@ document.addEventListener('keydown', e => {
 
 // baixa um arquivo gerado no servidor (link de uso único)
 app.baixarUrl = (url) => { const a = document.createElement('a'); a.href = url; document.body.appendChild(a); a.click(); a.remove(); };
+
+// ------------------------------------------------- cronograma do Planner (arrastar / redimensionar barras)
+// Barras .pg-bar[data-id]: arrastar move; as alças .pg-h[data-h=ini|fim] mudam o início/fim.
+// Ao soltar chama ref.AoMoverBarra(id, modo, dias) — o servidor valida e grava; clique simples chama AoClicarBarra(id).
+app.gantt = {
+    iniciar(raiz, ref, px) {
+        const el = document.getElementById(raiz);
+        if (!el) return;
+        el._px = px; el._ref = ref;
+        if (el._gantt) return;
+        el._gantt = true;
+        const limpar = st => { st.bar.style.transform = ''; st.bar.style.width = ''; st.bar.classList.remove('arrastando'); if (st.tip) st.tip.remove(); };
+        el.addEventListener('pointerdown', e => {
+            if (e.button !== 0) return;
+            const bar = e.target.closest('.pg-bar[data-id]');
+            if (!bar) return;
+            const h = e.target.closest('.pg-h');
+            el._st = { bar, modo: h ? h.dataset.h : 'mover', x0: e.clientX, dias: 0, moveu: false, w: bar.offsetWidth, edit: bar.dataset.edit === '1' };
+            try { bar.setPointerCapture(e.pointerId); } catch { }
+            e.preventDefault();
+        });
+        el.addEventListener('pointermove', e => {
+            const st = el._st; if (!st) return;
+            const dx = e.clientX - st.x0;
+            if (Math.abs(dx) > 4) st.moveu = true;
+            if (!st.edit || !st.moveu) return;
+            const px = el._px; let d = Math.round(dx / px);
+            if (st.modo === 'mover') st.bar.style.transform = `translateX(${d * px}px)`;
+            else if (st.modo === 'fim') { d = Math.max(d, 1 - Math.round(st.w / px)); st.bar.style.width = (st.w + d * px) + 'px'; }
+            else { d = Math.min(d, Math.round(st.w / px) - 1); st.bar.style.transform = `translateX(${d * px}px)`; st.bar.style.width = (st.w - d * px) + 'px'; }
+            st.dias = d;
+            st.bar.classList.add('arrastando');
+            if (!st.tip) { st.tip = document.createElement('span'); st.tip.className = 'pg-tip'; st.bar.appendChild(st.tip); }
+            st.tip.textContent = (d > 0 ? '+' : '') + d + ' dia(s)';
+        });
+        el.addEventListener('pointerup', e => {
+            const st = el._st; if (!st) return;
+            el._st = null;
+            if (!st.moveu) { limpar(st); ref = el._ref; ref.invokeMethodAsync('AoClicarBarra', st.bar.dataset.id); return; }
+            if (st.edit && st.dias !== 0) el._ref.invokeMethodAsync('AoMoverBarra', st.bar.dataset.id, st.modo, st.dias).finally(() => limpar(st));
+            else limpar(st);
+        });
+        el.addEventListener('pointercancel', () => { if (el._st) { limpar(el._st); el._st = null; } });
+    }
+};

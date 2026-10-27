@@ -29,6 +29,9 @@ public sealed class Sessao
 
     public event Action? Mudou;
 
+    /// <summary>Filtros do Planner: continuam valendo ao abrir um projeto e voltar.</summary>
+    public PlFiltro PlannerFiltro { get; set; } = new();
+
     // ---- modo automático (atravessa páginas: mapa ⇄ agenda) ----
     public bool AutoAtivo { get; private set; }
     public bool AutoPausa { get; set; }

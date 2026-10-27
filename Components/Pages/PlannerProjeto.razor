@@ -1,0 +1,480 @@
+@page "/planner/projetos/{Id}"
+@attribute [Authorize]
+@implements IDisposable
+@using System.Globalization
+@inject Servicos Svc
+@inject Db Db
+@inject Sessao Sessao
+@inject NavigationManager Nav
+
+<PageTitle>@(_p?.Codigo ?? "Projeto") · Planner de Manutenção</PageTitle>
+
+@if (_erroCarga is not null)
+{
+    <div class="empty-state"><div class="ico">@Icons.Svg("lock")</div><h3>@_erroCarga</h3><p><a href="/planner?aba=projetos">Voltar aos projetos</a></p></div>
+}
+else if (_p is not null)
+{
+    var ats = _d.AtivDe(_p.Id).ToList(); var h = _d.Hoje;
+    var prog = PlannerEngine.Progresso(_p, ats); var prev = PlVocab.Encerrado(_p.Status) ? 100 : PlannerEngine.ProgressoPrevisto(_p, ats, h);
+    var atr = PlannerEngine.Atrasado(_p, h);
+    var mats = _d.Materiais.Where(m => m.ProjetoId == _p.Id).ToList(); var pends = _d.Pendencias.Where(x => x.ProjetoId == _p.Id).ToList();
+    var anexos = Db.Anexos.Onde(a => a.DonoTipo == "plprojeto" && a.DonoId == _p.Id);
+
+    <div class="pl-bread no-print"><a href="/planner">Planner</a> › <a href="/planner?aba=projetos">Projetos</a> › @_p.Codigo</div>
+    <div class="page-head compacto pl-proj-head">
+        <div>
+            <div class="pl-cod">@_p.Codigo · @PlVocab.TipoLabel(_p.Tipo)</div>
+            <h1>@_p.Nome</h1>
+            <p class="subtitle">@(_d.Snap.Cliente(_p.ClienteId)?.Nome ?? "Sem cliente")@(_p.PlantaId == "" ? "" : " · " + _d.NomeUnidade(_p))@(_p.Area == "" ? "" : " · " + _p.Area)@(_p.Equipamento == "" ? "" : " · " + _p.Equipamento)</p>
+            <div class="pl-head-ctl">
+                @if (_edita)
+                {
+                    <label class="pl-inline">Status <select value="@_p.Status" @onchange="@(e => MudarStatus(e.Value?.ToString()))">@foreach (var s in PlVocab.StatusProjeto) { <option value="@s.Key">@s.Label</option> }</select></label>
+                    <label class="pl-inline">Prioridade <select value="@_p.Prioridade" @onchange="@(e => MudarPrioridade(e.Value?.ToString()))">@foreach (var s in PlVocab.Prioridades) { <option value="@s.Key">@s.Label</option> }</select></label>
+                }
+                else
+                {
+                    <StatusBadge Item="@PlVocab.Get(PlVocab.StatusProjeto, _p.Status)" /> <StatusBadge Item="@PlVocab.Get(PlVocab.Prioridades, _p.Prioridade)" />
+                }
+                @if (atr) { <span class="badge st-neg">@Icons.Svg("alert", "bico")@PlannerEngine.DiasAtraso(_p.FimPrev, h) dia(s) de atraso</span> }
+                @if (_p.StatusEm is { } se) { <span class="muted sm">status por @_p.StatusPor em @Tempo.ParaLocal(se, _d.Snap.FusoPadrao).ToString("dd/MM/yy HH:mm")</span> }
+            </div>
+        </div>
+        <div class="momento-ctl no-print">
+            @if (_edita)
+            {
+                <button class="btn-ghost" @onclick="() => _editarProj = true">@Icons.Svg("edit")Editar</button>
+                <button class="btn-ghost" @onclick="() => { _nomeModelo = _p.Nome; _salvarModelo = true; }" title="Reaproveitar as etapas em novos projetos">@Icons.Svg("copy")Salvar como modelo</button>
+                <button class="btn-danger-ghost" @onclick="() => _excluir = true">@Icons.Svg("trash")Excluir</button>
+            }
+        </div>
+    </div>
+
+    <div class="pl-resumo">
+        <div class="pl-res"><span class="kpi-label">Progresso</span><PlBarraProgresso Real="prog" Previsto="prev" /><span class="muted sm">previsto para hoje: @prev%</span></div>
+        <div class="pl-res"><span class="kpi-label">Prazo previsto</span><strong>@(_p.IniPrev?.ToString("dd/MM/yy") ?? "—") – @(_p.FimPrev?.ToString("dd/MM/yy") ?? "—")</strong>
+            <span class="muted sm">@(_p.FimPrev is { } f && !PlVocab.Encerrado(_p.Status) ? (atr ? "vencido" : $"vence em {(int)(f.Date - h).TotalDays} dia(s)") : "")</span></div>
+        <div class="pl-res"><span class="kpi-label">Real</span><strong>@(_p.IniReal?.ToString("dd/MM/yy") ?? "não iniciado") – @(_p.FimReal?.ToString("dd/MM/yy") ?? (_p.IniReal is null ? "" : "em curso"))</strong></div>
+        <div class="pl-res"><span class="kpi-label">Atividades</span><strong>@ats.Count(a => a.Status == PlVocab.AConcluida)/@ats.Count(a => a.Status != PlVocab.ACancelada) concluídas</strong>
+            <span class="sm">@if (ats.Count(a => PlannerEngine.Atrasada(a, h)) is > 0 and var na) { <span class="neg">@na atrasada(s) </span> }@if (ats.Count(a => PlannerEngine.MotivoBloqueio(_d, a) is not null) is > 0 and var nb) { <span class="warn">@nb bloqueada(s)</span> }</span></div>
+        <div class="pl-res"><span class="kpi-label">Horas</span><strong>@ats.Sum(a => a.HorasReal ?? 0).ToString("0.#") / @ats.Sum(a => a.HorasEst ?? 0).ToString("0.#") h</strong><span class="muted sm">realizadas / estimadas</span></div>
+        <div class="pl-res"><span class="kpi-label">Responsável</span><strong>@(_p.Responsavel == "" ? "—" : _d.NomePessoa(_p.Responsavel))</strong><span class="muted sm">@Snapshot.Ids(_p.Equipe).Length na equipe</span></div>
+        <div class="pl-res @(mats.Any(m => !PlVocab.MaterialOk(m.Status)) || pends.Any(x => x.Situacao != "resolvida") ? "warn" : "")"><span class="kpi-label">Materiais / pendências</span>
+            <strong>@mats.Count(m => !PlVocab.MaterialOk(m.Status)) pendente(s) · @pends.Count(x => x.Situacao != "resolvida") aberta(s)</strong></div>
+    </div>
+    @if (_p.Descricao != "") { <p class="pl-desc">@_p.Descricao</p> }
+
+    <div class="tabs no-print" role="tablist">
+        @foreach (var (k, rot, n) in Abas(ats.Count, mats.Count + pends.Count(x => x.Situacao != "resolvida"), anexos.Count))
+        {
+            <button role="tab" class="tab @(_aba == k ? "active" : "")" @onclick="() => _aba = k">@rot @if (n is not null) { <span class="tab-badge">@n</span> }</button>
+        }
+    </div>
+
+    @if (_aba == "atividades")
+    {
+        <div class="toolbar">
+            @if (_edita) { <button class="btn-primary sm" @onclick="() => NovaAtividade(null)">@Icons.Svg("plus")Nova etapa</button> }
+            <button class="btn-ghost sm" @onclick="() => _recolhidos.Clear()">@Icons.Svg("expand")Expandir</button>
+            <button class="btn-ghost sm" @onclick="() => _recolhidos = ats.Where(a => ats.Any(x => x.ParentId == a.Id)).Select(a => a.Id).ToHashSet()">Recolher</button>
+            <span class="grow"></span>
+            <span class="muted sm">Progresso do projeto = média das etapas ponderada pelo peso; etapa com subtarefas = média delas.</span>
+        </div>
+        @if (ats.Count == 0) { <div class="empty-state sm"><div class="ico">@Icons.Svg("list")</div><h3>Nenhuma atividade</h3><p>@(_edita ? "Crie as etapas do projeto ou use \"Salvar como modelo\" em outro projeto para reaproveitar." : "")</p></div> }
+        else
+        {
+            var filhos = ats.ToLookup(a => a.ParentId); var ocultos = new HashSet<string>();
+            <div class="table-wrap"><table class="grid-tbl pl-tbl pl-ativs">
+                <thead><tr><th>Etapa / atividade</th><th>Responsável</th><th>Previsto</th><th>Real</th><th>Status</th><th>%</th><th class="right">Horas</th><th class="actions-col"></th></tr></thead>
+                <tbody>
+                @foreach (var (a, n) in PlannerRelatorio.Arvore(ats))
+                {
+                    if (ocultos.Contains(a.ParentId) || _recolhidos.Contains(a.ParentId)) { ocultos.Add(a.Id); continue; }
+                    var temF = filhos[a.Id].Any(); var bloq = PlannerEngine.MotivoBloqueio(_d, a); var aAtr = PlannerEngine.Atrasada(a, h);
+                    var deps = Snapshot.Ids(a.DependeDe).Select(x => ats.FirstOrDefault(y => y.Id == x)?.Nome).Where(x => x is not null).ToList();
+                    var podeExec = Svc.PodeAtualizarAtividade(_ator, a);
+                    <tr class="@(aAtr ? "pl-tr-atraso" : "") @(n == 0 ? "pl-etapa" : "") @(_destaque == a.Id ? "pl-destaque" : "")">
+                        <td style="padding-left:@(10 + n * 20)px">
+                            @if (temF) { <button class="pg-tg" @onclick="() => { if (!_recolhidos.Remove(a.Id)) _recolhidos.Add(a.Id); }">@(_recolhidos.Contains(a.Id) ? "▸" : "▾")</button> }
+                            <button class="pg-n" @onclick="() => _editarAtiv = a">@a.Nome</button>
+                            @if (a.Marco) { <span class="tag" title="Marco">@Icons.Svg("flag")</span> }
+                            @if (bloq is not null) { <div class="neg sm">@Icons.Svg("ban") @bloq</div> }
+                            @if (deps.Count > 0) { <div class="muted sm">depende de: @string.Join(", ", deps)</div> }
+                        </td>
+                        <td>@(a.Responsavel == "" ? "—" : _d.NomePessoa(a.Responsavel))</td>
+                        <td class="tabular">@{ var (pi, pf) = PlannerEngine.Periodo(a, filhos); }@pi?.ToString("dd/MM") – @pf?.ToString("dd/MM")@if (aAtr) { <div class="neg sm">+@PlannerEngine.DiasAtraso(a.FimPrev, h)d</div> }</td>
+                        <td class="tabular">@a.IniReal?.ToString("dd/MM") @(a.IniReal is null ? "" : "–") @a.FimReal?.ToString("dd/MM")</td>
+                        <td>@if (podeExec && !temF)
+                            {
+                                <select class="pl-st-sel" style="--c:@PlVocab.Get(PlVocab.StatusAtividade, a.Status).Color" value="@a.Status" @onchange="@(e => StatusAtividade(a, e.Value?.ToString()))">
+                                    @foreach (var s in PlVocab.StatusAtividade) { <option value="@s.Key">@s.Label</option> }</select>
+                            }
+                            else { <StatusBadge Item="@PlVocab.Get(PlVocab.StatusAtividade, a.Status)" /> }</td>
+                        <td><PlBarraProgresso Real="@((int)Math.Round(PlannerEngine.ProgressoAtividade(a, filhos)))" Compacta="true" /></td>
+                        <td class="right tabular sm">@(a.HorasReal?.ToString("0.#") ?? "0") / @(a.HorasEst?.ToString("0.#") ?? "—")</td>
+                        <td class="actions-col">
+                            @if (_edita)
+                            {
+                                <button class="row-act" title="Subir" @onclick="() => Mover(a, -1)">@Icons.Svg("up")</button>
+                                <button class="row-act" title="Descer" @onclick="() => Mover(a, 1)">@Icons.Svg("down")</button>
+                                <button class="row-act" title="Nova subtarefa" @onclick="() => NovaAtividade(a)">@Icons.Svg("plus")</button>
+                                <button class="row-act" title="Duplicar" @onclick="() => Duplicar(a)">@Icons.Svg("copy")</button>
+                            }
+                            @if (podeExec && !PlVocab.AtivEncerrada(a.Status)) { <button class="row-act sell" title="Concluir" @onclick="() => StatusAtividade(a, PlVocab.AConcluida)">@Icons.Svg("check")</button> }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table></div>
+        }
+    }
+    else if (_aba == "cronograma")
+    {
+        <PlGantt D="_d" Projetos="@(new List<PlProjeto> { _p })" Atividades="ats" Ator="_ator" Pessoas="_pessoas" OnMudou="Recarregar" UmProjeto="true" />
+    }
+    else if (_aba == "equipe")
+    {
+        var pessoas = Snapshot.Ids(_p.Equipe).Append(_p.Responsavel).Concat(ats.Select(a => a.Responsavel)).Where(x => x != "").Distinct().ToList();
+        var de = _p.IniPrev ?? h; var ate = _p.FimPrev ?? de.AddDays(30); if (ate < de) ate = de;
+        var cap = PlannerEngine.Capacidade(_d, _d.Atividades, de, ate, AgendaEngine.Eventos(_d.Snap)).Where(c => pessoas.Contains(c.Pessoa)).ToDictionary(c => c.Pessoa);
+        <div class="muted sm mb8">Ocupação de cada pessoa no período do projeto (@de.ToString("dd/MM") – @ate.ToString("dd/MM")), somando TODOS os projetos e a Agenda.</div>
+        @if (pessoas.Count == 0) { <div class="dv-vazio">Defina o responsável e a equipe em "Editar".</div> }
+        else
+        {
+            <div class="table-wrap"><table class="grid-tbl pl-tbl">
+                <thead><tr><th>Pessoa</th><th>Papel no projeto</th><th class="right">Atividades aqui</th><th class="right">Horas est. aqui</th><th>Ocupação no período</th><th>Conflitos</th></tr></thead>
+                <tbody>
+                @foreach (var pk in pessoas)
+                {
+                    var minhas = ats.Where(a => a.Responsavel == pk && a.Status != PlVocab.ACancelada).ToList(); var c = cap.GetValueOrDefault(pk);
+                    <tr><td><strong>@_d.NomePessoa(pk)</strong></td>
+                        <td>@(pk == _p.Responsavel ? "Responsável" : Snapshot.Ids(_p.Equipe).Contains(pk) ? "Equipe" : "Executa atividades")</td>
+                        <td class="right">@minhas.Count@if (minhas.Count(a => PlannerEngine.Atrasada(a, h)) is > 0 and var nAtr) { <span class="neg sm"> (@nAtr atrasada@(nAtr > 1 ? "s" : ""))</span> }</td>
+                        <td class="right">@minhas.Sum(a => a.HorasEst ?? 0).ToString("0.#")</td>
+                        <td>@if (c is null) { <span class="muted">—</span> } else { <span class="badge @(c.Situacao == "sobrecarga" ? "st-neg" : c.Situacao == "alocado" ? "st-warn" : "st-pos")">@(c.Uso >= 999 ? "sem capacidade" : c.Uso.ToString("0") + "%")</span> <span class="muted sm">@c.HorasPlanejadas.ToString("0") de @c.HorasCapacidade.ToString("0") h</span> }</td>
+                        <td class="sm">@if (c is not null && c.Conflitos.Count > 0) { @foreach (var x in c.Conflitos.Take(3)) { <div>@x</div> } } else { <span class="muted">—</span> }</td></tr>
+                }
+                </tbody>
+            </table></div>
+        }
+    }
+    else if (_aba == "materiais")
+    {
+        <div class="panel">
+            <div class="panel-head"><div class="panel-title">@Icons.Svg("layers")Materiais <span class="hint">material não disponível bloqueia a atividade ligada</span></div>
+                @if (_edita) { <button class="btn-ghost sm" @onclick="() => { _mat = new PlMaterial { ProjetoId = _p.Id }; _errosMat = null; }">@Icons.Svg("plus")Material</button> }</div>
+            @if (mats.Count == 0) { <div class="dv-vazio">Nenhum material cadastrado.</div> }
+            else
+            {
+                <div class="table-wrap"><table class="grid-tbl">
+                    <thead><tr><th>Material</th><th class="right">Qtd.</th><th>Necessário em</th><th>Responsável</th><th>Status</th><th>Atividade</th><th class="actions-col"></th></tr></thead>
+                    <tbody>
+                    @foreach (var m in mats.OrderBy(m => PlVocab.MaterialOk(m.Status)).ThenBy(m => m.DataNecessaria ?? DateTime.MaxValue))
+                    {
+                        var critico = !PlVocab.MaterialOk(m.Status) && m.DataNecessaria is { } dn && dn.Date <= h.AddDays(5);
+                        <tr class="@(critico ? "pl-tr-atraso" : "")"><td><strong>@m.Descricao</strong>@if (m.Codigo != "") { <span class="muted sm"> · @m.Codigo</span> }@if (m.Obs != "") { <div class="muted sm">@m.Obs</div> }</td>
+                            <td class="right">@m.Quantidade.ToString("0.##") @m.Unidade</td>
+                            <td class="@(critico ? "neg" : "")">@(m.DataNecessaria?.ToString("dd/MM/yy") ?? "—")</td>
+                            <td>@(m.Responsavel == "" ? "—" : _d.NomePessoa(m.Responsavel))</td>
+                            <td><StatusBadge Item="@PlVocab.Get(PlVocab.StatusMaterial, m.Status)" /></td>
+                            <td class="sm">@(ats.FirstOrDefault(a => a.Id == m.AtividadeId)?.Nome ?? "—")</td>
+                            <td class="actions-col">@if (_edita) { <button class="row-act" title="Editar" @onclick="() => { _mat = m.Copia<PlMaterial>(); _errosMat = null; }">@Icons.Svg("edit")</button>
+                                <button class="row-act del" title="Excluir" @onclick="() => ExcluirMaterial(m)">@Icons.Svg("trash")</button> }</td></tr>
+                    }
+                    </tbody>
+                </table></div>
+            }
+        </div>
+        <div class="panel mt16">
+            <div class="panel-head"><div class="panel-title">@Icons.Svg("alert")Pendências e impedimentos</div>
+                @if (_edita) { <button class="btn-ghost sm" @onclick="() => { _pend = new PlPendencia { ProjetoId = _p.Id }; _errosPend = null; }">@Icons.Svg("plus")Pendência</button> }</div>
+            @if (pends.Count == 0) { <div class="dv-vazio">Nenhuma pendência registrada.</div> }
+            else
+            {
+                <div class="table-wrap"><table class="grid-tbl">
+                    <thead><tr><th>Pendência</th><th>Tipo</th><th>Impacto</th><th>Situação</th><th>Responsável</th><th>Aberta</th><th>Prazo</th><th>Atividade</th><th class="actions-col"></th></tr></thead>
+                    <tbody>
+                    @foreach (var x in pends.OrderBy(x => x.Situacao == "resolvida").ThenBy(x => x.Prazo ?? DateTime.MaxValue))
+                    {
+                        var venc = x.Situacao != "resolvida" && x.Prazo is { } pz && pz.Date < h;
+                        <tr class="@(x.Situacao != "resolvida" && (x.Impacto == "critico" || venc) ? "pl-tr-atraso" : "")">
+                            <td><strong>@x.Descricao</strong>@if (x.Acao != "") { <div class="muted sm">Ação: @x.Acao</div> }</td>
+                            <td>@(PlVocab.TiposPendencia.FirstOrDefault(t => t.Key == x.Tipo).Label ?? x.Tipo)</td>
+                            <td><StatusBadge Item="@PlVocab.Get(PlVocab.Impactos, x.Impacto)" /></td>
+                            <td><StatusBadge Item="@PlVocab.Get(PlVocab.SituacoesPendencia, x.Situacao)" /></td>
+                            <td>@(x.Responsavel == "" ? "—" : _d.NomePessoa(x.Responsavel))</td>
+                            <td>@Tempo.ParaLocal(x.Abertura, _d.Snap.FusoPadrao).ToString("dd/MM/yy")</td>
+                            <td class="@(venc ? "neg" : "")">@(x.Prazo?.ToString("dd/MM/yy") ?? "—")</td>
+                            <td class="sm">@(ats.FirstOrDefault(a => a.Id == x.AtividadeId)?.Nome ?? "—")</td>
+                            <td class="actions-col">@if (_edita) { <button class="row-act" title="Editar" @onclick="() => { _pend = x.Copia<PlPendencia>(); _errosPend = null; }">@Icons.Svg("edit")</button>
+                                <button class="row-act del" title="Excluir" @onclick="() => ExcluirPendencia(x)">@Icons.Svg("trash")</button> }</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table></div>
+            }
+        </div>
+    }
+    else if (_aba == "custos" && _ator.Pode(Perm.PlannerCustos))
+    {
+        var real = PlannerRelatorio.CustoReal(_p); var plan = _p.CustoPlanejado;
+        <div class="panel">
+            <div class="panel-head"><div class="panel-title">@Icons.Svg("dollar")Custos <span class="hint">visível só para Administrador e Gestão</span></div>
+                @if (_edita) { <button class="btn-ghost sm" @onclick="() => _editarProj = true">@Icons.Svg("edit")Editar custos</button> }</div>
+            @if (plan is null && real is null) { <div class="dv-vazio">Nenhum custo informado. Use "Editar custos".</div> }
+            else
+            {
+                var max = Math.Max(plan ?? 0, real ?? 0); if (max <= 0) max = 1;
+                <div class="pl-custo">
+                    <div class="pl-custo-l"><span>Planejado</span><div class="pl-custo-t"><span style="width:@(((plan ?? 0) / max * 100).ToString("0.#", CultureInfo.InvariantCulture))%;background:#004785"></span></div><strong>@Moeda(plan)</strong></div>
+                    <div class="pl-custo-l"><span>Realizado</span><div class="pl-custo-t"><span style="width:@(((real ?? 0) / max * 100).ToString("0.#", CultureInfo.InvariantCulture))%;background:@(real > plan ? "#c0392b" : "#1f9254")"></span></div><strong>@Moeda(real)</strong></div>
+                </div>
+                @if (plan is > 0 && real is not null) { <div class="sm @(real > plan ? "neg" : "pos")">@(real > plan ? "Acima" : "Dentro") do planejado: @((real.Value / plan.Value * 100).ToString("0"))% (@Moeda(real - plan))</div> }
+                <table class="grid-tbl mini mt16">
+                    <tbody>
+                        <tr><td>Materiais</td><td class="right">@Moeda(_p.CustoMateriais)</td></tr>
+                        <tr><td>Mão de obra</td><td class="right">@Moeda(_p.CustoMaoObra)</td></tr>
+                        <tr><td>Terceiros</td><td class="right">@Moeda(_p.CustoTerceiros)</td></tr>
+                        <tr><td>Outros</td><td class="right">@Moeda(_p.CustoOutros)</td></tr>
+                    </tbody>
+                    <tfoot><tr><td>Total realizado</td><td class="right">@Moeda(real)</td></tr></tfoot>
+                </table>
+                @if (_p.CustoObs != "") { <div class="muted sm mt8">@_p.CustoObs</div> }
+            }
+        </div>
+    }
+    else if (_aba == "anexos")
+    {
+        <div class="panel">
+            <div class="panel-head"><div class="panel-title">@Icons.Svg("paperclip")Anexos e evidências <span class="hint">@anexos.Count arquivo(s)</span></div></div>
+            @if (Svc.PodeAnexarPlanner(_ator, _p.Id))
+            {
+                <label class="dv-add pl-evid-add">@Icons.Svg("upload")<span>Anexar ao projeto</span><small>PDF, JPG, PNG ou e-mail salvo (.msg/.eml), até 15 MB. Evidências de uma atividade: anexe pela própria atividade.</small>
+                    <InputFile OnChange="EnviarAnexo" multiple accept=".pdf,.jpg,.jpeg,.png,.msg,.eml" /></label>
+            }
+            @if (_msgAnexo is not null) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@_msgAnexo</div></div> }
+            @if (anexos.Count == 0) { <div class="dv-vazio">Nenhum anexo.</div> }
+            @foreach (var g in anexos.GroupBy(a => a.Categoria).OrderBy(g => g.Key == "" ? "" : ats.FirstOrDefault(x => x.Id == g.Key)?.Nome ?? "~"))
+            {
+                <div class="dv-grupo"><div class="dv-gtit">@Icons.Svg(g.Key == "" ? "paperclip" : "check")@(g.Key == "" ? "Projeto" : "Evidências: " + (ats.FirstOrDefault(x => x.Id == g.Key)?.Nome ?? "atividade removida"))</div>
+                    @foreach (var an in g.OrderByDescending(a => a.CriadoEm))
+                    {
+                        <div class="anexo">@Icons.Svg("file")<a href="/arquivos/@an.Id" target="_blank" rel="noopener">@an.NomeOriginal</a>
+                            <span class="muted sm">@(an.Tamanho / 1024) KB · @an.EnviadoPor · @Tempo.ParaLocal(an.CriadoEm, _d.Snap.FusoPadrao).ToString("dd/MM/yy")</span>
+                            <a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal" title="Baixar">@Icons.Svg("download")</a>
+                            @if (_edita || an.EnviadoPor == _ator.Login) { <button class="row-act del" title="Remover" @onclick="() => RemoverAnexo(an)">@Icons.Svg("x")</button> }</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else if (_aba == "historico")
+    {
+        var hist = Svc.PlannerHistorico(_ator, _p.Id);
+        <div class="panel">
+            <div class="panel-head"><div class="panel-title">@Icons.Svg("history")Histórico <span class="hint">alterações importantes, com autor e data</span></div></div>
+            @if (hist.Count == 0) { <div class="dv-vazio">Sem registros.</div> }
+            <ul class="pl-hist">
+                @foreach (var x in hist.Take(300))
+                {
+                    <li><span class="pl-hist-q">@Tempo.ParaLocal(x.Quando, _d.Snap.FusoPadrao).ToString("dd/MM/yy HH:mm")</span><strong>@x.Usuario</strong><span>@x.Resumo</span></li>
+                }
+            </ul>
+        </div>
+    }
+    else if (_aba == "comentarios")
+    {
+        <div class="panel"><PlComentarios D="_d" Ator="_ator" ProjetoId="@_p.Id" OnMudou="() => StateHasChanged()" /></div>
+    }
+
+    @if (_editarAtiv is not null)
+    {
+        <PlAtividadeDialogo D="_d" Ator="_ator" Atividade="_editarAtiv" Pessoas="_pessoas" OnFechar="() => _editarAtiv = null" OnMudou="Recarregar" />
+    }
+    @if (_editarProj)
+    {
+        <PlProjetoDialogo D="_d" Ator="_ator" Projeto="_p" Pessoas="_pessoas" OnFechar="() => _editarProj = false" OnSalvo="(PlProjeto x) => { _editarProj = false; Recarregar(); }" />
+    }
+    @if (_mat is not null)
+    {
+        <Dialogo Titulo="@(string.IsNullOrEmpty(_mat.Id) ? "Novo material" : "Editar material")" Erros="_errosMat" OnFechar="() => _mat = null">
+            <ChildContent>
+                <div class="form-grid pl-form">
+                    <label class="fld full">Descrição *<input @bind="_mat.Descricao" maxlength="160" /></label>
+                    <label class="fld">Código<input @bind="_mat.Codigo" maxlength="60" /></label>
+                    <label class="fld">Status<select @bind="_mat.Status">@foreach (var s in PlVocab.StatusMaterial) { <option value="@s.Key">@s.Label</option> }</select></label>
+                    <label class="fld">Quantidade<input type="number" min="0" step="0.01" @bind="_mat.Quantidade" /></label>
+                    <label class="fld">Unidade<input @bind="_mat.Unidade" maxlength="10" /></label>
+                    <label class="fld">Necessário em<input type="date" value="@Ui.DataInput(_mat.DataNecessaria)" @onchange="@(e => _mat.DataNecessaria = Ui.DoDataInput(e.Value?.ToString()))" /></label>
+                    <label class="fld">Responsável<select @bind="_mat.Responsavel"><option value="">—</option>@foreach (var p in _pessoas) { <option value="@p.Chave">@p.Nome</option> }</select></label>
+                    <label class="fld full">Atividade que depende dele <span class="hint">fica bloqueada até o material estar disponível</span>
+                        <select @bind="_mat.AtividadeId"><option value="">— nenhuma —</option>@foreach (var (a, n) in PlannerRelatorio.Arvore(ats)) { <option value="@a.Id">@(new string('·', n * 2)) @a.Nome</option> }</select></label>
+                    <label class="fld full">Observação<input @bind="_mat.Obs" maxlength="200" /></label>
+                </div>
+            </ChildContent>
+            <Rodape><button class="btn-ghost" @onclick="() => _mat = null">Cancelar</button><button class="btn-primary" @onclick="SalvarMaterial">@Icons.Svg("check")Salvar</button></Rodape>
+        </Dialogo>
+    }
+    @if (_pend is not null)
+    {
+        <Dialogo Titulo="@(string.IsNullOrEmpty(_pend.Id) ? "Nova pendência" : "Editar pendência")" Erros="_errosPend" OnFechar="() => _pend = null">
+            <ChildContent>
+                <div class="form-grid pl-form">
+                    <label class="fld full">Descrição *<input @bind="_pend.Descricao" maxlength="200" /></label>
+                    <label class="fld">Tipo<select @bind="_pend.Tipo">@foreach (var t in PlVocab.TiposPendencia) { <option value="@t.Key">@t.Label</option> }</select></label>
+                    <label class="fld">Impacto<select @bind="_pend.Impacto">@foreach (var s in PlVocab.Impactos) { <option value="@s.Key">@s.Label</option> }</select></label>
+                    <label class="fld">Situação<select @bind="_pend.Situacao">@foreach (var s in PlVocab.SituacoesPendencia) { <option value="@s.Key">@s.Label</option> }</select></label>
+                    <label class="fld">Prazo<input type="date" value="@Ui.DataInput(_pend.Prazo)" @onchange="@(e => _pend.Prazo = Ui.DoDataInput(e.Value?.ToString()))" /></label>
+                    <label class="fld">Responsável<select @bind="_pend.Responsavel"><option value="">—</option>@foreach (var p in _pessoas) { <option value="@p.Chave">@p.Nome</option> }</select></label>
+                    <label class="fld">Atividade impactada <span class="hint">fica bloqueada enquanto aberta</span>
+                        <select @bind="_pend.AtividadeId"><option value="">— nenhuma —</option>@foreach (var (a, n) in PlannerRelatorio.Arvore(ats)) { <option value="@a.Id">@(new string('·', n * 2)) @a.Nome</option> }</select></label>
+                    <label class="fld full">Ação para resolver<input @bind="_pend.Acao" maxlength="200" /></label>
+                </div>
+            </ChildContent>
+            <Rodape><button class="btn-ghost" @onclick="() => _pend = null">Cancelar</button><button class="btn-primary" @onclick="SalvarPendencia">@Icons.Svg("check")Salvar</button></Rodape>
+        </Dialogo>
+    }
+    @if (_salvarModelo)
+    {
+        <Dialogo Titulo="Salvar como modelo" Erros="_errosModelo" OnFechar="() => _salvarModelo = false">
+            <ChildContent>
+                <p class="muted sm">As etapas principais (nome, duração em dias, horas e peso) viram um modelo para novos projetos.</p>
+                <label class="fld">Nome do modelo<input @bind="_nomeModelo" maxlength="80" /></label>
+            </ChildContent>
+            <Rodape><button class="btn-ghost" @onclick="() => _salvarModelo = false">Cancelar</button><button class="btn-primary" @onclick="SalvarModelo">@Icons.Svg("check")Salvar modelo</button></Rodape>
+        </Dialogo>
+    }
+    @if (_excluir)
+    {
+        <Dialogo Titulo="Excluir projeto?" Erros="_errosExcluir" OnFechar="() => _excluir = false">
+            <ChildContent>
+                <p>O projeto <strong>@_p.Codigo · @_p.Nome</strong> será excluído <strong>definitivamente</strong>, junto com:</p>
+                <ul class="pl-excl">
+                    <li>@ats.Count atividade(s)</li><li>@mats.Count material(is)</li><li>@pends.Count pendência(s)</li>
+                    <li>@_d.Comentarios.Count(c => c.ProjetoId == _p.Id) comentário(s)</li><li>@anexos.Count anexo(s)/evidência(s)</li>
+                </ul>
+                <p class="muted sm">A exclusão fica registrada na auditoria. Se o projeto só não vai mais acontecer, prefira mudar o status para <strong>Cancelado</strong> (mantém o histórico).</p>
+                <label class="fld">Para confirmar, digite o código <strong>@_p.Codigo</strong><input @bind="_confirmaCodigo" @bind:event="oninput" /></label>
+            </ChildContent>
+            <Rodape>
+                <button class="btn-ghost" @onclick="() => _excluir = false">Cancelar</button>
+                <button class="btn-danger" disabled="@(_confirmaCodigo.Trim() != _p.Codigo)" @onclick="Excluir">@Icons.Svg("trash")Excluir definitivamente</button>
+            </Rodape>
+        </Dialogo>
+    }
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "atividade")] public string? AtividadeQuery { get; set; }
+
+    private Ator _ator = new(); private PlDados _d = new(); private PlProjeto? _p; private string? _erroCarga;
+    private List<(string Chave, string Nome, string Tipo)> _pessoas = new();
+    private string _aba = "atividades", _destaque = "", _abertaPorLink = "", _nomeModelo = "", _confirmaCodigo = ""; private bool _edita, _editarProj, _salvarModelo, _excluir;
+    private HashSet<string> _recolhidos = new(); private PlAtividade? _editarAtiv;
+    private PlMaterial? _mat; private PlPendencia? _pend; private List<string>? _errosMat, _errosPend, _errosModelo, _errosExcluir; private string? _msgAnexo;
+
+    private IEnumerable<(string, string, int?)> Abas(int nAtiv, int nMat, int nAnexo)
+    {
+        yield return ("atividades", "Atividades", nAtiv);
+        yield return ("cronograma", "Cronograma", null);
+        yield return ("equipe", "Equipe", null);
+        yield return ("materiais", "Materiais e pendências", nMat);
+        if (_ator.Pode(Perm.PlannerCustos)) yield return ("custos", "Custos", null);
+        yield return ("anexos", "Anexos", nAnexo);
+        yield return ("historico", "Histórico", null);
+        yield return ("comentarios", "Comentários", _d.Comentarios.Count(c => c.ProjetoId == Id));
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Sessao.AtorAsync(); Sessao.Mudou += Ao;
+        _edita = _ator.Pode(Perm.PlannerEditar);
+    }
+    protected override void OnParametersSet()
+    {
+        if (!_ator.Pode(Perm.PlannerVer)) { _erroCarga = "Sem acesso ao Planner"; return; }
+        _pessoas = Svc.PlannerPessoas();
+        Recarregar();
+        // ?atividade= (link dos alertas): abre a atividade uma única vez
+        if (!string.IsNullOrEmpty(AtividadeQuery) && AtividadeQuery != _abertaPorLink && _d.Atividades.FirstOrDefault(a => a.Id == AtividadeQuery) is { } a)
+        { _editarAtiv = a; _destaque = a.Id; _aba = "atividades"; _abertaPorLink = a.Id; }
+    }
+    private void Ao() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Sessao.Mudou -= Ao;
+
+    private void Recarregar()
+    {
+        _d = Svc.PlannerDados(_ator);
+        _p = _d.Projeto(Id);
+        _erroCarga = _p is null ? (Db.PlProjetos.Existe(Id) ? "Você não participa deste projeto" : "Projeto não encontrado") : null;
+    }
+
+    private static readonly CultureInfo Pt = new("pt-BR");
+    private static string Moeda(double? v) => v is { } x ? x.ToString("C2", Pt) : "—";
+
+    private void Executar(Action a, string? ok = null)
+    {
+        try { a(); if (ok is not null) Sessao.Avisar(ok); }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+        Recarregar();
+    }
+
+    private void MudarStatus(string? s) { if (!string.IsNullOrEmpty(s) && _p is not null) Executar(() => Svc.AlterarStatusProjeto(_ator, _p.Id, s), "Status atualizado."); }
+    private void MudarPrioridade(string? s)
+    {
+        if (string.IsNullOrEmpty(s) || _p is null) return;
+        Executar(() => { var x = _p.Copia<PlProjeto>(); x.Prioridade = s; Svc.SalvarProjeto(_ator, x, _p.AtualizadoEm); }, "Prioridade atualizada.");
+    }
+    private void StatusAtividade(PlAtividade a, string? s) { if (!string.IsNullOrEmpty(s) && s != a.Status) Executar(() => Svc.AlterarStatusAtividade(_ator, a.Id, s), $"\"{a.Nome}\": {PlVocab.Get(PlVocab.StatusAtividade, s).Label}."); }
+    private void Mover(PlAtividade a, int d) => Executar(() => Svc.MoverAtividade(_ator, a.Id, d));
+    private void Duplicar(PlAtividade a) => Executar(() => Svc.DuplicarAtividade(_ator, a.Id), "Atividade duplicada.");
+
+    private void NovaAtividade(PlAtividade? mae)
+    {
+        var irmas = _d.AtivDe(_p!.Id).Where(x => x.ParentId == (mae?.Id ?? "")).ToList();
+        var ini = irmas.Where(x => x.FimPrev is not null).Select(x => x.FimPrev).DefaultIfEmpty(mae?.IniPrev ?? _p.IniPrev).Max();
+        if (irmas.Any(x => x.FimPrev is not null) && ini is { } i) ini = i.AddDays(1);
+        _editarAtiv = new PlAtividade { ProjetoId = _p.Id, ParentId = mae?.Id ?? "", IniPrev = ini, FimPrev = ini, Responsavel = mae?.Responsavel ?? "" };
+    }
+
+    private void SalvarMaterial()
+    {
+        _errosMat = null;
+        try { Svc.SalvarMaterial(_ator, _mat!); _mat = null; Sessao.Avisar("Material salvo."); Recarregar(); }
+        catch (Exception ex) { _errosMat = Ui.Erros(ex); }
+    }
+    private void ExcluirMaterial(PlMaterial m) => Executar(() => Svc.ExcluirMaterial(_ator, m.Id), "Material excluído.");
+    private void SalvarPendencia()
+    {
+        _errosPend = null;
+        try { Svc.SalvarPendencia(_ator, _pend!); _pend = null; Sessao.Avisar("Pendência salva."); Recarregar(); }
+        catch (Exception ex) { _errosPend = Ui.Erros(ex); }
+    }
+    private void ExcluirPendencia(PlPendencia x) => Executar(() => Svc.ExcluirPendencia(_ator, x.Id), "Pendência excluída.");
+
+    private void SalvarModelo()
+    {
+        _errosModelo = null;
+        try { Svc.SalvarModeloDoProjeto(_ator, _p!.Id, _nomeModelo); _salvarModelo = false; Sessao.Avisar("Modelo salvo: já aparece em \"Novo projeto\"."); }
+        catch (Exception ex) { _errosModelo = Ui.Erros(ex); }
+    }
+    private void Excluir()
+    {
+        _errosExcluir = null;
+        try { Svc.ExcluirProjeto(_ator, _p!.Id); Sessao.Avisar($"Projeto {_p.Codigo} excluído."); Nav.NavigateTo("/planner?aba=projetos"); }
+        catch (Exception ex) { _errosExcluir = Ui.Erros(ex); }
+    }
+
+    private async Task EnviarAnexo(InputFileChangeEventArgs e)
+    {
+        _msgAnexo = null; var falhas = new List<string>(); var n = 0;
+        foreach (var f in e.GetMultipleFiles(20))
+            try { await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(_ator, "plprojeto", _p!.Id, f.Name, s, ""); n++; }
+            catch (Exception ex) { falhas.Add($"{f.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+        if (falhas.Count > 0) _msgAnexo = string.Join(" | ", falhas);
+        if (n > 0) Sessao.Avisar($"{n} arquivo(s) anexado(s).");
+    }
+    private void RemoverAnexo(Anexo an) => Executar(() => Svc.RemoverAnexo(_ator, an.Id), "Anexo removido.");
+}

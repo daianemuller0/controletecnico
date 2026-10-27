@@ -221,7 +221,7 @@ public static class PlannerEngine
                 var envolvido = p.Responsavel == pessoa || a.Responsavel == pessoa;
                 if (envolvido && a.DatasAlteradasEm > desde && a.DatasAlteradasPor != pessoa)
                     res.Add(new($"datas:{a.Id}:{a.DatasAlteradasEm:yyyyMMddHHmm}", "info", $"Cronograma alterado: \"{a.Nome}\" ({p.Codigo}) agora {a.IniPrev:dd/MM}–{a.FimPrev:dd/MM}", p.Id, a.Id, Lk(p.Id, a.Id), a.DatasAlteradasEm));
-                if (p.Responsavel == pessoa && a.ParentId == "" && a.Status == PlVocab.AConcluida && a.StatusEm > desde && a.StatusPor != pessoa)
+                if (p.Responsavel == pessoa && a.ParentId == "" && a.Status == PlVocab.AConcluida && a.StatusEm > desde && a.StatusPor != d.NomePessoa(pessoa))
                     res.Add(new($"etapa:{a.Id}", "info", $"Etapa concluída: \"{a.Nome}\" ({p.Codigo})", p.Id, a.Id, Lk(p.Id, a.Id), a.StatusEm));
             }
         }

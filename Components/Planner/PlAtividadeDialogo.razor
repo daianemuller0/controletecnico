@@ -1,0 +1,256 @@
+@* Cadastro/edição de atividade (etapa ou subtarefa): dados, checklist, dependências, evidências e comentários.
+   Técnico atualiza só o andamento das atividades dele; consulta só lê. As regras ficam no servidor. *@
+@inject Servicos Svc
+@inject Db Db
+@inject Sessao Sessao
+
+<Dialogo Titulo="@Titulo" Largo="true" Erros="_erros" OnFechar="OnFechar">
+    <ChildContent>
+        @if (_bloqueio is not null) { <div class="alert-box alert-warn mb8">@Icons.Svg("ban")<div>Bloqueada: @_bloqueio</div></div> }
+        <div class="tabs pl-dlg-tabs" role="tablist">
+            <button type="button" role="tab" class="tab @(_aba == "dados" ? "active" : "")" @onclick='() => _aba = "dados"'>Dados</button>
+            <button type="button" role="tab" class="tab @(_aba == "check" ? "active" : "")" @onclick='() => _aba = "check"'>Checklist <span class="tab-badge">@_ck.Count(c => c.Feito)/@_ck.Count</span></button>
+            <button type="button" role="tab" class="tab @(_aba == "deps" ? "active" : "")" @onclick='() => _aba = "deps"'>Dependências <span class="tab-badge">@_deps.Count</span></button>
+            @if (!Nova)
+            {
+                <button type="button" role="tab" class="tab @(_aba == "evid" ? "active" : "")" @onclick='() => _aba = "evid"'>Evidências <span class="tab-badge">@_anexos.Count</span></button>
+                <button type="button" role="tab" class="tab @(_aba == "coment" ? "active" : "")" @onclick='() => _aba = "coment"'>Comentários <span class="tab-badge">@Comentarios.Count()</span></button>
+            }
+        </div>
+
+        @if (_aba == "dados")
+        {
+            <div class="form-grid pl-form">
+                <label class="fld full">Nome *<input @bind="_a.Nome" disabled="@(!_edita)" maxlength="160" /></label>
+                <label class="fld full">Descrição<textarea rows="2" @bind="_a.Descricao" disabled="@(!_edita)"></textarea></label>
+                <label class="fld">Etapa mãe
+                    <select @bind="_a.ParentId" disabled="@(!_edita)">
+                        <option value="">— nenhuma (etapa principal) —</option>
+                        @foreach (var (x, n) in PlannerRelatorio.Arvore(D.AtivDe(_a.ProjetoId).Where(x => x.Id != _a.Id && !Descendente(x.Id))))
+                        { <option value="@x.Id">@(new string('·', n * 2)) @x.Nome</option> }
+                    </select></label>
+                <label class="fld">Responsável
+                    <select @bind="_a.Responsavel" disabled="@(!_edita)">
+                        <option value="">— sem responsável —</option>
+                        @foreach (var p in Pessoas) { <option value="@p.Chave">@p.Nome · @p.Tipo</option> }
+                        @if (_a.Responsavel != "" && Pessoas.All(p => p.Chave != _a.Responsavel)) { <option value="@_a.Responsavel">@D.NomePessoa(_a.Responsavel) (inativo)</option> }
+                    </select></label>
+                <label class="fld">Início previsto<input type="date" value="@Ui.DataInput(_a.IniPrev)" @onchange="@(e => _a.IniPrev = Ui.DoDataInput(e.Value?.ToString()))" disabled="@(!_edita)" /></label>
+                <label class="fld">Fim previsto<input type="date" value="@Ui.DataInput(_a.FimPrev)" @onchange="@(e => _a.FimPrev = Ui.DoDataInput(e.Value?.ToString()))" disabled="@(!_edita)" /></label>
+                <label class="fld">Início real<input type="date" value="@Ui.DataInput(_a.IniReal)" @onchange="@(e => _a.IniReal = Ui.DoDataInput(e.Value?.ToString()))" disabled="@(!_exec)" /></label>
+                <label class="fld">Fim real<input type="date" value="@Ui.DataInput(_a.FimReal)" @onchange="@(e => _a.FimReal = Ui.DoDataInput(e.Value?.ToString()))" disabled="@(!_exec)" /></label>
+                <label class="fld">Status
+                    <select @bind="_a.Status" disabled="@(!_exec)">@foreach (var s in PlVocab.StatusAtividade) { <option value="@s.Key">@s.Label</option> }</select></label>
+                <label class="fld">Prioridade
+                    <select @bind="_a.Prioridade" disabled="@(!_edita)">@foreach (var s in PlVocab.Prioridades) { <option value="@s.Key">@s.Label</option> }</select></label>
+                <label class="fld">Conclusão (%) @if (_temFilhas) { <span class="hint">calculada pelas subtarefas</span> }
+                    <input type="number" min="0" max="100" step="5" @bind="_a.Progresso" disabled="@(!_exec || _temFilhas)" /></label>
+                <label class="fld">Peso no progresso <span class="hint">padrão 1</span><input type="number" min="0.1" step="0.5" @bind="_a.Peso" disabled="@(!_edita)" /></label>
+                <label class="fld">Horas estimadas<input type="number" min="0" step="0.5" @bind="_a.HorasEst" disabled="@(!_edita)" /></label>
+                <label class="fld">Horas realizadas<input type="number" min="0" step="0.5" @bind="_a.HorasReal" disabled="@(!_exec)" /></label>
+                <label class="fld full pl-chk"><input type="checkbox" @bind="_a.Marco" disabled="@(!_edita)" /> Marco (entrega importante: aparece em destaque no cronograma e no calendário)</label>
+                <label class="fld full">Observações<textarea rows="2" @bind="_a.Obs" disabled="@(!_exec)"></textarea></label>
+            </div>
+            @if (!Nova)
+            {
+                <div class="muted sm mt8">
+                    @if (_a.StatusEm is { } se) { <span>Status alterado por @_a.StatusPor em @Tempo.ParaLocal(se, D.Snap.FusoPadrao).ToString("dd/MM/yy HH:mm"). </span> }
+                    <span>Última gravação: @_a.AtualizadoPor, @Tempo.ParaLocal(_a.AtualizadoEm, D.Snap.FusoPadrao).ToString("dd/MM/yy HH:mm").</span>
+                </div>
+            }
+        }
+        else if (_aba == "check")
+        {
+            <p class="muted sm">Itens marcados como <strong>obrigatórios</strong> precisam estar feitos para concluir a atividade.</p>
+            @if (_ck.Count == 0) { <div class="dv-vazio">Nenhum item. @(_edita ? "Adicione abaixo." : "")</div> }
+            <ul class="pl-ck">
+                @foreach (var it in _ck)
+                {
+                    <li class="@(it.Feito ? "feito" : "")">
+                        <label><input type="checkbox" checked="@it.Feito" disabled="@(!_exec)" @onchange="@(e => { it.Feito = e.Value is true; it.Por = Ator.Nome; it.Em = DateTime.UtcNow; })" /> @it.Texto</label>
+                        @if (it.Obrigatorio) { <span class="tag neg">obrigatório</span> }
+                        @if (it.Feito && it.Em is { } em) { <span class="muted sm">@it.Por · @Tempo.ParaLocal(em, D.Snap.FusoPadrao).ToString("dd/MM HH:mm")</span> }
+                        @if (_edita)
+                        {
+                            <button type="button" class="row-act" title="@(it.Obrigatorio ? "Tornar opcional" : "Tornar obrigatório")" @onclick="() => it.Obrigatorio = !it.Obrigatorio">@Icons.Svg("flag")</button>
+                            <button type="button" class="row-act del" title="Remover item" @onclick="() => _ck.Remove(it)">@Icons.Svg("x")</button>
+                        }
+                    </li>
+                }
+            </ul>
+            @if (_edita)
+            {
+                <div class="add-row">
+                    <input class="field" placeholder="Novo item do checklist" @bind="_novoItem" @bind:event="oninput" @onkeydown="@(e => { if (e.Key == "Enter") AddItem(); })" />
+                    <label class="pl-chk sm"><input type="checkbox" @bind="_novoObrig" /> obrigatório</label>
+                    <button type="button" class="btn-ghost sm" @onclick="AddItem">@Icons.Svg("plus")Adicionar</button>
+                </div>
+            }
+        }
+        else if (_aba == "deps")
+        {
+            <p class="muted sm">Esta atividade só pode começar depois que as marcadas abaixo forem concluídas. O início previsto não pode ser antes do fim delas.</p>
+            var outras = PlannerRelatorio.Arvore(D.AtivDe(_a.ProjetoId)).Where(x => x.A.Id != _a.Id).ToList();
+            @if (outras.Count == 0) { <div class="dv-vazio">Não há outras atividades neste projeto.</div> }
+            <div class="pl-deps">
+                @foreach (var (x, n) in outras)
+                {
+                    <label class="pl-chk" style="padding-left:@(n * 18)px">
+                        <input type="checkbox" checked="@_deps.Contains(x.Id)" disabled="@(!_edita)" @onchange="@(e => { if (e.Value is true) _deps.Add(x.Id); else _deps.Remove(x.Id); })" />
+                        @x.Nome <span class="muted sm">@(x.FimPrev is { } f ? "termina " + f.ToString("dd/MM") : "")</span> <StatusBadge Item="@PlVocab.Get(PlVocab.StatusAtividade, x.Status)" />
+                    </label>
+                }
+            </div>
+        }
+        else if (_aba == "evid")
+        {
+            @if (_podeAnexar)
+            {
+                <label class="dv-add pl-evid-add">@Icons.Svg("upload")<span>Anexar evidência</span><small>fotos (JPG/PNG), PDF ou e-mail salvo, até 15 MB cada</small>
+                    <InputFile OnChange="Enviar" multiple accept=".pdf,.jpg,.jpeg,.png,.msg,.eml" /></label>
+            }
+            @if (_enviando) { <div class="muted sm mt8">Enviando…</div> }
+            @if (_anexos.Count == 0) { <div class="dv-vazio">Nenhuma evidência anexada a esta atividade.</div> }
+            @foreach (var an in _anexos.OrderByDescending(x => x.CriadoEm))
+            {
+                <div class="anexo">@Icons.Svg("file")<a href="/arquivos/@an.Id" target="_blank" rel="noopener">@an.NomeOriginal</a>
+                    <span class="muted sm">@(an.Tamanho / 1024) KB · @an.EnviadoPor · @Tempo.ParaLocal(an.CriadoEm, D.Snap.FusoPadrao).ToString("dd/MM/yy")</span>
+                    <a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal" title="Baixar">@Icons.Svg("download")</a>
+                    @if (Ator.Pode(Perm.PlannerEditar) || an.EnviadoPor == Ator.Login) { <button type="button" class="row-act del" title="Remover" @onclick="() => RemoverAnexo(an)">@Icons.Svg("x")</button> }
+                </div>
+            }
+        }
+        else if (_aba == "coment")
+        {
+            <PlComentarios D="D" Ator="Ator" ProjetoId="@_a.ProjetoId" AtividadeId="@_a.Id" OnMudou="OnMudou" />
+        }
+    </ChildContent>
+    <Rodape>
+        @if (!Nova && _edita)
+        {
+            <button type="button" class="btn-danger-ghost" @onclick="() => _confirmaExcluir = true">@Icons.Svg("trash")Excluir</button>
+            <span class="grow"></span>
+        }
+        <button type="button" class="btn-ghost" @onclick="OnFechar">@(_exec ? "Cancelar" : "Fechar")</button>
+        @if (_exec && !PlVocab.AtivEncerrada(_original?.Status ?? "") && !Nova)
+        {
+            <button type="button" class="btn-ghost" @onclick="Concluir">@Icons.Svg("check")Salvar e concluir</button>
+        }
+        @if (_exec) { <button type="button" class="btn-primary" @onclick="Salvar" disabled="@_salvando">@Icons.Svg("check")Salvar</button> }
+    </Rodape>
+</Dialogo>
+
+@if (_confirmaExcluir)
+{
+    var subs = Descendentes().Count;
+    <Dialogo Titulo="Excluir atividade?" OnFechar="() => _confirmaExcluir = false">
+        <ChildContent>
+            <p>A atividade <strong>@_a.Nome</strong> será excluída@(subs > 0 ? $" junto com {subs} subtarefa(s)" : "").
+               Dependências que apontam para ela são removidas e materiais/pendências ligados ficam no projeto, sem atividade.</p>
+            <p class="muted sm">A exclusão fica registrada no histórico do projeto.</p>
+        </ChildContent>
+        <Rodape>
+            <button type="button" class="btn-ghost" @onclick="() => _confirmaExcluir = false">Cancelar</button>
+            <button type="button" class="btn-danger" @onclick="Excluir">@Icons.Svg("trash")Excluir</button>
+        </Rodape>
+    </Dialogo>
+}
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    /// <summary>Atividade a editar (Id vazio = nova; ProjetoId obrigatório).</summary>
+    [Parameter, EditorRequired] public PlAtividade Atividade { get; set; } = default!;
+    [Parameter] public List<(string Chave, string Nome, string Tipo)> Pessoas { get; set; } = new();
+    [Parameter] public EventCallback OnFechar { get; set; }
+    /// <summary>Gravou/excluiu: a tela recarrega os dados.</summary>
+    [Parameter] public EventCallback OnMudou { get; set; }
+    [Parameter] public string AbaInicial { get; set; } = "dados";
+
+    private PlAtividade _a = new(); private PlAtividade? _original; private DateTime? _versao;
+    private List<PlannerEngine.ItemChecklist> _ck = new(); private HashSet<string> _deps = new();
+    private List<Anexo> _anexos = new(); private List<string>? _erros; private string _aba = "dados";
+    private bool _edita, _exec, _podeAnexar, _temFilhas, _salvando, _enviando, _confirmaExcluir, _novoObrig;
+    private string _novoItem = ""; private string? _bloqueio; private string _carregado = "";
+
+    private bool Nova => string.IsNullOrEmpty(_a.Id) || _original is null;
+    private string Titulo => Nova ? (string.IsNullOrEmpty(_a.ParentId) ? "Nova etapa" : "Nova subtarefa") : $"{D.Projeto(_a.ProjetoId)?.Codigo} · {_original!.Nome}";
+    private IEnumerable<PlComentario> Comentarios => D.Comentarios.Where(c => c.ProjetoId == _a.ProjetoId && c.AtividadeId == _a.Id);
+
+    protected override void OnParametersSet()
+    {
+        var chave = Atividade.Id + "|" + Atividade.AtualizadoEm.Ticks;
+        if (chave == _carregado) return;
+        _carregado = chave;
+        _a = Atividade.Copia<PlAtividade>(); _aba = AbaInicial;
+        _original = string.IsNullOrEmpty(_a.Id) ? null : D.Atividades.FirstOrDefault(x => x.Id == _a.Id);
+        _versao = _original?.AtualizadoEm;
+        _ck = PlannerEngine.LerChecklist(_a.Checklist); _deps = Snapshot.Ids(_a.DependeDe).ToHashSet();
+        _edita = Ator.Pode(Perm.PlannerEditar);
+        _exec = _edita || (_original is not null && Svc.PodeAtualizarAtividade(Ator, _original));
+        _podeAnexar = !string.IsNullOrEmpty(_a.ProjetoId) && Svc.PodeAnexarPlanner(Ator, _a.ProjetoId);
+        _temFilhas = !Nova && D.Atividades.Any(x => x.ParentId == _a.Id && x.Status != PlVocab.ACancelada);
+        _bloqueio = _original is null ? null : PlannerEngine.MotivoBloqueio(D, _original);
+        CarregarAnexos();
+    }
+
+    private void CarregarAnexos() => _anexos = Nova ? new() : Db.Anexos.Onde(x => x.DonoTipo == "plprojeto" && x.DonoId == _a.ProjetoId && x.Categoria == _a.Id);
+
+    private List<string> Descendentes()
+    {
+        var res = new List<string>(); var fila = new Queue<string>(new[] { _a.Id });
+        while (fila.Count > 0) { var id = fila.Dequeue(); foreach (var f in D.Atividades.Where(x => x.ParentId == id && id != "")) { res.Add(f.Id); fila.Enqueue(f.Id); } }
+        return res;
+    }
+    private bool Descendente(string id) => !Nova && Descendentes().Contains(id);
+
+    private void AddItem()
+    {
+        if (string.IsNullOrWhiteSpace(_novoItem)) return;
+        _ck.Add(new PlannerEngine.ItemChecklist { Texto = _novoItem.Trim(), Obrigatorio = _novoObrig });
+        _novoItem = ""; _novoObrig = false;
+    }
+
+    private async Task Concluir() { _a.Status = PlVocab.AConcluida; await Salvar(); }
+
+    private async Task Salvar()
+    {
+        _erros = null; _salvando = true;
+        try
+        {
+            _a.Checklist = PlannerEngine.GravarChecklist(_ck);
+            _a.DependeDe = string.Join(",", _deps);
+            var salvo = Svc.SalvarAtividade(Ator, _a, _versao);
+            Sessao.Avisar(Nova ? "Atividade criada." : "Atividade salva.");
+            await OnMudou.InvokeAsync(); await OnFechar.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _erros = Ui.Erros(ex);
+            if (_original is not null && _a.Status != _original.Status && _erros.Count > 0) _a.Status = _original.Status;   // volta o status recusado
+        }
+        _salvando = false;
+    }
+
+    private async Task Excluir()
+    {
+        try { Svc.ExcluirAtividade(Ator, _a.Id); Sessao.Avisar("Atividade excluída."); _confirmaExcluir = false; await OnMudou.InvokeAsync(); await OnFechar.InvokeAsync(); }
+        catch (Exception ex) { _confirmaExcluir = false; _erros = Ui.Erros(ex); }
+    }
+
+    private async Task Enviar(InputFileChangeEventArgs e)
+    {
+        _erros = null; _enviando = true; var falhas = new List<string>(); var n = 0;
+        foreach (var f in e.GetMultipleFiles(20))
+            try { await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(Ator, "plprojeto", _a.ProjetoId, f.Name, s, _a.Id); n++; }
+            catch (Exception ex) { falhas.Add($"{f.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+        _enviando = false; CarregarAnexos();
+        if (falhas.Count > 0) _erros = falhas;
+        if (n > 0) Sessao.Avisar($"{n} evidência(s) anexada(s).");
+    }
+    private void RemoverAnexo(Anexo an)
+    {
+        try { Svc.RemoverAnexo(Ator, an.Id); CarregarAnexos(); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+}

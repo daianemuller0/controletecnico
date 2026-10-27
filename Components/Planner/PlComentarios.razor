@@ -1,0 +1,53 @@
+@* Comentários do projeto ou de uma atividade (gravados com autor e data). *@
+@inject Servicos Svc
+@inject Sessao Sessao
+
+<div class="pl-coments">
+    @if (PodeComentar)
+    {
+        <div class="pl-coment-novo">
+            <textarea class="field" rows="2" placeholder="Escreva um comentário…" @bind="_texto" @bind:event="oninput" maxlength="4000"></textarea>
+            <button type="button" class="btn-primary sm" disabled="@string.IsNullOrWhiteSpace(_texto)" @onclick="Enviar">@Icons.Svg("mail")Comentar</button>
+        </div>
+    }
+    @if (_erro is not null) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@_erro</div></div> }
+    @if (!Lista.Any()) { <div class="dv-vazio">Nenhum comentário ainda.</div> }
+    @foreach (var c in Lista)
+    {
+        <div class="pl-coment">
+            <Avatar Nome="@c.AutorNome" Tam="sm" />
+            <div class="pl-coment-corpo">
+                <div class="pl-coment-cab"><strong>@c.AutorNome</strong> <span class="muted sm">@Tempo.ParaLocal(c.Quando, D.Snap.FusoPadrao).ToString("dd/MM/yy HH:mm")</span>
+                    @if (string.IsNullOrEmpty(AtividadeId) && c.AtividadeId != "") { <span class="tag">@(D.Atividades.FirstOrDefault(a => a.Id == c.AtividadeId)?.Nome ?? "atividade removida")</span> }
+                    @if (c.Autor == Ator.Login || Ator.Pode(Perm.PlannerEditar)) { <button type="button" class="row-act del" title="Excluir comentário" @onclick="() => Excluir(c)">@Icons.Svg("x")</button> }
+                </div>
+                <div class="pl-coment-txt">@c.Texto</div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter, EditorRequired] public string ProjetoId { get; set; } = "";
+    /// <summary>Vazio = todos os comentários do projeto (inclusive os das atividades).</summary>
+    [Parameter] public string AtividadeId { get; set; } = "";
+    [Parameter] public EventCallback OnMudou { get; set; }
+    private string _texto = ""; private string? _erro;
+    private bool PodeComentar => Ator.Papel != Roles.Consulta && Svc.PodeAnexarPlanner(Ator, ProjetoId);
+    private IEnumerable<PlComentario> Lista => D.Comentarios.Where(c => c.ProjetoId == ProjetoId && (AtividadeId == "" || c.AtividadeId == AtividadeId)).OrderByDescending(c => c.Quando);
+
+    private async Task Enviar()
+    {
+        _erro = null;
+        try { var c = Svc.Comentar(Ator, ProjetoId, AtividadeId, _texto); D.Comentarios.Add(c); _texto = ""; await OnMudou.InvokeAsync(); }
+        catch (Exception ex) { _erro = string.Join(" ", Ui.Erros(ex)); }
+    }
+    private async Task Excluir(PlComentario c)
+    {
+        _erro = null;
+        try { Svc.ExcluirComentario(Ator, c.Id); D.Comentarios.Remove(c); await OnMudou.InvokeAsync(); }
+        catch (Exception ex) { _erro = string.Join(" ", Ui.Erros(ex)); }
+    }
+}

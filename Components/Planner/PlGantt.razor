@@ -1,0 +1,264 @@
+@* Cronograma (Gantt) hierárquico: previsto × real, % na barra, atraso, dependências, linha de hoje,
+   expandir/recolher e zoom. Arrastar a barra move a atividade; as alças das pontas mudam início/fim
+   (grava no mesmo cadastro, com as mesmas validações). *@
+@using System.Globalization
+@implements IAsyncDisposable
+@inject Servicos Svc
+@inject Sessao Sessao
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<div class="toolbar">
+    <div class="seg">
+        @foreach (var (k, rot) in new[] { ("dia", "Dias"), ("semana", "Semanas"), ("mes", "Meses") })
+        {
+            <button class="chip @(_zoom == k ? "active" : "")" @onclick="() => _zoom = k">@rot</button>
+        }
+    </div>
+    <button class="btn-ghost sm" @onclick="Expandir">@Icons.Svg("expand")Expandir tudo</button>
+    <button class="btn-ghost sm" @onclick="Recolher">@Icons.Svg("layers")Recolher etapas</button>
+    <label class="pl-chk sm"><input type="checkbox" @bind="_deps" /> Dependências</label>
+    <label class="pl-chk sm"><input type="checkbox" @bind="_real" /> Barra do realizado</label>
+    <span class="grow"></span>
+    <span class="pg-leg">
+        <span><i class="pg-l-prev"></i>Previsto (preenchido = % concluído)</span><span><i class="pg-l-real"></i>Realizado</span>
+        <span><i class="pg-l-atr"></i>Atraso</span><span><i class="pg-l-marco"></i>Marco</span>
+    </span>
+</div>
+@if (Editavel) { <div class="muted sm mb8">Arraste a barra para mover; puxe as pontas para mudar início ou fim. Clique para abrir a atividade.</div> }
+
+@{
+    var linhas = Linhas(); var (ini, dias) = Faixa(linhas); var px = Px;
+    var hojeX = (D.Hoje - ini).TotalDays * px;
+    var indice = linhas.Select((l, i) => (l.Id, i)).ToDictionary(x => x.Id, x => x.i);
+    var largura = dias * px;
+    var fundo = FundoTrilha(px);
+}
+@if (linhas.Count == 0)
+{
+    <div class="empty-state"><div class="ico">@Icons.Svg("bar-chart")</div><h3>Nada para mostrar</h3><p>Nenhum projeto ou atividade no filtro.</p></div>
+}
+else
+{
+<div class="pg" id="@_id" style="--px:@F(px);--hoje:@F(hojeX)px;--tw:@F(largura)px">
+    <div class="pg-linha pg-cab">
+        <div class="pg-nome pg-nome-cab">Projeto / etapa <span class="muted sm">resp. · %</span></div>
+        <div class="pg-trilha pg-trilha-cab" style="width:@F(largura)px">
+            @foreach (var (x, w, rot) in Meses(ini, dias, px)) { <span class="pg-mes" style="left:@F(x)px;width:@F(w)px">@rot</span> }
+            @if (_zoom == "dia")
+            {
+                @for (var k = 0; k < dias; k++)
+                {
+                    var d = ini.AddDays(k);
+                    <span class="pg-dia @(d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "") @(d == D.Hoje ? "hoje" : "")" style="left:@F(k * px)px;width:@F(px)px">@d.Day<small>@("DSTQQSS"[(int)d.DayOfWeek])</small></span>
+                }
+            }
+            else if (_zoom == "semana")
+            {
+                @for (var k = 0; k < dias; k += 7) { <span class="pg-sem" style="left:@F(k * px)px;width:@F(7 * px)px">@ini.AddDays(k).ToString("dd/MM")</span> }
+            }
+        </div>
+    </div>
+    <div class="pg-corpo">
+        @foreach (var l in linhas)
+        {
+            <div class="pg-linha @(l.Projeto ? "pg-proj" : "") @(l.Atrasada ? "pg-atrasada" : "")">
+                <div class="pg-nome" style="padding-left:@(8 + l.Nivel * 16)px" title="@l.Nome">
+                    @if (l.TemFilhos) { <button class="pg-tg" @onclick="() => Alternar(l.Id)" aria-label="@(_recolhidos.Contains(l.Id) ? "Expandir" : "Recolher")">@(_recolhidos.Contains(l.Id) ? "▸" : "▾")</button> }
+                    else { <span class="pg-tg-v"></span> }
+                    <button class="pg-n" @onclick="() => Abrir(l.Id)">@if (l.Projeto) { <span class="pl-cod">@l.Codigo</span> }@l.Nome</button>
+                    <span class="pg-meta">@(l.Responsavel == "" ? "" : D.NomePessoa(l.Responsavel).Split(' ')[0]) · @l.Progresso%</span>
+                </div>
+                <div class="pg-trilha" style="width:@F(largura)px;@fundo">
+                    @if (l.Ini is { } a && l.Fim is { } b)
+                    {
+                        var x = (a - ini).TotalDays * px; var w = ((b - a).TotalDays + 1) * px;
+                        @if (l.Marco && !l.Projeto && a == b)
+                        {
+                            <span class="pg-marco @(l.Concluida ? "ok" : l.Atrasada ? "atr" : "")" style="left:@F(x + px / 2 - 8)px" data-id="@l.Id" title="@Dica(l)"></span>
+                            <span class="pg-bar pg-bar-marco" data-id="@l.Id" data-edit="@(l.Editavel ? "1" : "0")" style="--l:@F(x)px;--w:@F(w)px;--c:@l.Cor" title="@Dica(l)"></span>
+                        }
+                        else
+                        {
+                            <span class="pg-bar @(l.Projeto ? "proj" : "") @(l.TemFilhos ? "mae" : "") @(l.Editavel ? "edit" : "")" data-id="@l.Id" data-edit="@(l.Editavel ? "1" : "0")"
+                                  style="--l:@F(x)px;--w:@F(w)px;--c:@l.Cor" title="@Dica(l)">
+                                <span class="pg-fill" style="width:@l.Progresso%"></span>
+                                @if (w >= 34) { <span class="pg-pct">@l.Progresso%</span> }
+                                @if (l.Editavel && !l.TemFilhos) { <span class="pg-h ini" data-h="ini"></span><span class="pg-h fim" data-h="fim"></span> }
+                            </span>
+                            @if (l.Marco) { <span class="pg-marco mini @(l.Concluida ? "ok" : "")" style="left:@F(x + w - 8)px"></span> }
+                        }
+                        @if (l.Atrasada && b < D.Hoje)
+                        {
+                            var xa = (b - ini).TotalDays * px + px; var wa = (D.Hoje - b).TotalDays * px;
+                            <span class="pg-atr" style="left:@F(xa)px;width:@F(wa)px" title="@PlannerEngine.DiasAtraso(b, D.Hoje) dia(s) de atraso"></span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="pg-semdata">sem datas previstas</span>
+                    }
+                    @if (_real && l.IniReal is { } ra)
+                    {
+                        var rb = l.FimReal ?? (l.Concluida ? ra : D.Hoje < ra ? ra : D.Hoje);
+                        <span class="pg-real @(l.FimReal is null ? "aberto" : "")" style="left:@F((ra - ini).TotalDays * px)px;width:@F(((rb - ra).TotalDays + 1) * px)px"
+                              title="Real: @ra.ToString("dd/MM/yy") – @(l.FimReal?.ToString("dd/MM/yy") ?? "em andamento")"></span>
+                    }
+                </div>
+            </div>
+        }
+        @if (_deps)
+        {
+            <svg class="pg-deps" width="@F(largura)" height="@(linhas.Count * RowH)" style="left:var(--nw)" aria-hidden="true">
+                <defs><marker id="pg-seta" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#7a8aa3" /></marker></defs>
+                @foreach (var l in linhas.Where(l => !l.Projeto))
+                {
+                    foreach (var dep in l.Deps)
+                    {
+                        if (!indice.TryGetValue(dep, out var iDe) || !indice.TryGetValue(l.Id, out var iPara)) continue;
+                        var de = linhas[iDe]; if (de.Fim is not { } fimDe || l.Ini is not { } iniPara) continue;
+                        var x1 = ((fimDe - ini).TotalDays + 1) * px; var y1 = iDe * RowH + RowH / 2.0;
+                        var x2 = (iniPara - ini).TotalDays * px; var y2 = iPara * RowH + RowH / 2.0;
+                        var conflito = iniPara < fimDe;
+                        var caminho = $"M{F(x1)},{F(y1)} H{F(x1 + 6)} V{F((y1 + y2) / 2)} H{F(Math.Min(x1 + 6, x2 - 6))} V{F(y2)} H{F(x2)}";
+                        <path d="@caminho" class="@(conflito ? "conf" : "")" marker-end="url(#pg-seta)" />
+                    }
+                }
+            </svg>
+        }
+    </div>
+</div>
+}
+
+@if (_editar is not null)
+{
+    <PlAtividadeDialogo D="D" Ator="Ator" Atividade="_editar" Pessoas="Pessoas" OnFechar="() => _editar = null" OnMudou="OnMudou" />
+}
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter] public List<PlProjeto> Projetos { get; set; } = new();
+    [Parameter] public List<PlAtividade> Atividades { get; set; } = new();
+    [Parameter] public Ator Ator { get; set; } = new();
+    [Parameter] public List<(string Chave, string Nome, string Tipo)> Pessoas { get; set; } = new();
+    [Parameter] public EventCallback OnMudou { get; set; }
+    /// <summary>Dentro da página do projeto: sem a linha do projeto.</summary>
+    [Parameter] public bool UmProjeto { get; set; }
+
+    private const int RowH = 34;
+    private readonly string _id = "pg-" + Guid.NewGuid().ToString("N")[..8];
+    private string _zoom = "semana"; private bool _deps = true, _real = true;
+    private HashSet<string> _recolhidos = new(); private PlAtividade? _editar;
+    private DotNetObjectReference<PlGantt>? _ref;
+    private bool Editavel => Ator.Pode(Perm.PlannerEditar);
+    private double Px => _zoom switch { "dia" => 30, "semana" => 14, _ => 4 };
+    private static string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private sealed record Linha(string Id, bool Projeto, string Codigo, string Nome, int Nivel, DateTime? Ini, DateTime? Fim, DateTime? IniReal, DateTime? FimReal,
+        int Progresso, string Cor, bool Atrasada, bool Concluida, bool Marco, bool TemFilhos, bool Editavel, string Responsavel, string Status, string[] Deps);
+
+    private List<Linha> Linhas()
+    {
+        var res = new List<Linha>(); var h = D.Hoje;
+        var filhosTodos = D.Atividades.ToLookup(a => a.ParentId);
+        foreach (var p in Projetos.OrderBy(p => p.IniPrev ?? DateTime.MaxValue).ThenBy(p => p.Codigo))
+        {
+            var ats = Atividades.Where(a => a.ProjetoId == p.Id).ToList();
+            if (!UmProjeto)
+            {
+                var st = PlVocab.Get(PlVocab.StatusProjeto, p.Status);
+                res.Add(new Linha("p:" + p.Id, true, p.Codigo, p.Nome, 0, p.IniPrev, p.FimPrev, p.IniReal, p.FimReal, PlannerEngine.Progresso(p, D.AtivDe(p.Id)), st.Color,
+                    PlannerEngine.Atrasado(p, h), p.Status == PlVocab.PConcluido, false, ats.Count > 0, false, p.Responsavel, p.Status, Array.Empty<string>()));
+                if (_recolhidos.Contains("p:" + p.Id)) continue;
+            }
+            var ocultos = new HashSet<string>();
+            foreach (var (a, n) in PlannerRelatorio.Arvore(ats))
+            {
+                if (ocultos.Contains(a.ParentId) || _recolhidos.Contains(a.ParentId)) { ocultos.Add(a.Id); continue; }
+                var temF = filhosTodos[a.Id].Any();
+                var (ai, af) = PlannerEngine.Periodo(a, filhosTodos);
+                var st = PlVocab.Get(PlVocab.StatusAtividade, a.Status);
+                var cor = PlannerEngine.MotivoBloqueio(D, a) is not null ? "#c0392b" : st.Color;
+                res.Add(new Linha(a.Id, false, "", a.Nome, n + (UmProjeto ? 0 : 1), ai, af, a.IniReal, a.FimReal, (int)Math.Round(PlannerEngine.ProgressoAtividade(a, filhosTodos)), cor,
+                    PlannerEngine.Atrasada(a, h), a.Status == PlVocab.AConcluida, a.Marco, temF, Editavel && a.Status != PlVocab.ACancelada, a.Responsavel, a.Status, Snapshot.Ids(a.DependeDe)));
+            }
+        }
+        return res;
+    }
+
+    private (DateTime ini, int dias) Faixa(List<Linha> ls)
+    {
+        var datas = ls.SelectMany(l => new[] { l.Ini, l.Fim, l.IniReal, l.FimReal }).Where(d => d.HasValue).Select(d => d!.Value.Date).Append(D.Hoje).ToList();
+        var a = datas.Min().AddDays(-3); var b = datas.Max().AddDays(10);
+        if ((b - a).TotalDays < 35) b = a.AddDays(35);
+        if ((b - a).TotalDays > 1100) b = a.AddDays(1100);
+        a = a.AddDays(-(((int)a.DayOfWeek + 6) % 7));        // começa na segunda-feira
+        return (DateTime.SpecifyKind(a, DateTimeKind.Utc), (int)(b - a).TotalDays + 1);
+    }
+
+    private static IEnumerable<(double x, double w, string rot)> Meses(DateTime ini, int dias, double px)
+    {
+        var fim = ini.AddDays(dias); var m = new DateTime(ini.Year, ini.Month, 1);
+        var pt = new CultureInfo("pt-BR");
+        while (m < fim)
+        {
+            var a = m < ini ? ini : m; var b = m.AddMonths(1) > fim ? fim : m.AddMonths(1);
+            var w = (b - a).TotalDays * px;
+            yield return ((a - ini).TotalDays * px, w, w < 46 ? m.ToString("MMM", pt) : m.ToString(w < 110 ? "MMM/yy" : "MMMM yyyy", pt));
+            m = m.AddMonths(1);
+        }
+    }
+
+    private string FundoTrilha(double px)
+    {
+        // fins de semana sombreados (a faixa começa numa segunda-feira)
+        var s = $"background-image:repeating-linear-gradient(90deg, transparent 0 {F(5 * px)}px, rgba(120,140,170,.07) {F(5 * px)}px {F(7 * px)}px)";
+        if (_zoom == "dia") s += $", repeating-linear-gradient(90deg, transparent 0 {F(px - 1)}px, rgba(120,140,170,.12) {F(px - 1)}px {F(px)}px)";
+        return s;
+    }
+
+    private string Dica(Linha l) =>
+        $"{l.Nome}\nPrevisto: {l.Ini:dd/MM/yy} – {l.Fim:dd/MM/yy}\nReal: {(l.IniReal is null ? "—" : l.IniReal.Value.ToString("dd/MM/yy"))} – {(l.FimReal is null ? (l.IniReal is null ? "—" : "em andamento") : l.FimReal.Value.ToString("dd/MM/yy"))}\n" +
+        $"{l.Progresso}% · {(l.Projeto ? PlVocab.Get(PlVocab.StatusProjeto, l.Status).Label : PlVocab.Get(PlVocab.StatusAtividade, l.Status).Label)}" +
+        (l.Atrasada && l.Fim is { } f ? $" · {PlannerEngine.DiasAtraso(f, D.Hoje)} dia(s) de atraso" : "") + (l.Responsavel == "" ? "" : $"\nResponsável: {D.NomePessoa(l.Responsavel)}");
+
+    private void Alternar(string id) { if (!_recolhidos.Remove(id)) _recolhidos.Add(id); }
+    private void Expandir() => _recolhidos.Clear();
+    private void Recolher() => _recolhidos = D.Atividades.Where(a => D.Atividades.Any(x => x.ParentId == a.Id)).Select(a => a.Id).ToHashSet();
+
+    private void Abrir(string id)
+    {
+        if (id.StartsWith("p:")) { Nav.NavigateTo($"/planner/projetos/{id[2..]}"); return; }
+        _editar = D.Atividades.FirstOrDefault(a => a.Id == id);
+    }
+
+    protected override void OnInitialized() { if (UmProjeto) _zoom = "dia"; }
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        _ref ??= DotNetObjectReference.Create(this);
+        try { await JS.InvokeVoidAsync("app.gantt.iniciar", _id, _ref, Px); } catch (JSDisconnectedException) { }
+    }
+
+    [JSInvokable] public Task AoClicarBarra(string id) { Abrir(id); StateHasChanged(); return Task.CompletedTask; }
+
+    [JSInvokable]
+    public async Task AoMoverBarra(string id, string modo, int dias)
+    {
+        try
+        {
+            var a = D.Atividades.FirstOrDefault(x => x.Id == id) ?? throw new ValidacaoException("Atividade não encontrada.");
+            var (ini, fim) = PlannerEngine.Periodo(a, D.Atividades.ToLookup(x => x.ParentId));
+            if (ini is null || fim is null) throw new ValidacaoException("A atividade não tem datas previstas.");
+            var ni = modo == "fim" ? ini.Value : ini.Value.AddDays(dias);
+            var nf = modo == "ini" ? fim.Value : fim.Value.AddDays(dias);
+            Svc.ReprogramarAtividade(Ator, id, ni, nf);
+            Sessao.Avisar($"\"{a.Nome}\": {ni:dd/MM} – {nf:dd/MM}.");
+        }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+        await OnMudou.InvokeAsync();
+        StateHasChanged();
+    }
+
+    public ValueTask DisposeAsync() { _ref?.Dispose(); return ValueTask.CompletedTask; }
+}

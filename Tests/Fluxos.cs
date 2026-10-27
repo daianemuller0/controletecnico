@@ -1676,3 +1676,57 @@ public class PlannerTests
         Assert.Equal(60, cap.HorasPlanejadas, 1); Assert.Equal("sobrecarga", cap.Situacao);
     }
 }
+
+public class PlannerTelasTests
+{
+    private static DateTime D(int dias) => PlannerEngine.Dia(DateTime.UtcNow.Date.AddDays(dias));
+
+    [Fact]
+    public void Filtros_combinados_visoes_salvas_e_mesmos_registros_em_todas_as_visoes()
+    {
+        using var a = new Amb(); var pl = a.NovaPlanta("Usina Norte");
+        var atrasado = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Parada da caldeira", PlantaId = pl.Id, Prioridade = "critica", IniPrev = D(-20), FimPrev = D(-2), Status = PlVocab.PAndamento });
+        var futuro = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Preventiva ventilador", Tipo = "preventiva", IniPrev = D(10), FimPrev = D(20) });
+        var concluido = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Retrofit antigo", Tipo = "retrofit", IniPrev = D(-60), FimPrev = D(-30) });
+        concluido.Status = PlVocab.PConcluido; a.Svc.SalvarProjeto(a.Contr, concluido);
+        a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = futuro.Id, Nome = "Balanceamento do rotor", IniPrev = D(10), FimPrev = D(11) });
+        var d = a.Svc.PlannerDados(a.Contr);
+
+        var padrao = new PlFiltro().Projetos(d, null);
+        Assert.Equal(2, padrao.Count);                                                       // concluído fica fora por padrão
+        Assert.Equal(3, new PlFiltro { Encerrados = true }.Projetos(d, null).Count);
+        Assert.Equal(new[] { atrasado.Id }, new PlFiltro { Atrasados = true }.Projetos(d, null).Select(p => p.Id));
+        Assert.Equal(new[] { atrasado.Id }, new PlFiltro { Prioridade = "critica", PlantaId = pl.Id }.Projetos(d, null).Select(p => p.Id));
+        Assert.Empty(new PlFiltro { Prioridade = "critica", Tipo = "retrofit" }.Projetos(d, null));
+        Assert.Equal(new[] { futuro.Id }, new PlFiltro { Busca = "balanceamento" }.Projetos(d, null).Select(p => p.Id));   // busca encontra pela atividade
+        Assert.Equal(new[] { futuro.Id }, new PlFiltro { De = D(9), Ate = D(30) }.Projetos(d, null).Select(p => p.Id));
+
+        // visão salva: grava os filtros, volta igual e é só da pessoa
+        var f = new PlFiltro { Prioridade = "critica", Atrasados = true };
+        var v = a.Svc.SalvarVisao(a.Contr, "Críticas atrasadas", f.Serializar());
+        var lido = PlFiltro.Ler(a.Svc.PlannerVisoes(a.Contr).Single(x => x.Id == v.Id).Filtros);
+        Assert.True(lido.Atrasados); Assert.Equal("critica", lido.Prioridade);
+        Assert.Empty(a.Svc.PlannerVisoes(a.Admin));
+        Assert.Equal(2, lido.Chips(d).Count); lido.Remover("prio"); Assert.Single(lido.Chips(d));
+
+        // indicadores: mesmo conjunto filtrado, mesma regra de atraso
+        var ind = PlannerRelatorio.Calcular(d, padrao, new PlFiltro().Atividades(d, padrao));
+        Assert.Equal(1, ind.Atrasados); Assert.Equal(2, ind.Ativos); Assert.Equal(1, ind.AtivTotal);
+    }
+
+    [Fact]
+    public void Exportacao_excel_tem_as_abas_e_esconde_custos_sem_permissao()
+    {
+        using var a = new Amb();
+        var p = a.Svc.CriarProjeto(a.Gestao, new PlProjeto { Nome = "Revisão do compressor", IniPrev = D(0), CustoPlanejado = 1000, CustoMateriais = 400 }, "std_ventilador");
+        var d = a.Svc.PlannerDados(a.Gestao); var ps = d.Projetos;
+        using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(PlannerRelatorio.Excel(d, ps, d.Atividades, true, "")));
+        Assert.Equal(new[] { "Indicadores", "Projetos", "Atividades", "Materiais", "Pendências", "Por responsável" }, wb.Worksheets.Select(w => w.Name));
+        Assert.Equal(7, wb.Worksheet("Atividades").LastRowUsed()!.RowNumber());               // cabeçalho + 6 etapas
+        Assert.Contains("Custo planejado", wb.Worksheet("Projetos").Row(1).CellsUsed().Select(c => c.GetString()));
+        var dc = a.Svc.PlannerDados(a.Contr);                                                   // controladoria: sem permissão financeira
+        Assert.Null(dc.Projetos.Single().CustoPlanejado);
+        using var wb2 = new ClosedXML.Excel.XLWorkbook(new MemoryStream(PlannerRelatorio.Excel(dc, dc.Projetos, dc.Atividades, false, "")));
+        Assert.DoesNotContain("Custo planejado", wb2.Worksheet("Projetos").Row(1).CellsUsed().Select(c => c.GetString()));
+    }
+}

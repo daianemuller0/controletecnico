@@ -1,0 +1,12 @@
+@* Barra de progresso real com a marca do previsto para hoje. *@
+<div class="pl-prog @(Compacta ? "compacta" : "")" title="Realizado @Real% · previsto para hoje @Previsto%">
+    <div class="pl-prog-t"><span class="@Cor" style="width:@Real%"></span>@if (Previsto is { } pv) { <i style="left:@pv%"></i> }</div>
+    <span class="pl-prog-v">@Real%</span>
+</div>
+
+@code {
+    [Parameter] public int Real { get; set; }
+    [Parameter] public int? Previsto { get; set; }
+    [Parameter] public bool Compacta { get; set; }
+    private string Cor => Previsto is not { } p || Real >= p ? "pos" : Real + 10 < p ? "neg" : "warn";
+}

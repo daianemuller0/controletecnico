@@ -38,7 +38,7 @@
 </aside>
 
 @code {
-    private record Item(string Rota, string Icone, string Rotulo, bool SoEquipe = false);
+    private record Item(string Rota, string Icone, string Rotulo, bool SoEquipe = false, Perm? Exige = null);
     private static readonly Item[] Itens =
     {
         new("/", "map", "Visão operacional"),
@@ -46,6 +46,7 @@
         new("/clientes", "customers", "Clientes e plantas", true),
         new("/viagens", "plane", "Controladoria e viagens"),
         new("/tecnicos", "users", "Técnicos"),
+        new("/planner", "wrench", "Planner de Manutenção", Exige: Perm.PlannerVer),
     };
     private Ator _ator = new();
 
@@ -59,7 +60,7 @@
     private void Ao(object? s, LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
     public void Dispose() { Nav.LocationChanged -= Ao; Svc.MarcaMudou -= AoMarca; }
 
-    private bool Visivel(Item i) => !i.SoEquipe || _ator.VeTodaEquipe;
+    private bool Visivel(Item i) => (!i.SoEquipe || _ator.VeTodaEquipe) && (i.Exige is not { } p || _ator.Pode(p));
 
     private bool Ativo(string rota)
     {

@@ -58,6 +58,7 @@ Primeiro acesso numa base vazia: usuário `admin` com a senha de `Seed__AdminSen
 | `/clientes` | **Clientes e plantas**: cadastros, localização no mapa (corrigível), importação `.xlsx/.csv` em 4 passos |
 | `/viagens`, `/viagens/{id}` | **Controladoria e viagens**: lista, editor com trechos (carro/avião), atendimentos, tempos, verificação, anexos |
 | `/tecnicos`, `/tecnicos/{id}` | **Técnicos**: equipe, importação em massa só de nomes (.xlsx/.csv), vencimentos, requisitos e aptidão, ficha com 8 seções (docs/treinamentos com anexos e renovação) |
+| `/planner`, `/planner/projetos/{id}` | **Planner de Manutenção**: visão geral, projetos, Kanban, cronograma (Gantt), calendário, equipe e recursos, relatórios |
 | `/admin` | Usuários/perfis, parâmetros, integrações, histórico de alterações, dados de demonstração |
 
 ## Plantas: planilha e localização em cascata
@@ -223,3 +224,47 @@ Ao criar uma viagem, a tela já traz a **lista de verificação**, os **document
 - **Plantas**: no cadastro, campo para colar o link do Google Maps além do mapa; busca também pelo **nome** do local quando não há endereço. Em Clientes e plantas, **Reconferir aproximadas** busca de novo o endereço exato das plantas posicionadas pela cidade (nunca piora uma posição). Filtro "Endereço exato / Aproximadas / Sem localização".
 - **Revisão automática** (uma vez): plantas e casas gravadas com posição só de estado/país voltam a pendente. Confirmações e trechos de viagem usam sempre a posição atual (corrigida) da planta.
 - Como pegar a posição exata no Google Maps: clique com o botão direito no ponto exato → clique nas coordenadas (copia) → cole no sistema. Ou "Compartilhar → Copiar link".
+
+## Planner de Manutenção
+
+Item **Planner de Manutenção** no menu, com abas: **Visão geral**, **Projetos**, **Quadro Kanban**, **Cronograma**, **Calendário**, **Equipe e recursos** e **Relatórios**. É o mesmo cadastro em todas as abas: os filtros do topo (busca, cliente, unidade, responsável, status, prioridade, tipo, período, atrasados, vencendo em 7 dias, incluir concluídos) valem para todas, e a regra de atraso é uma só: o fim previsto passou e o item não está encerrado. Projetos pausados não contam como atrasados, e os concluídos também não.
+
+- **Projetos**: código automático `PM-aaaa-0001`, unidade (planta, de onde vem o cliente), área, equipamento, tipo, responsável, equipe, datas previstas e reais separadas, prioridade, status (com quem mudou e quando), custos e observações. Ao criar, dá para escolher um **modelo**: há 3 prontos (compressor, ventilador, parada programada), e qualquer projeto pode virar modelo com "Salvar como modelo". Excluir pede o código digitado e lista o que vai junto. Se a ideia é só registrar que o projeto não vai acontecer, use o status **Cancelado**, que mantém o histórico.
+- **Página do projeto**: cabeçalho com status e prioridade editáveis na hora, e um resumo com progresso real e previsto, prazo, atividades, horas, responsável e materiais. Seções:
+  - **Atividades**: etapas e subtarefas, em árvore. Dá para incluir, editar, duplicar, reordenar e concluir.
+  - **Cronograma** e **Equipe** (ocupação no período, somando todos os projetos e a Agenda).
+  - **Materiais e pendências**, **Custos** (só Administrador e Gestão), **Anexos** (do projeto e evidências por atividade), **Histórico** e **Comentários**.
+- **Atividade**: responsável, datas previstas e reais, status, prioridade, %, peso, horas estimadas e realizadas, marco, observações, dependências, checklist com itens obrigatórios, evidências e comentários.
+  - O progresso do projeto é a média das etapas ponderada pelo peso. Uma etapa com subtarefas usa a média delas.
+  - Não é possível iniciar ou concluir antes das predecessoras, concluir com item obrigatório do checklist pendente, ou concluir com material não disponível ou pendência aberta ligada à atividade.
+  - A primeira atividade iniciada coloca o projeto **Em andamento**.
+- **Kanban**: por projeto (status do projeto) ou por atividade. Arrastar muda o status pelas mesmas regras e grava no histórico. Cada coluna mostra a contagem.
+- **Cronograma**: hierárquico, com previsto (o preenchimento mostra o %) e realizado. Mostra o atraso hachurado, os marcos, as setas de dependência (vermelha tracejada quando há conflito) e a linha de hoje. Permite expandir e recolher, com zoom por dias, semanas ou meses. **Arrastar** a barra move a atividade (uma etapa leva as subtarefas junto). **Puxar as pontas** muda o início ou o fim, e grava no cadastro com validação.
+- **Calendário**: mês, semana e dia, com feriados e o ícone de **sobrecarga** quando alguém tem mais horas que a jornada. Clique num dia para criar uma atividade; arraste para reprogramar (mantém a duração).
+- **Equipe e recursos**: capacidade × horas planejadas por pessoa no período escolhido.
+  - A jornada e os dias úteis vêm da ficha do técnico. Usuários sem ficha usam 8 h em dias úteis.
+  - Feriados e indisponibilidades descontam da capacidade. Viagens e atendimentos da Agenda ocupam a pessoa.
+  - Mostra conflitos e as atividades sem responsável, com atribuição rápida que sugere quem tem mais horas livres.
+- **Alertas** (sino no topo e "Atenção necessária" na visão geral), sem duplicidade:
+  - projeto atrasado, vencendo em 3 dias, sem atualização há 7 dias ou sem responsável;
+  - atividade atrasada, crítica sem responsável ou bloqueada;
+  - material necessário em até 5 dias e ainda não disponível; pendência crítica ou vencida;
+  - para cada pessoa: nova atribuição, cronograma alterado e etapa concluída.
+  
+  Cada alerta leva ao item. "Marcar como visto" vale por pessoa e o alerta volta se a situação mudar.
+- **Visões**: prontas (Meus projetos, Críticos, Atrasados, Deste mês, Aguardando materiais) e salvas por pessoa. Os filtros ativos aparecem como etiquetas, com "Limpar".
+- **Relatórios**: indicadores (no prazo, atraso médio, horas, materiais, custos), quebras por responsável, unidade, cliente, tipo e status. **Exportar Excel** gera uma planilha com as abas Indicadores, Projetos, Atividades, Materiais, Pendências e Por responsável. **Imprimir / salvar PDF** usa a impressão do navegador.
+
+**Perfis** (configuráveis em Administração → Perfis):
+
+| Perfil do sistema | Papel no Planner | O que pode |
+|---|---|---|
+| Administrador | Administrador | tudo, inclusive custos |
+| Gestão | Gestor de manutenção | tudo, inclusive custos |
+| Controladoria | Planejador | criar e editar projetos e atividades, sem custos |
+| Técnico | Técnico | vê só os projetos em que participa e atualiza o andamento das próprias atividades (status, %, horas e datas reais, checklist, observações), anexa evidências e comenta |
+| Consulta | Visualizador | só leitura |
+
+Não há perfil "Supervisor" separado. As permissões são conferidas no servidor, e quem não tem permissão financeira não recebe os valores de custo.
+
+Edição simultânea: se outra pessoa salvou o projeto ou a atividade depois que você abriu, o sistema avisa e pede para recarregar, em vez de sobrescrever.

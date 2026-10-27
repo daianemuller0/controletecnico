@@ -1,0 +1,237 @@
+@page "/planner"
+@attribute [Authorize]
+@implements IDisposable
+@inject Servicos Svc
+@inject Sessao Sessao
+@inject NavigationManager Nav
+
+<PageTitle>Planner de Manutenção · Controle Técnico</PageTitle>
+
+@if (!_ator.Pode(Perm.PlannerVer))
+{
+    <div class="empty-state"><div class="ico">@Icons.Svg("lock")</div><h3>Sem acesso ao Planner</h3><p>Peça ao administrador para liberar o seu perfil.</p></div>
+}
+else
+{
+<div class="page-head compacto">
+    <div>
+        <h1>Planner de Manutenção</h1>
+        <p class="subtitle">Projetos, etapas, cronograma e equipe: o mesmo cadastro em todas as visões.</p>
+    </div>
+    <div class="momento-ctl">
+        <button class="btn-ghost pl-sino @(Novos.Count > 0 ? "tem" : "")" @onclick="() => _verAlertas = !_verAlertas" title="Alertas" aria-label="Alertas (@Novos.Count novos)">
+            @Icons.Svg("bell")<span>Alertas</span>@if (Novos.Count > 0) { <b class="pl-sino-n">@Novos.Count</b> }</button>
+        @if (_ator.Pode(Perm.PlannerEditar)) { <button class="btn-primary" @onclick="NovoProjeto">@Icons.Svg("plus")Novo projeto</button> }
+    </div>
+</div>
+
+<div class="tabs" role="tablist">
+    @foreach (var (k, rot) in Abas)
+    {
+        <button role="tab" class="tab @(_aba == k ? "active" : "")" @onclick="() => IrAba(k)">@rot @if (k == "projetos") { <span class="tab-badge">@_projetos.Count</span> }</button>
+    }
+</div>
+
+@* ---------------- filtros (valem para todas as abas) ---------------- *@
+<div class="pl-filtros no-print">
+    <div class="toolbar pl-tb">
+        <input class="field busca" placeholder="Buscar projeto, código, equipamento, atividade…" value="@_f.Busca" @onchange="@(e => { _f.Busca = e.Value?.ToString() ?? ""; Aplicar(); })" aria-label="Busca" />
+        <select class="field w-auto" value="@_f.ClienteId" @onchange="@(e => { _f.ClienteId = e.Value?.ToString() ?? ""; Aplicar(); })" aria-label="Cliente">
+            <option value="">Todos os clientes</option>
+            @foreach (var c in _d.Projetos.Select(p => p.ClienteId).Where(x => x != "").Distinct().Select(x => _d.Snap.Cliente(x)).Where(c => c is not null).OrderBy(c => c!.Nome)) { <option value="@c!.Id">@c.Nome</option> }
+        </select>
+        <select class="field w-auto" value="@_f.PlantaId" @onchange="@(e => { _f.PlantaId = e.Value?.ToString() ?? ""; Aplicar(); })" aria-label="Unidade">
+            <option value="">Todas as unidades</option>
+            @foreach (var pl in _d.Projetos.Select(p => p.PlantaId).Where(x => x != "").Distinct().Select(x => (x, _d.Snap.NomePlanta(x))).OrderBy(x => x.Item2)) { <option value="@pl.x">@pl.Item2</option> }
+        </select>
+        <select class="field w-auto" value="@_f.Responsavel" @onchange="@(e => { _f.Responsavel = e.Value?.ToString() ?? ""; Aplicar(); })" aria-label="Responsável">
+            <option value="">Todos os responsáveis</option>
+            @foreach (var p in _pessoas) { <option value="@p.Chave">@p.Nome</option> }
+        </select>
+        <select class="field w-auto" value="@_f.Status" @onchange="@(e => { _f.Status = e.Value?.ToString() ?? ""; Aplicar(); })" aria-label="Status">
+            <option value="">Status: ativos</option>
+            @foreach (var s in PlVocab.StatusProjeto) { <option value="@s.Key">@s.Label</option> }
+        </select>
+        <select class="field w-auto" value="@_f.Prioridade" @onchange="@(e => { _f.Prioridade = e.Value?.ToString() ?? ""; Aplicar(); })" aria-label="Prioridade">
+            <option value="">Todas as prioridades</option>
+            @foreach (var s in PlVocab.Prioridades) { <option value="@s.Key">@s.Label</option> }
+        </select>
+        <select class="field w-auto" value="@_f.Tipo" @onchange="@(e => { _f.Tipo = e.Value?.ToString() ?? ""; Aplicar(); })" aria-label="Tipo">
+            <option value="">Todos os tipos</option>
+            @foreach (var t in PlVocab.Tipos) { <option value="@t.Key">@t.Label</option> }
+        </select>
+        <span class="pl-periodo">
+            <input type="date" class="field" value="@Ui.DataInput(_f.De)" @onchange="@(e => { _f.De = Ui.DoDataInput(e.Value?.ToString()); Aplicar(); })" aria-label="Período de" title="Período de" />
+            <span class="muted sm">a</span>
+            <input type="date" class="field" value="@Ui.DataInput(_f.Ate)" @onchange="@(e => { _f.Ate = Ui.DoDataInput(e.Value?.ToString()); Aplicar(); })" aria-label="Período até" title="Período até" />
+        </span>
+    </div>
+    <div class="toolbar pl-tb2">
+        <button class="btn-ghost sm @(_f.Atrasados ? "on" : "")" aria-pressed="@_f.Atrasados" @onclick="() => { _f.Atrasados = !_f.Atrasados; Aplicar(); }">@Icons.Svg("alert")Atrasados</button>
+        <button class="btn-ghost sm @(_f.Vencendo ? "on" : "")" aria-pressed="@_f.Vencendo" @onclick="() => { _f.Vencendo = !_f.Vencendo; Aplicar(); }">@Icons.Svg("clock")Vencendo em 7 dias</button>
+        <button class="btn-ghost sm @(_f.Encerrados ? "on" : "")" aria-pressed="@_f.Encerrados" @onclick="() => { _f.Encerrados = !_f.Encerrados; Aplicar(); }">@Icons.Svg("check")Incluir concluídos</button>
+        <span class="pl-vsep"></span>
+        <span class="muted sm">Visões:</span>
+        @foreach (var v in PlFiltro.Prontas)
+        {
+            <button class="chip sm @(_visao == v.Id ? "active" : "")" @onclick="() => UsarPronta(v.Id)">@v.Nome</button>
+        }
+        @foreach (var v in _visoes)
+        {
+            <span class="chip sm pl-visao @(_visao == v.Id ? "active" : "")"><button class="pl-visao-b" @onclick="() => UsarSalva(v)">@v.Nome</button><button class="pl-visao-x" title="Excluir visão" @onclick="() => ExcluirVisao(v)">@Icons.Svg("x")</button></span>
+        }
+        @if (!_f.Vazio) { <button class="btn-link" @onclick="() => _salvarVisao = true">@Icons.Svg("plus")Salvar visão</button> }
+    </div>
+    @if (!_f.Vazio)
+    {
+        <div class="pl-chips">
+            <span class="muted sm">Filtros ativos:</span>
+            @foreach (var (k, rot) in _f.Chips(_d))
+            {
+                <span class="pl-fchip">@rot<button title="Remover filtro" @onclick="() => { _f.Remover(k); Aplicar(); }">@Icons.Svg("x")</button></span>
+            }
+            <button class="btn-link" @onclick="Limpar">Limpar</button>
+        </div>
+    }
+</div>
+
+@if (_aba == "visao")
+{
+    <PlVisaoGeral D="_d" Projetos="_projetos" Atividades="_atividades" Ator="_ator" Filtro="_f" Eu="@PlannerEngine.PessoaDe(_ator)" Alertas="_alertas" Vistos="_vistos" OnVisto="MarcarVisto" OnAtalho="Atalho" />
+}
+else if (_aba == "projetos")
+{
+    <PlProjetosLista D="_d" Projetos="_projetos" />
+}
+else if (_aba == "kanban")
+{
+    <PlKanban D="_d" Projetos="_projetos" Atividades="_atividades" Ator="_ator" Pessoas="_pessoas" OnMudou="Recarregar" />
+}
+else if (_aba == "cronograma")
+{
+    <PlGantt D="_d" Projetos="_projetos" Atividades="_atividades" Ator="_ator" Pessoas="_pessoas" OnMudou="Recarregar" />
+}
+else if (_aba == "calendario")
+{
+    <PlCalendario D="_d" Projetos="_projetos" Atividades="_atividades" Ator="_ator" Pessoas="_pessoas" OnMudou="Recarregar" />
+}
+else if (_aba == "equipe")
+{
+    <PlEquipe D="_d" Atividades="_atividades" Ator="_ator" Pessoas="_pessoas" OnMudou="Recarregar" />
+}
+else if (_aba == "relatorios")
+{
+    <PlRelatorios D="_d" Projetos="_projetos" Atividades="_atividades" Ator="_ator" FiltrosTexto="@string.Join("; ", _f.Chips(_d).Select(c => c.Rotulo))" />
+}
+
+@if (_verAlertas)
+{
+    <div class="pl-alertas-fundo" @onclick="() => _verAlertas = false"></div>
+    <aside class="pl-alertas" aria-label="Alertas">
+        <div class="pl-alertas-cab"><strong>@Icons.Svg("bell")Alertas</strong> <span class="muted sm">@Novos.Count novo(s) · @_alertas.Count no total</span>
+            <button class="icon-btn" @onclick="() => _verAlertas = false" aria-label="Fechar">@Icons.Svg("x")</button></div>
+        <label class="pl-chk sm"><input type="checkbox" @bind="_soNovos" /> Mostrar só os não vistos</label>
+        <PlListaAlertas Alertas="@(_soNovos ? Novos : _alertas)" Vistos="_vistos" OnVisto="MarcarVisto" />
+    </aside>
+}
+
+@if (_novo is not null)
+{
+    <PlProjetoDialogo D="_d" Ator="_ator" Projeto="_novo" Pessoas="_pessoas" OnFechar="() => _novo = null" OnSalvo="CriadoProjeto" />
+}
+
+@if (_salvarVisao)
+{
+    <Dialogo Titulo="Salvar visão" Erros="_errosVisao" OnFechar="() => _salvarVisao = false">
+        <ChildContent>
+            <p class="muted sm">Guarda os filtros atuais com um nome, para usar depois com um clique. A visão é só sua.</p>
+            <label class="fld">Nome da visão<input @bind="_nomeVisao" maxlength="40" placeholder="Ex.: Paradas da planta X" /></label>
+        </ChildContent>
+        <Rodape>
+            <button class="btn-ghost" @onclick="() => _salvarVisao = false">Cancelar</button>
+            <button class="btn-primary" @onclick="SalvarVisao">@Icons.Svg("check")Salvar</button>
+        </Rodape>
+    </Dialogo>
+}
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "aba")] public string? AbaQuery { get; set; }
+
+    private static readonly (string, string)[] Abas =
+    {
+        ("visao", "Visão geral"), ("projetos", "Projetos"), ("kanban", "Quadro Kanban"), ("cronograma", "Cronograma"),
+        ("calendario", "Calendário"), ("equipe", "Equipe e recursos"), ("relatorios", "Relatórios"),
+    };
+    private Ator _ator = new(); private PlDados _d = new(); private PlFiltro _f = new();
+    private List<PlProjeto> _projetos = new(); private List<PlAtividade> _atividades = new();
+    private List<PlAlerta> _alertas = new(); private HashSet<string> _vistos = new();
+    private List<(string Chave, string Nome, string Tipo)> _pessoas = new(); private List<PlVisao> _visoes = new();
+    private string _aba = "visao", _visao = "", _nomeVisao = ""; private bool _verAlertas, _soNovos = true, _salvarVisao;
+    private PlProjeto? _novo; private List<string>? _errosVisao;
+
+    private List<PlAlerta> Novos => _alertas.Where(a => !_vistos.Contains(a.Chave)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Sessao.AtorAsync(); Sessao.Mudou += Ao;
+        if (!_ator.Pode(Perm.PlannerVer)) return;
+        _f = Sessao.PlannerFiltro;
+        _pessoas = Svc.PlannerPessoas(); _visoes = Svc.PlannerVisoes(_ator);
+        Recarregar();
+    }
+    protected override void OnParametersSet() { if (Abas.Any(a => a.Item1 == AbaQuery)) _aba = AbaQuery!; }
+    private void Ao() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Sessao.Mudou -= Ao;
+
+    private void Recarregar()
+    {
+        _d = Svc.PlannerDados(_ator);
+        _vistos = Svc.AlertasVistos(_ator);
+        Aplicar(manterVisao: true);
+    }
+
+    private void Aplicar(bool manterVisao = false)
+    {
+        if (!manterVisao) _visao = "";
+        var eu = PlannerEngine.PessoaDe(_ator);
+        _projetos = _f.Projetos(_d, eu);
+        _atividades = _f.Atividades(_d, _projetos);
+        // alertas: técnico vê os dele; demais veem os dos projetos filtrados
+        _alertas = PlannerEngine.Alertas(_d, _projetos, eu, soMeus: _ator.Papel == Roles.Tecnico);
+        Sessao.PlannerFiltro = _f;
+    }
+
+    private void IrAba(string k) { _aba = k; Nav.NavigateTo($"/planner?aba={k}", replace: true); }
+    private void Limpar() { _f = new PlFiltro(); Aplicar(); }
+    private void UsarPronta(string id) { _f = PlFiltro.Prontas.First(v => v.Id == id).Criar(_d.Hoje); Aplicar(); _visao = id; }
+    private void UsarSalva(PlVisao v) { _f = PlFiltro.Ler(v.Filtros); Aplicar(); _visao = v.Id; }
+    private void SalvarVisao()
+    {
+        _errosVisao = null;
+        try { var v = Svc.SalvarVisao(_ator, _nomeVisao, _f.Serializar()); _visoes = Svc.PlannerVisoes(_ator); _visao = v.Id; _salvarVisao = false; _nomeVisao = ""; Sessao.Avisar("Visão salva."); }
+        catch (Exception ex) { _errosVisao = Ui.Erros(ex); }
+    }
+    private void ExcluirVisao(PlVisao v) { Svc.ExcluirVisao(_ator, v.Id); _visoes = Svc.PlannerVisoes(_ator); if (_visao == v.Id) _visao = ""; }
+
+    private void Atalho(string k)
+    {
+        // cartões da visão geral levam à lista já filtrada
+        _f = new PlFiltro();
+        switch (k)
+        {
+            case "atrasados": _f.Atrasados = true; break;
+            case "vencendo": _f.Vencendo = true; break;
+            case "andamento": _f.Status = PlVocab.PAndamento; break;
+            case "materiais": _f.AguardandoMateriais = true; break;
+            case "concluidos": _f.Status = PlVocab.PConcluido; _f.De = new DateTime(_d.Hoje.Year, _d.Hoje.Month, 1); break;
+            case "criticos": _f.Prioridade = "critica"; break;
+        }
+        Aplicar(); IrAba("projetos");
+    }
+
+    private void MarcarVisto(PlAlerta a) { Svc.MarcarAlertaVisto(_ator, a.Chave); _vistos.Add(a.Chave); }
+
+    private void NovoProjeto() => _novo = new PlProjeto { Responsavel = PlannerEngine.PessoaDe(_ator), IniPrev = PlannerEngine.Dia(_d.Hoje) };
+    private void CriadoProjeto(PlProjeto p) { _novo = null; Nav.NavigateTo($"/planner/projetos/{p.Id}"); }
+}

@@ -1,0 +1,272 @@
+@* Calendário do Planner (mês/semana/dia): atividades, marcos e entregas de projeto; feriados; dias com sobrecarga.
+   Clique num dia para criar atividade; arraste uma atividade para outro dia para reprogramar (mantém a duração). *@
+@using System.Globalization
+@implements IAsyncDisposable
+@inject Servicos Svc
+@inject Sessao Sessao
+@inject IJSRuntime JS
+
+<div class="toolbar">
+    <div class="seg">
+        @foreach (var (k, rot) in new[] { ("mes", "Mês"), ("semana", "Semana"), ("dia", "Dia") })
+        {
+            <button class="chip @(_vis == k ? "active" : "")" @onclick="() => _vis = k">@rot</button>
+        }
+    </div>
+    <button class="btn-ghost sm btn-icon" @onclick="() => Navegar(-1)" aria-label="Anterior">@Icons.Svg("chevron-left")</button>
+    <button class="btn-ghost sm" @onclick="() => _ref0 = D.Hoje">Hoje</button>
+    <button class="btn-ghost sm btn-icon" @onclick="() => Navegar(1)" aria-label="Próximo">@Icons.Svg("chevron-right")</button>
+    <strong class="pl-cal-tit">@Titulo</strong>
+    <span class="grow"></span>
+    <span class="pg-leg">
+        @foreach (var s in PlVocab.StatusAtividade.Where(s => s.Key != PlVocab.ACancelada)) { <span><i style="background:@s.Color"></i>@s.Label</span> }
+        <span><i class="pl-l-atr"></i>Atrasada</span><span><i class="pl-l-fer"></i>Feriado</span><span>@Icons.Svg("alert") Sobrecarga</span>
+    </span>
+</div>
+@if (Editavel) { <div class="muted sm mb8">Clique no espaço vazio de um dia para criar uma atividade; arraste uma atividade para outro dia para reprogramar.</div> }
+
+@{
+    var (de, ate) = Faixa();
+    var feriados = Feriados.DoPeriodo(D.Snap.FeriadosCfg, de, ate);
+    var itens = Itens(de, ate);
+    var carga = Sobrecarga(de, ate);
+}
+<div id="@_id">
+@if (_vis == "mes")
+{
+    <div class="pl-cal">
+        @foreach (var dn in new[] { "seg", "ter", "qua", "qui", "sex", "sáb", "dom" }) { <div class="pl-cal-dn">@dn</div> }
+        @for (var d = de; d <= ate; d = d.AddDays(1))
+        {
+            var dia = d; var doDia = itens.Where(i => i.Ini <= dia && i.Fim >= dia).ToList();
+            var fer = feriados.GetValueOrDefault(dia); var sob = carga.GetValueOrDefault(dia);
+            <div class="pl-cal-cel @(dia.Month != _ref0.Month ? "fora" : "") @(dia == D.Hoje ? "hoje" : "") @(fer is not null ? "feriado" : "") @(dia.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "")"
+                 data-drop="@dia.ToString("yyyy-MM-dd")" @onclick="() => NovoEm(dia)">
+                <div class="pl-cal-n"><button class="pl-cal-num" @onclick='() => { _ref0 = dia; _vis = "dia"; }' @onclick:stopPropagation="true">@dia.Day</button>
+                    @if (sob is not null) { <span class="pl-sob" title="Sobrecarga: @sob">@Icons.Svg("alert")</span> }
+                    @if (fer is not null) { <span class="pl-fer" title="@fer">@Ui.Corte(fer, 16)</span> }</div>
+                @foreach (var i in doDia.Take(4)) { @Chip(i, dia) }
+                @if (doDia.Count > 4) { <button class="pl-cal-mais" @onclick='() => { _ref0 = dia; _vis = "dia"; }' @onclick:stopPropagation="true">+@(doDia.Count - 4) mais</button> }
+            </div>
+        }
+    </div>
+}
+else if (_vis == "semana")
+{
+    <div class="pl-cal pl-cal-sem">
+        @for (var d = de; d <= ate; d = d.AddDays(1))
+        {
+            var dia = d; var doDia = itens.Where(i => i.Ini <= dia && i.Fim >= dia).ToList();
+            var fer = feriados.GetValueOrDefault(dia); var sob = carga.GetValueOrDefault(dia);
+            <div class="pl-cal-cel @(dia == D.Hoje ? "hoje" : "") @(fer is not null ? "feriado" : "") @(dia.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "fds" : "")"
+                 data-drop="@dia.ToString("yyyy-MM-dd")" @onclick="() => NovoEm(dia)">
+                <div class="pl-cal-n"><button class="pl-cal-num" @onclick='() => { _ref0 = dia; _vis = "dia"; }' @onclick:stopPropagation="true">@dia.ToString("ddd dd/MM", Pt)</button>
+                    @if (sob is not null) { <span class="pl-sob" title="Sobrecarga: @sob">@Icons.Svg("alert")</span> }</div>
+                @if (fer is not null) { <div class="pl-fer">@fer</div> }
+                @foreach (var i in doDia) { @Chip(i, dia, true) }
+            </div>
+        }
+    </div>
+}
+else
+{
+    var dia = de; var doDia = itens.Where(i => i.Ini <= dia && i.Fim >= dia).ToList();
+    <div class="panel" data-drop="@dia.ToString("yyyy-MM-dd")">
+        <div class="panel-head"><div class="panel-title">@dia.ToString("dddd, dd 'de' MMMM 'de' yyyy", Pt)
+            @if (feriados.GetValueOrDefault(dia) is { } fer) { <span class="tag warn">@fer</span> }</div>
+            @if (Editavel) { <button class="btn-ghost sm" @onclick="() => NovoEm(dia)">@Icons.Svg("plus")Nova atividade neste dia</button> }</div>
+        @if (carga.GetValueOrDefault(dia) is { } sob) { <div class="alert-box alert-warn">@Icons.Svg("alert")<div>Sobrecarga: @sob</div></div> }
+        @if (doDia.Count == 0) { <div class="dv-vazio">Nada programado.</div> }
+        <div class="table-wrap"><table class="grid-tbl">
+            <thead><tr><th>Atividade</th><th>Projeto</th><th>Responsável</th><th>Período</th><th>Status</th><th>%</th></tr></thead>
+            <tbody>
+            @foreach (var i in doDia)
+            {
+                <tr class="clickable" @onclick="() => AbrirItem(i)">
+                    <td>@if (i.Tipo != "ativ") { @Icons.Svg("flag") } <strong>@i.Nome</strong>@if (i.Atrasada) { <span class="tag neg">atrasada</span> }</td>
+                    <td>@i.Projeto.Codigo · @i.Projeto.Nome</td>
+                    <td>@(i.Resp == "" ? "—" : D.NomePessoa(i.Resp))</td>
+                    <td class="tabular">@i.Ini.ToString("dd/MM") – @i.Fim.ToString("dd/MM")</td>
+                    <td><StatusBadge Item="@PlVocab.Get(PlVocab.StatusAtividade, i.Status)" /></td>
+                    <td>@i.Pct%</td>
+                </tr>
+            }
+            </tbody>
+        </table></div>
+    </div>
+}
+</div>
+
+@if (_novaData is { } nd)
+{
+    <Dialogo Titulo="@($"Nova atividade em {nd:dd/MM/yyyy}")" OnFechar="() => _novaData = null">
+        <ChildContent>
+            @{ var ativos = Projetos.Where(p => !PlVocab.Encerrado(p.Status)).OrderBy(p => p.Codigo).ToList(); }
+            @if (ativos.Count == 0) { <div class="dv-vazio">Nenhum projeto ativo no filtro. Crie um projeto primeiro.</div> }
+            else
+            {
+                <label class="fld">Projeto
+                    <select @bind="_novoProj"><option value="">— selecione —</option>@foreach (var p in ativos) { <option value="@p.Id">@p.Codigo · @p.Nome</option> }</select></label>
+            }
+        </ChildContent>
+        <Rodape>
+            <button class="btn-ghost" @onclick="() => _novaData = null">Cancelar</button>
+            <button class="btn-primary" disabled="@(_novoProj == "")" @onclick="ContinuarNova">Continuar</button>
+        </Rodape>
+    </Dialogo>
+}
+
+@if (_editar is not null)
+{
+    <PlAtividadeDialogo D="D" Ator="Ator" Atividade="_editar" Pessoas="Pessoas" OnFechar="() => _editar = null" OnMudou="OnMudou" />
+}
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter] public List<PlProjeto> Projetos { get; set; } = new();
+    [Parameter] public List<PlAtividade> Atividades { get; set; } = new();
+    [Parameter] public Ator Ator { get; set; } = new();
+    [Parameter] public List<(string Chave, string Nome, string Tipo)> Pessoas { get; set; } = new();
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    private static readonly CultureInfo Pt = new("pt-BR");
+    private readonly string _id = "plcal-" + Guid.NewGuid().ToString("N")[..8];
+    private string _vis = "mes", _novoProj = ""; private DateTime _ref0; private DateTime? _novaData; private PlAtividade? _editar;
+    private DotNetObjectReference<PlCalendario>? _ref;
+    private bool Editavel => Ator.Pode(Perm.PlannerEditar);
+
+    private sealed record Item(string Tipo, string Id, PlProjeto Projeto, string Nome, DateTime Ini, DateTime Fim, string Status, string Cor, bool Atrasada, string Resp, int Pct, bool Arrasta);
+
+    protected override void OnInitialized() => _ref0 = D.Hoje;
+
+    private string Titulo => _vis switch
+    {
+        "mes" => Pt.TextInfo.ToUpper(_ref0.ToString("MMMM", Pt)[0]) + _ref0.ToString("MMMM", Pt)[1..] + _ref0.ToString(" 'de' yyyy", Pt),
+        "semana" => $"{Faixa().de:dd/MM} – {Faixa().ate:dd/MM/yyyy}",
+        _ => _ref0.ToString("dd/MM/yyyy", Pt),
+    };
+
+    private (DateTime de, DateTime ate) Faixa()
+    {
+        var r = _ref0.Date;
+        if (_vis == "dia") return (Utc(r), Utc(r));
+        var seg = r.AddDays(-(((int)r.DayOfWeek + 6) % 7));
+        if (_vis == "semana") return (Utc(seg), Utc(seg.AddDays(6)));
+        var p = new DateTime(r.Year, r.Month, 1); var ini = p.AddDays(-(((int)p.DayOfWeek + 6) % 7));
+        var fim = p.AddMonths(1).AddDays(-1); fim = fim.AddDays(6 - (((int)fim.DayOfWeek + 6) % 7));
+        return (Utc(ini), Utc(fim));
+    }
+    private static DateTime Utc(DateTime d) => DateTime.SpecifyKind(d.Date, DateTimeKind.Utc);
+
+    private void Navegar(int s) => _ref0 = _vis switch { "mes" => _ref0.AddMonths(s), "semana" => _ref0.AddDays(7 * s), _ => _ref0.AddDays(s) };
+
+    private List<Item> Itens(DateTime de, DateTime ate)
+    {
+        var res = new List<Item>(); var h = D.Hoje;
+        var comFilhas = D.Atividades.Where(a => a.Status != PlVocab.ACancelada).Select(a => a.ParentId).ToHashSet();
+        var filhos = D.Atividades.ToLookup(a => a.ParentId);
+        foreach (var a in Atividades.Where(a => a.Status != PlVocab.ACancelada && a.IniPrev is not null && a.FimPrev is not null && (!comFilhas.Contains(a.Id) || a.Marco)))
+        {
+            var ini = a.IniPrev!.Value.Date; var fim = a.FimPrev!.Value.Date;
+            if (a.Marco && comFilhas.Contains(a.Id)) ini = fim;     // etapa-marco: só o dia da entrega
+            if (fim < de || ini > ate) continue;
+            var p = D.Projeto(a.ProjetoId)!; var atr = PlannerEngine.Atrasada(a, h);
+            var cor = PlannerEngine.MotivoBloqueio(D, a) is not null ? "#c0392b" : PlVocab.Get(PlVocab.StatusAtividade, a.Status).Color;
+            res.Add(new Item(a.Marco ? "marco" : "ativ", a.Id, p, a.Nome, Utc(ini), Utc(fim), a.Status, cor, atr, a.Responsavel,
+                (int)Math.Round(PlannerEngine.ProgressoAtividade(a, filhos)), Editavel && !comFilhas.Contains(a.Id)));
+        }
+        // entrega (conclusão prevista) dos projetos
+        foreach (var p in Projetos.Where(p => p.FimPrev is { } f && f.Date >= de && f.Date <= ate))
+            res.Add(new Item("entrega", "p:" + p.Id, p, $"Entrega {p.Codigo}", Utc(p.FimPrev!.Value), Utc(p.FimPrev!.Value), p.Status == PlVocab.PConcluido ? PlVocab.AConcluida : PlVocab.AAfazer,
+                PlVocab.Get(PlVocab.StatusProjeto, p.Status).Color, PlannerEngine.Atrasado(p, h), p.Responsavel, PlannerEngine.Progresso(p, D.AtivDe(p.Id)), false));
+        return res.OrderBy(i => i.Tipo == "entrega" ? 0 : 1).ThenBy(i => i.Ini).ThenBy(i => i.Nome).ToList();
+    }
+
+    /// <summary>Dias em que alguém tem mais horas planejadas que a jornada (atividades abertas, com ou sem estimativa).</summary>
+    private Dictionary<DateTime, string> Sobrecarga(DateTime de, DateTime ate)
+    {
+        var res = new Dictionary<DateTime, string>();
+        var fer = Feriados.DoPeriodo(D.Snap.FeriadosCfg, de.AddDays(-60), ate.AddDays(60));
+        var comFilhas = D.Atividades.Where(a => a.Status != PlVocab.ACancelada).Select(a => a.ParentId).ToHashSet();
+        var abertas = Atividades.Where(a => !PlVocab.AtivEncerrada(a.Status) && a.Responsavel != "" && a.IniPrev is not null && a.FimPrev is not null && !comFilhas.Contains(a.Id)
+            && a.FimPrev.Value.Date >= de && a.IniPrev.Value.Date <= ate).ToList();
+        foreach (var g in abertas.GroupBy(a => a.Responsavel))
+        {
+            var tec = g.Key.StartsWith("t:") ? D.Snap.Tecnico(g.Key[2..]) : null;
+            var jornada = 8.0; var diasUteis = tec is null ? new HashSet<int> { 1, 2, 3, 4, 5 } : Snapshot.Ids(tec.DiasUteis).Select(int.Parse).ToHashSet();
+            if (tec is not null && TimeSpan.TryParse(tec.JornadaInicio, out var ji) && TimeSpan.TryParse(tec.JornadaFim, out var jf) && jf > ji) jornada = (jf - ji).TotalHours;
+            var porDia = new Dictionary<DateTime, double>();
+            foreach (var a in g)
+            {
+                var ini = a.IniPrev!.Value.Date; var fim = a.FimPrev!.Value.Date;
+                var uteis = Enumerable.Range(0, (int)(fim - ini).TotalDays + 1).Select(k => Utc(ini.AddDays(k))).Where(x => diasUteis.Contains((int)x.DayOfWeek) && !fer.ContainsKey(x)).ToList();
+                if (uteis.Count == 0) continue;
+                var hDia = a.HorasEst is > 0 ? a.HorasEst.Value / uteis.Count : jornada;
+                foreach (var x in uteis.Where(x => x >= de && x <= ate)) porDia[x] = porDia.GetValueOrDefault(x) + hDia;
+            }
+            foreach (var (dia, horas) in porDia.Where(kv => kv.Value > jornada + 0.01))
+                res[dia] = (res.TryGetValue(dia, out var t) ? t + "; " : "") + $"{D.NomePessoa(g.Key)} com {horas:0.#} h para {jornada:0.#} h de jornada";
+        }
+        return res;
+    }
+
+    private RenderFragment Chip(Item i, DateTime dia, bool detalhe = false) => __builder =>
+    {
+        <div class="pl-cal-it @i.Tipo @(i.Atrasada ? "atraso" : "") @(i.Status == PlVocab.AConcluida ? "ok" : "")" style="--c:@i.Cor"
+             draggable="@(i.Arrasta ? "true" : "false")" data-dnd="@(i.Arrasta ? i.Id + "|" + dia.ToString("yyyy-MM-dd") : null)" data-dndgrab="off"
+             title="@($"{i.Projeto.Codigo} · {i.Nome}\n{i.Ini:dd/MM} – {i.Fim:dd/MM} · {i.Pct}%" + (i.Resp == "" ? "" : "\n" + D.NomePessoa(i.Resp)) + (i.Atrasada ? "\nATRASADA" : ""))"
+             @onclick="() => AbrirItem(i)" @onclick:stopPropagation="true">
+            @if (i.Tipo != "ativ") { @Icons.Svg("flag") }<span>@i.Nome</span>
+            @if (detalhe) { <small>@i.Projeto.Codigo@(i.Resp == "" ? "" : " · " + D.NomePessoa(i.Resp).Split(' ')[0])</small> }
+        </div>
+    };
+
+    private void AbrirItem(Item i)
+    {
+        if (i.Id.StartsWith("p:")) { _editar = null; NavegarProjeto(i.Id[2..]); return; }
+        _editar = D.Atividades.FirstOrDefault(a => a.Id == i.Id);
+    }
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+    private void NavegarProjeto(string id) => Nav.NavigateTo($"/planner/projetos/{id}");
+
+    private void NovoEm(DateTime dia)
+    {
+        if (!Editavel) return;
+        _novaData = dia; _novoProj = Projetos.Count(p => !PlVocab.Encerrado(p.Status)) == 1 ? Projetos.First(p => !PlVocab.Encerrado(p.Status)).Id : "";
+    }
+    private void ContinuarNova()
+    {
+        _editar = new PlAtividade { ProjetoId = _novoProj, IniPrev = _novaData, FimPrev = _novaData };
+        _novaData = null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        _ref ??= DotNetObjectReference.Create(this);
+        try { await JS.InvokeVoidAsync("app.dnd.iniciar", _id, _ref); } catch (JSDisconnectedException) { }
+    }
+
+    [JSInvokable]
+    public async Task AoSoltar(string origem, string destino, int grab)
+    {
+        try
+        {
+            var partes = origem.Split('|'); if (partes.Length != 2) return;
+            var a = D.Atividades.FirstOrDefault(x => x.Id == partes[0]); if (a is null || a.IniPrev is null || a.FimPrev is null) return;
+            if (!DateTime.TryParse(partes[1], CultureInfo.InvariantCulture, DateTimeStyles.None, out var de) || !DateTime.TryParse(destino, CultureInfo.InvariantCulture, DateTimeStyles.None, out var para)) return;
+            var delta = (para.Date - de.Date).TotalDays; if (delta == 0) return;
+            var ni = a.IniPrev.Value.AddDays(delta); var nf = a.FimPrev.Value.AddDays(delta);
+            Svc.ReprogramarAtividade(Ator, a.Id, ni, nf);
+            Sessao.Avisar($"\"{a.Nome}\" reprogramada: {ni:dd/MM} – {nf:dd/MM}.");
+        }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+        await OnMudou.InvokeAsync();
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("app.dnd.parar", _id); } catch { }
+        _ref?.Dispose();
+    }
+}

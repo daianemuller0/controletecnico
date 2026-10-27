@@ -1,0 +1,67 @@
+@* Lista de projetos (filtrados) com progresso real × previsto, atraso e última atualização. *@
+@inject NavigationManager Nav
+
+<div class="toolbar">
+    <span class="muted sm">@Projetos.Count projeto(s)</span>
+    <span class="grow"></span>
+    <label class="muted sm">Ordenar por
+        <select class="field w-auto" @bind="_ordem">
+            <option value="atencao">Atenção (atraso, prioridade, bloqueios)</option>
+            <option value="fim">Conclusão prevista</option>
+            <option value="codigo">Código</option>
+            <option value="progresso">Progresso</option>
+            <option value="atualizacao">Última atualização</option>
+        </select></label>
+</div>
+@if (Projetos.Count == 0)
+{
+    <div class="empty-state"><div class="ico">@Icons.Svg("layers")</div><h3>Nenhum projeto encontrado</h3><p>Ajuste os filtros ou crie um novo projeto.</p></div>
+}
+else
+{
+<div class="table-wrap"><table class="grid-tbl pl-tbl">
+    <thead><tr><th>Projeto</th><th>Cliente / unidade</th><th>Tipo</th><th>Responsável</th><th>Previsto</th><th>Progresso</th><th>Status</th><th>Prioridade</th><th>Atualizado</th></tr></thead>
+    <tbody>
+    @foreach (var p in Ordenados)
+    {
+        var ats = D.AtivDe(p.Id).ToList(); var prog = PlannerEngine.Progresso(p, ats); var prev = PlVocab.Encerrado(p.Status) ? 100 : PlannerEngine.ProgressoPrevisto(p, ats, D.Hoje);
+        var atr = PlannerEngine.Atrasado(p, D.Hoje); var ult = PlannerEngine.UltimaAtualizacao(D, p);
+        <tr class="clickable @(atr ? "pl-tr-atraso" : "")" @onclick='() => Nav.NavigateTo($"/planner/projetos/{p.Id}")'>
+            <td><div class="pl-cod">@p.Codigo</div><a href="/planner/projetos/@p.Id" class="col-strong" @onclick:stopPropagation="true">@p.Nome</a>
+                @if (p.Equipamento != "") { <div class="muted sm">@p.Equipamento</div> }</td>
+            <td>@(D.Snap.Cliente(p.ClienteId)?.Nome ?? "—")<div class="muted sm">@D.NomeUnidade(p)@(p.Area == "" ? "" : " · " + p.Area)</div></td>
+            <td>@PlVocab.TipoLabel(p.Tipo)</td>
+            <td>@(p.Responsavel == "" ? "—" : D.NomePessoa(p.Responsavel))</td>
+            <td class="tabular">@p.IniPrev?.ToString("dd/MM/yy") – @p.FimPrev?.ToString("dd/MM/yy")
+                @if (atr) { <div class="neg sm">@PlannerEngine.DiasAtraso(p.FimPrev, D.Hoje) dia(s) de atraso</div> }
+                else if (p.FimReal is { } fr) { <div class="muted sm">concluído @fr.ToString("dd/MM/yy")</div> }</td>
+            <td><PlBarraProgresso Real="prog" Previsto="prev" /></td>
+            <td><StatusBadge Item="@PlVocab.Get(PlVocab.StatusProjeto, p.Status)" /></td>
+            <td><StatusBadge Item="@PlVocab.Get(PlVocab.Prioridades, p.Prioridade)" /></td>
+            <td class="sm" title="@Tempo.ParaLocal(ult, D.Snap.FusoPadrao).ToString("dd/MM/yy HH:mm")">@Relativo(ult)</td>
+        </tr>
+    }
+    </tbody>
+</table></div>
+}
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter] public List<PlProjeto> Projetos { get; set; } = new();
+    private string _ordem = "atencao";
+
+    private IEnumerable<PlProjeto> Ordenados => _ordem switch
+    {
+        "fim" => Projetos.OrderBy(p => p.FimPrev ?? DateTime.MaxValue),
+        "codigo" => Projetos.OrderByDescending(p => p.Codigo),
+        "progresso" => Projetos.OrderBy(p => PlannerEngine.Progresso(p, D.AtivDe(p.Id))),
+        "atualizacao" => Projetos.OrderByDescending(p => PlannerEngine.UltimaAtualizacao(D, p)),
+        _ => Projetos.OrderBy(p => PlVocab.Encerrado(p.Status)).ThenByDescending(p => PlannerEngine.PontosAtencao(D, p)).ThenBy(p => p.FimPrev ?? DateTime.MaxValue),
+    };
+
+    private static string Relativo(DateTime utc)
+    {
+        var d = DateTime.UtcNow - utc;
+        return d.TotalHours < 1 ? "agora há pouco" : d.TotalDays < 1 ? $"há {(int)d.TotalHours} h" : d.TotalDays < 2 ? "ontem" : $"há {(int)d.TotalDays} dias";
+    }
+}

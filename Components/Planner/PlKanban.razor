@@ -1,0 +1,151 @@
+@* Quadro Kanban: projetos (por status do projeto) ou atividades (por status da atividade).
+   Arrastar o cartão para outra coluna muda o status no servidor (com as mesmas regras e histórico). *@
+@implements IAsyncDisposable
+@inject Servicos Svc
+@inject Sessao Sessao
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<div class="toolbar">
+    <div class="seg">
+        <button class="chip @(_modo == "projetos" ? "active" : "")" @onclick='() => _modo = "projetos"'>Projetos</button>
+        <button class="chip @(_modo == "atividades" ? "active" : "")" @onclick='() => _modo = "atividades"'>Atividades</button>
+    </div>
+    @if (_modo == "atividades")
+    {
+        <label class="pl-chk sm"><input type="checkbox" @bind="_soFolhas" /> Só tarefas executáveis (sem as etapas que têm subtarefas)</label>
+    }
+    <span class="grow"></span>
+    <span class="muted sm">@(PodeArrastar ? "Arraste os cartões entre as colunas para mudar o status." : "Somente leitura para o seu perfil.")</span>
+</div>
+
+@if (_modo == "projetos")
+{
+    <div class="pl-kanban" id="pl-kanban-projetos">
+        @foreach (var st in PlVocab.StatusProjeto)
+        {
+            var cards = Projetos.Where(p => p.Status == st.Key).OrderBy(p => p.FimPrev ?? DateTime.MaxValue).ToList();
+            <section class="pl-col" data-drop="@st.Key" style="--c:@st.Color">
+                <header><span class="pl-col-dot"></span>@st.Label<b>@cards.Count</b></header>
+                <div class="pl-col-body">
+                    @foreach (var p in cards)
+                    {
+                        var ats = D.AtivDe(p.Id).ToList(); var atr = PlannerEngine.Atrasado(p, D.Hoje);
+                        <article class="pl-card @(atr ? "atraso" : "")" draggable="@(Ator.Pode(Perm.PlannerEditar) ? "true" : "false")" data-dnd="p:@p.Id" data-dndgrab="off"
+                                 @onclick='() => Nav.NavigateTo($"/planner/projetos/{p.Id}")'>
+                            <div class="pl-card-top"><span class="pl-cod">@p.Codigo</span><StatusBadge Item="@PlVocab.Get(PlVocab.Prioridades, p.Prioridade)" /></div>
+                            <div class="pl-card-t">@p.Nome</div>
+                            <div class="muted sm">@(D.NomeUnidade(p) is { Length: > 0 } u ? u : "sem unidade")@(p.Equipamento == "" ? "" : " · " + p.Equipamento)</div>
+                            <PlBarraProgresso Real="@PlannerEngine.Progresso(p, ats)" Previsto="@(PlVocab.Encerrado(p.Status) ? null : PlannerEngine.ProgressoPrevisto(p, ats, D.Hoje))" Compacta="true" />
+                            <div class="pl-card-rod">
+                                <span title="Responsável">@Icons.Svg("user")@(p.Responsavel == "" ? "—" : D.NomePessoa(p.Responsavel))</span>
+                                @if (p.FimPrev is { } f) { <span class="@(atr ? "neg" : "")" title="Conclusão prevista">@Icons.Svg("calendar")@f.ToString("dd/MM")@(atr ? $" (+{PlannerEngine.DiasAtraso(f, D.Hoje)}d)" : "")</span> }
+                            </div>
+                        </article>
+                    }
+                    @if (cards.Count == 0) { <div class="pl-col-vazia">—</div> }
+                </div>
+            </section>
+        }
+    </div>
+}
+else
+{
+    <div class="pl-kanban pl-kanban-a" id="pl-kanban-atividades">
+        @foreach (var st in PlVocab.StatusAtividade)
+        {
+            var cards = Ativs.Where(a => a.Status == st.Key).OrderBy(a => a.FimPrev ?? DateTime.MaxValue).ToList();
+            <section class="pl-col" data-drop="@st.Key" style="--c:@st.Color">
+                <header><span class="pl-col-dot"></span>@st.Label<b>@cards.Count</b></header>
+                <div class="pl-col-body">
+                    @foreach (var a in cards)
+                    {
+                        var p = D.Projeto(a.ProjetoId)!; var atr = PlannerEngine.Atrasada(a, D.Hoje); var bloq = PlannerEngine.MotivoBloqueio(D, a);
+                        var ck = PlannerEngine.LerChecklist(a.Checklist);
+                        <article class="pl-card @(atr ? "atraso" : "") @(bloq is not null ? "bloq" : "")" draggable="@(Svc.PodeAtualizarAtividade(Ator, a) ? "true" : "false")" data-dnd="a:@a.Id" data-dndgrab="off"
+                                 @onclick="() => _editar = a">
+                            <div class="pl-card-top"><a class="pl-cod" href="/planner/projetos/@p.Id" @onclick:stopPropagation="true">@p.Codigo</a>
+                                @if (a.Marco) { <span class="tag" title="Marco">@Icons.Svg("flag")marco</span> }
+                                <StatusBadge Item="@PlVocab.Get(PlVocab.Prioridades, a.Prioridade)" /></div>
+                            <div class="pl-card-t">@a.Nome</div>
+                            @if (a.ParentId != "" && D.Atividades.FirstOrDefault(x => x.Id == a.ParentId) is { } mae) { <div class="muted sm">em @mae.Nome</div> }
+                            @if (bloq is not null) { <div class="neg sm">@Icons.Svg("ban") @bloq</div> }
+                            <PlBarraProgresso Real="@((int)Math.Round(PlannerEngine.ProgressoAtividade(a, _filhos)))" Compacta="true" />
+                            <div class="pl-card-rod">
+                                <span>@Icons.Svg("user")@(a.Responsavel == "" ? "sem responsável" : D.NomePessoa(a.Responsavel))</span>
+                                @if (a.FimPrev is { } f) { <span class="@(atr ? "neg" : "")">@Icons.Svg("calendar")@f.ToString("dd/MM")@(atr ? $" (+{PlannerEngine.DiasAtraso(f, D.Hoje)}d)" : "")</span> }
+                                @if (ck.Count > 0) { <span title="Checklist">@Icons.Svg("check")@ck.Count(c => c.Feito)/@ck.Count</span> }
+                            </div>
+                        </article>
+                    }
+                    @if (cards.Count == 0) { <div class="pl-col-vazia">—</div> }
+                </div>
+            </section>
+        }
+    </div>
+}
+
+@if (_editar is not null)
+{
+    <PlAtividadeDialogo D="D" Ator="Ator" Atividade="_editar" Pessoas="Pessoas" OnFechar="() => _editar = null" OnMudou="OnMudou" />
+}
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter] public List<PlProjeto> Projetos { get; set; } = new();
+    [Parameter] public List<PlAtividade> Atividades { get; set; } = new();
+    [Parameter] public Ator Ator { get; set; } = new();
+    [Parameter] public List<(string Chave, string Nome, string Tipo)> Pessoas { get; set; } = new();
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    private string _modo = "projetos"; private bool _soFolhas = true; private PlAtividade? _editar;
+    private ILookup<string, PlAtividade> _filhos = Enumerable.Empty<PlAtividade>().ToLookup(a => a.ParentId);
+    private DotNetObjectReference<PlKanban>? _ref;
+    private bool PodeArrastar => _modo == "projetos" ? Ator.Pode(Perm.PlannerEditar) : Ator.Pode(Perm.PlannerEditar) || Ator.Papel == Roles.Tecnico;
+
+    private IEnumerable<PlAtividade> Ativs
+    {
+        get
+        {
+            var comFilhas = D.Atividades.Where(a => a.Status != PlVocab.ACancelada).Select(a => a.ParentId).ToHashSet();
+            return Atividades.Where(a => !_soFolhas || !comFilhas.Contains(a.Id));
+        }
+    }
+
+    protected override void OnParametersSet() => _filhos = D.Atividades.ToLookup(a => a.ParentId);
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        _ref ??= DotNetObjectReference.Create(this);
+        try { await JS.InvokeVoidAsync("app.dnd.iniciar", "pl-kanban-" + _modo, _ref); } catch (JSDisconnectedException) { }
+    }
+
+    [JSInvokable]
+    public async Task AoSoltar(string origem, string destino, int grab)
+    {
+        try
+        {
+            if (origem.StartsWith("p:"))
+            {
+                var p = D.Projeto(origem[2..]); if (p is null || p.Status == destino) return;
+                Svc.AlterarStatusProjeto(Ator, p.Id, destino);
+                Sessao.Avisar($"{p.Codigo}: {PlVocab.Get(PlVocab.StatusProjeto, destino).Label}.");
+            }
+            else if (origem.StartsWith("a:"))
+            {
+                var a = D.Atividades.FirstOrDefault(x => x.Id == origem[2..]); if (a is null || a.Status == destino) return;
+                Svc.AlterarStatusAtividade(Ator, a.Id, destino);
+                Sessao.Avisar($"\"{a.Nome}\": {PlVocab.Get(PlVocab.StatusAtividade, destino).Label}.");
+            }
+        }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+        await OnMudou.InvokeAsync();
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("app.dnd.parar", "pl-kanban-" + _modo); } catch { }
+        _ref?.Dispose();
+    }
+}

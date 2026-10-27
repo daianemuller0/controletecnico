@@ -1,0 +1,118 @@
+@* Relatórios do Planner: indicadores e quebras sobre os registros filtrados. Exporta Excel (gerado no servidor) e PDF (impressão). *@
+@using System.Globalization
+@inject IJSRuntime JS
+@inject DownloadsTemporarios Dl
+@inject Sessao Sessao
+
+@{
+    var ind = PlannerRelatorio.Calcular(D, Projetos, Atividades);
+    var custos = Ator.Pode(Perm.PlannerCustos);
+}
+<div class="toolbar no-print">
+    <span class="muted sm">Indicadores dos @Projetos.Count projeto(s) do filtro atual@(string.IsNullOrEmpty(FiltrosTexto) ? "" : $" ({FiltrosTexto})").</span>
+    <span class="grow"></span>
+    <button class="btn-ghost" @onclick="Excel">@Icons.Svg("download")Exportar Excel</button>
+    <button class="btn-ghost" @onclick="Imprimir">@Icons.Svg("file")Imprimir / salvar PDF</button>
+</div>
+
+<div class="pl-rel">
+    <div class="pl-rel-cab only-print">
+        <h2>Planner de Manutenção — relatório</h2>
+        <div class="muted sm">Gerado em @Tempo.ParaLocal(DateTime.UtcNow, D.Snap.FusoPadrao).ToString("dd/MM/yyyy HH:mm") por @Ator.Nome@(string.IsNullOrEmpty(FiltrosTexto) ? "" : " · filtros: " + FiltrosTexto)</div>
+    </div>
+
+    <div class="pl-kpis">
+        @Tile("Projetos", ind.Total.ToString(), $"{ind.Ativos} ativos · {ind.Cancelados} cancelados")
+        @Tile("Concluídos no prazo", ind.Concluidos == 0 ? "—" : $"{ind.PctNoPrazo:0}%", $"{ind.ConcluidosNoPrazo} de {ind.Concluidos} concluídos")
+        @Tile("Atrasados", ind.Atrasados.ToString(), $"atraso médio {ind.AtrasoMedio:0.#} dia(s)")
+        @Tile("Conclusão média", $"{ind.ProgressoMedio:0}%", "projetos ativos")
+        @Tile("Atividades", ind.AtivTotal.ToString(), $"{ind.AtivConcluidas} concluídas · {ind.AtivAtrasadas} atrasadas")
+        @Tile("Horas", $"{ind.HorasReal:0} / {ind.HorasEst:0}", "realizadas / estimadas")
+        @Tile("Materiais pendentes", ind.MateriaisPendentes.ToString(), $"{ind.PendenciasAbertas} pendência(s) aberta(s)")
+        @if (custos)
+        {
+            @Tile("Custo realizado", ind.CustoRealizado is { } cr ? Moeda(cr) : "—", ind.CustoPlanejado is { } cp ? $"planejado {Moeda(cp)}" : "sem custo planejado")
+        }
+    </div>
+    @if (!Projetos.Any(p => p.Status == PlVocab.PConcluido) && !Projetos.Any(p => p.Status == PlVocab.PCancelado))
+    {
+        <div class="muted sm mb8">Dica: marque "Incluir concluídos" nos filtros para que os indicadores de prazo considerem os projetos já encerrados.</div>
+    }
+
+    <div class="gp-grid">
+        @foreach (var (por, tit) in new[] { ("responsavel", "Por responsável"), ("unidade", "Por unidade"), ("cliente", "Por cliente"), ("tipo", "Por tipo de manutenção") })
+        {
+            var linhas = PlannerRelatorio.Agrupar(D, Projetos, Atividades, por);
+            <div class="gp-card @(por == "responsavel" ? "gp-largo" : "")">
+                <h3>@tit</h3>
+                @if (linhas.Count == 0) { <div class="dv-vazio">Sem dados.</div> }
+                else
+                {
+                    <table class="grid-tbl mini">
+                        <thead><tr><th>@(por == "responsavel" ? "Pessoa" : "Nome")</th><th class="right">Projetos</th><th class="right">Ativos</th><th class="right">Atrasados</th><th class="right">Concluídos</th>
+                            @if (por == "responsavel") { <th class="right">Atividades</th><th class="right">Ativ. atrasadas</th><th class="right">Horas est.</th><th class="right">Horas real.</th> }</tr></thead>
+                        <tbody>
+                        @foreach (var l in linhas)
+                        {
+                            <tr><td>@l.Nome</td><td class="right">@l.Projetos</td><td class="right">@l.Ativos</td><td class="right @(l.Atrasados > 0 ? "neg" : "")">@l.Atrasados</td><td class="right">@l.Concluidos</td>
+                                @if (por == "responsavel") { <td class="right">@l.Atividades</td><td class="right @(l.AtivAtrasadas > 0 ? "neg" : "")">@l.AtivAtrasadas</td><td class="right">@l.HorasEst.ToString("0.#")</td><td class="right">@l.HorasReal.ToString("0.#")</td> }</tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+        <div class="gp-card">
+            <h3>Por status</h3>
+            <table class="grid-tbl mini"><tbody>
+                @foreach (var s in PlVocab.StatusProjeto) { var n = Projetos.Count(p => p.Status == s.Key); if (n == 0) continue; <tr><td><StatusBadge Item="s" /></td><td class="right">@n</td></tr> }
+            </tbody></table>
+        </div>
+    </div>
+
+    <div class="panel mt16">
+        <div class="panel-head"><div class="panel-title">Projetos</div></div>
+        <div class="table-wrap"><table class="grid-tbl mini">
+            <thead><tr><th>Código</th><th>Projeto</th><th>Unidade</th><th>Responsável</th><th>Status</th><th>Previsto</th><th>Real</th><th class="right">Progresso</th><th class="right">Atraso</th>
+                @if (custos) { <th class="right">Custo plan.</th><th class="right">Custo real</th> }</tr></thead>
+            <tbody>
+            @foreach (var p in Projetos.OrderBy(p => p.Codigo))
+            {
+                var pa = D.AtivDe(p.Id).ToList();
+                <tr><td>@p.Codigo</td><td>@p.Nome</td><td>@D.NomeUnidade(p)</td><td>@D.NomePessoa(p.Responsavel)</td><td>@PlVocab.Get(PlVocab.StatusProjeto, p.Status).Label</td>
+                    <td class="tabular">@p.IniPrev?.ToString("dd/MM/yy") – @p.FimPrev?.ToString("dd/MM/yy")</td><td class="tabular">@p.IniReal?.ToString("dd/MM/yy") – @p.FimReal?.ToString("dd/MM/yy")</td>
+                    <td class="right">@PlannerEngine.Progresso(p, pa)%</td><td class="right @(PlannerEngine.Atrasado(p, D.Hoje) ? "neg" : "")">@(PlannerEngine.Atrasado(p, D.Hoje) ? PlannerEngine.DiasAtraso(p.FimPrev, D.Hoje) + " d" : "—")</td>
+                    @if (custos) { <td class="right">@(p.CustoPlanejado is { } c1 ? Moeda(c1) : "—")</td><td class="right">@(PlannerRelatorio.CustoReal(p) is { } c2 ? Moeda(c2) : "—")</td> }</tr>
+            }
+            </tbody>
+        </table></div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter] public List<PlProjeto> Projetos { get; set; } = new();
+    [Parameter] public List<PlAtividade> Atividades { get; set; } = new();
+    [Parameter] public Ator Ator { get; set; } = new();
+    [Parameter] public string FiltrosTexto { get; set; } = "";
+
+    private static readonly CultureInfo Pt = new("pt-BR");
+    private static string Moeda(double v) => v.ToString("C0", Pt);
+
+    private RenderFragment Tile(string rot, string valor, string sub) => __builder =>
+    {
+        <div class="pl-kpi sem-atalho"><span class="pl-kpi-txt"><span class="kpi-label">@rot</span><span class="kpi-value">@valor</span><span class="pl-kpi-sub">@sub</span></span></div>
+    };
+
+    private async Task Excel()
+    {
+        try
+        {
+            var bytes = PlannerRelatorio.Excel(D, Projetos, Atividades, Ator.Pode(Perm.PlannerCustos), FiltrosTexto);
+            var token = Dl.Guardar(bytes, $"planner_{D.Hoje:yyyy-MM-dd}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Ator.Login);
+            await JS.InvokeVoidAsync("app.baixarUrl", $"/download/{token}");
+        }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
+    private async Task Imprimir() => await JS.InvokeVoidAsync("app.imprimir");
+}

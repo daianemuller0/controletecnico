@@ -1,0 +1,27 @@
+@* Lista de alertas/"atenção necessária": cada um leva ao item; "visto" esconde enquanto a situação não mudar. *@
+@inject NavigationManager Nav
+
+@if (Alertas.Count == 0)
+{
+    <div class="dv-vazio">@Icons.Svg("check") Nada pedindo atenção agora.</div>
+}
+<ul class="pl-alist">
+    @foreach (var a in Alertas.Take(Max))
+    {
+        var visto = Vistos.Contains(a.Chave);
+        <li class="pl-al @a.Nivel @(visto ? "visto" : "")">
+            <span class="pl-al-ico">@Icons.Svg(a.Nivel switch { "critico" => "alert", "alto" => "flag", "medio" => "clock", _ => "info" })</span>
+            <a href="@a.Link" @onclick="() => Abrir(a)" @onclick:preventDefault="true">@a.Texto</a>
+            @if (!visto) { <button class="row-act" title="Marcar como visto" @onclick="() => OnVisto.InvokeAsync(a)">@Icons.Svg("eye-off")</button> }
+        </li>
+    }
+</ul>
+@if (Alertas.Count > Max) { <div class="muted sm">+ @(Alertas.Count - Max) alerta(s). Use os filtros para focar.</div> }
+
+@code {
+    [Parameter] public List<PlAlerta> Alertas { get; set; } = new();
+    [Parameter] public HashSet<string> Vistos { get; set; } = new();
+    [Parameter] public EventCallback<PlAlerta> OnVisto { get; set; }
+    [Parameter] public int Max { get; set; } = 60;
+    private async Task Abrir(PlAlerta a) { await OnVisto.InvokeAsync(a); Nav.NavigateTo(a.Link); }
+}

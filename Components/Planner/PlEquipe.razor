@@ -1,0 +1,148 @@
+@* Equipe e recursos: capacidade × horas planejadas no período, sobrecarga, conflitos (inclusive viagens da Agenda)
+   e atividades sem responsável. Jornada e dias úteis vêm da ficha do técnico; usuários sem ficha usam 8 h em dias úteis. *@
+@using System.Globalization
+@inject Servicos Svc
+@inject Sessao Sessao
+
+<div class="toolbar">
+    <div class="seg">
+        @foreach (var (k, rot) in new[] { ("semana", "Esta semana"), ("2sem", "Próximas 2 semanas"), ("mes", "Este mês"), ("livre", "Período…") })
+        {
+            <button class="chip @(_per == k ? "active" : "")" @onclick="() => Periodo(k)">@rot</button>
+        }
+    </div>
+    @if (_per == "livre")
+    {
+        <input type="date" class="field" value="@Ui.DataInput(_de)" @onchange="@(e => { if (Ui.DoDataInput(e.Value?.ToString()) is { } v) _de = v; })" aria-label="De" />
+        <span class="muted sm">a</span>
+        <input type="date" class="field" value="@Ui.DataInput(_ate)" @onchange="@(e => { if (Ui.DoDataInput(e.Value?.ToString()) is { } v) _ate = v; })" aria-label="Até" />
+    }
+    <span class="muted sm">@_de.ToString("dd/MM/yyyy") – @_ate.ToString("dd/MM/yyyy")</span>
+    <span class="grow"></span>
+    <span class="muted sm">Jornada e dias úteis: ficha do técnico. Viagens e atendimentos da Agenda também ocupam a pessoa.</span>
+</div>
+
+@{
+    var ate = _ate < _de ? _de : _ate;
+    var cap = PlannerEngine.Capacidade(D, Atividades, _de, ate, _agenda);
+    var semResp = Atividades.Where(a => !PlVocab.AtivEncerrada(a.Status) && a.Responsavel == "" && !D.Atividades.Any(x => x.ParentId == a.Id)).OrderBy(a => a.IniPrev ?? DateTime.MaxValue).ToList();
+}
+<div class="pl-kpis pl-kpis-4">
+    <div class="pl-kpi sem-atalho"><span class="kpi-ico">@Icons.Svg("users")</span><span class="pl-kpi-txt"><span class="kpi-label">Pessoas alocadas</span><span class="kpi-value">@cap.Count(c => c.HorasPlanejadas > 0)</span><span class="pl-kpi-sub">de @cap.Count envolvidas</span></span></div>
+    <div class="pl-kpi sem-atalho @(cap.Any(c => c.Situacao == "sobrecarga") ? "accent-neg" : "")"><span class="kpi-ico">@Icons.Svg("alert")</span><span class="pl-kpi-txt"><span class="kpi-label">Em sobrecarga</span><span class="kpi-value">@cap.Count(c => c.Situacao == "sobrecarga")</span><span class="pl-kpi-sub">acima de 100% da capacidade</span></span></div>
+    <div class="pl-kpi sem-atalho"><span class="kpi-ico">@Icons.Svg("clock")</span><span class="pl-kpi-txt"><span class="kpi-label">Horas planejadas</span><span class="kpi-value">@cap.Sum(c => c.HorasPlanejadas).ToString("0")</span><span class="pl-kpi-sub">de @cap.Sum(c => c.HorasCapacidade).ToString("0") h disponíveis</span></span></div>
+    <div class="pl-kpi sem-atalho @(semResp.Count > 0 ? "accent-warn" : "")"><span class="kpi-ico">@Icons.Svg("user")</span><span class="pl-kpi-txt"><span class="kpi-label">Sem responsável</span><span class="kpi-value">@semResp.Count</span><span class="pl-kpi-sub">atividade(s) aberta(s)</span></span></div>
+</div>
+
+@if (cap.Count == 0)
+{
+    <div class="empty-state"><div class="ico">@Icons.Svg("users")</div><h3>Ninguém alocado</h3><p>Defina responsáveis e equipe nos projetos para ver a capacidade.</p></div>
+}
+else
+{
+<div class="table-wrap"><table class="grid-tbl pl-tbl">
+    <thead><tr><th>Pessoa</th><th>Função</th><th class="right">Capacidade</th><th class="right">Planejado</th><th>Ocupação</th><th>Situação</th><th class="right">Atividades</th><th>Projetos</th><th>Conflitos</th></tr></thead>
+    <tbody>
+    @foreach (var c in cap)
+    {
+        var uso = Math.Min(c.Uso, 150);
+        <tr class="@(c.Situacao == "sobrecarga" ? "pl-tr-atraso" : "")">
+            <td><strong>@c.Nome</strong>@if (c.JornadaPadrao) { <div class="muted sm">jornada padrão 8 h</div> }</td>
+            <td>@c.Funcao</td>
+            <td class="right tabular">@c.HorasCapacidade.ToString("0.#") h</td>
+            <td class="right tabular">@c.HorasPlanejadas.ToString("0.#") h@if (c.HorasRealizadas > 0) { <div class="muted sm">@c.HorasRealizadas.ToString("0.#") h realizadas</div> }</td>
+            <td><div class="pl-uso" title="@c.Uso.ToString("0")%"><span class="@Sit(c.Situacao)" style="width:@((uso / 1.5).ToString("0.#", CultureInfo.InvariantCulture))%"></span><i></i></div><span class="sm tabular">@(c.Uso >= 999 ? "sem capacidade" : c.Uso.ToString("0") + "%")</span></td>
+            <td><span class="badge @Sit(c.Situacao)">@Rotulo(c.Situacao)</span></td>
+            <td class="right">@c.Atividades@if (c.Atrasadas > 0) { <div class="neg sm">@c.Atrasadas atrasada(s)</div> }</td>
+            <td class="sm">@string.Join(", ", c.Projetos)</td>
+            <td class="sm pl-conf">@if (c.Conflitos.Count == 0) { <span class="muted">—</span> } else { @foreach (var x in c.Conflitos.Take(3)) { <div>@x</div> } @if (c.Conflitos.Count > 3) { <div class="muted">+@(c.Conflitos.Count - 3)</div> } }</td>
+        </tr>
+    }
+    </tbody>
+</table></div>
+<div class="gp-leg-h"><span><i class="st-pos-bg"></i>Disponível / parcial (&lt; 80%)</span><span><i class="st-warn-bg"></i>Alocado (80–100%)</span><span><i class="st-neg-bg"></i>Sobrecarga (&gt; 100%)</span><span class="muted">a linha marca 100%</span></div>
+}
+
+<div class="panel mt16">
+    <div class="panel-head"><div class="panel-title">@Icons.Svg("user")Atividades sem responsável <span class="hint">@semResp.Count aberta(s)</span></div></div>
+    @if (semResp.Count == 0) { <div class="dv-vazio">Todas as atividades abertas têm responsável.</div> }
+    else
+    {
+        <div class="table-wrap"><table class="grid-tbl">
+            <thead><tr><th>Atividade</th><th>Projeto</th><th>Período</th><th>Horas est.</th><th>Prioridade</th><th>Atribuir a</th></tr></thead>
+            <tbody>
+            @foreach (var a in semResp)
+            {
+                var p = D.Projeto(a.ProjetoId)!;
+                <tr>
+                    <td><strong>@a.Nome</strong>@if (PlannerEngine.Atrasada(a, D.Hoje)) { <span class="tag neg">atrasada</span> }</td>
+                    <td><a href="/planner/projetos/@p.Id">@p.Codigo</a> · @p.Nome</td>
+                    <td class="tabular">@a.IniPrev?.ToString("dd/MM") – @a.FimPrev?.ToString("dd/MM")</td>
+                    <td>@(a.HorasEst?.ToString("0.#") ?? "—")</td>
+                    <td><StatusBadge Item="@PlVocab.Get(PlVocab.Prioridades, a.Prioridade)" /></td>
+                    <td>
+                        @if (Ator.Pode(Perm.PlannerEditar))
+                        {
+                            <select class="field w-auto" @onchange="@(e => Atribuir(a, e.Value?.ToString()))" aria-label="Atribuir responsável">
+                                <option value="">— escolher —</option>
+                                @foreach (var x in Sugestoes(cap)) { <option value="@x.Chave">@x.Nome@x.Info</option> }
+                            </select>
+                        }
+                        else { <span class="muted sm">—</span> }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table></div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PlDados D { get; set; } = default!;
+    [Parameter] public List<PlAtividade> Atividades { get; set; } = new();
+    [Parameter] public Ator Ator { get; set; } = new();
+    [Parameter] public List<(string Chave, string Nome, string Tipo)> Pessoas { get; set; } = new();
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    private string _per = "semana"; private DateTime _de, _ate; private List<Evento> _agenda = new();
+
+    protected override void OnInitialized() { _agenda = AgendaEngine.Eventos(D.Snap); Periodo("semana"); }
+
+    private void Periodo(string k)
+    {
+        _per = k; var h = D.Hoje; var seg = h.AddDays(-(((int)h.DayOfWeek + 6) % 7));
+        (_de, _ate) = k switch
+        {
+            "2sem" => (h, h.AddDays(13)),
+            "mes" => (new DateTime(h.Year, h.Month, 1), new DateTime(h.Year, h.Month, 1).AddMonths(1).AddDays(-1)),
+            "livre" => (_de == default ? h : _de, _ate == default ? h.AddDays(13) : _ate),
+            _ => (seg, seg.AddDays(6)),
+        };
+        _de = PlannerEngine.Dia(_de); _ate = PlannerEngine.Dia(_ate);
+    }
+
+    private static string Sit(string s) => s switch { "sobrecarga" => "st-neg", "alocado" => "st-warn", "indisponivel" => "st-neutral", _ => "st-pos" };
+    private static string Rotulo(string s) => s switch { "sobrecarga" => "Sobrecarga", "alocado" => "Alocado", "parcial" => "Parcial", "indisponivel" => "Indisponível", _ => "Disponível" };
+
+    /// <summary>Pessoas ordenadas por folga no período (quem tem mais horas livres primeiro).</summary>
+    private IEnumerable<(string Chave, string Nome, string Info)> Sugestoes(List<PlCapacidade> cap) =>
+        Pessoas.Select(p =>
+        {
+            var c = cap.FirstOrDefault(x => x.Pessoa == p.Chave);
+            var livre = c is null ? (double?)null : c.HorasCapacidade - c.HorasPlanejadas;
+            return (p.Chave, p.Nome, livre is null ? $" · {p.Tipo}" : $" · {livre:0} h livres", livre ?? 1000);
+        }).OrderByDescending(x => x.Item4).Select(x => (x.Chave, x.Nome, x.Item3));
+
+    private async Task Atribuir(PlAtividade a, string? pessoa)
+    {
+        if (string.IsNullOrEmpty(pessoa)) return;
+        try
+        {
+            var x = a.Copia<PlAtividade>(); x.Responsavel = pessoa;
+            Svc.SalvarAtividade(Ator, x, a.AtualizadoEm);
+            Sessao.Avisar($"\"{a.Nome}\" atribuída a {D.NomePessoa(pessoa)}.");
+        }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+        await OnMudou.InvokeAsync();
+    }
+}
