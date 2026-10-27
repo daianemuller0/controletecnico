@@ -24,8 +24,18 @@ public sealed class Db
     public Repo<Auditoria> Auditorias { get; }
     public Repo<Usuario> Usuarios { get; }
     public Repo<NotaViagem> NotasViagem { get; }
+    // ---- Planner de Manutenção
+    public Repo<PlProjeto> PlProjetos { get; }
+    public Repo<PlAtividade> PlAtividades { get; }
+    public Repo<PlMaterial> PlMateriais { get; }
+    public Repo<PlPendencia> PlPendencias { get; }
+    public Repo<PlComentario> PlComentarios { get; }
+    public Repo<PlModelo> PlModelos { get; }
+    public Repo<PlVisao> PlVisoes { get; }
+    public Repo<PlAlertaLido> PlAlertasLidos { get; }
     public IReadOnlyList<ISincronizavel> Repos => new ISincronizavel[] { Config, Usuarios, Tecnicos, Especialidades, Servicos, Clientes, Plantas, Viagens, Trechos,
-        Atendimentos, Indisponibilidades, Confirmacoes, Documentos, Anexos, Requisitos, NotasViagem, Auditorias };
+        Atendimentos, Indisponibilidades, Confirmacoes, Documentos, Anexos, Requisitos, NotasViagem, Auditorias,
+        PlProjetos, PlAtividades, PlMateriais, PlPendencias, PlComentarios, PlModelos, PlVisoes, PlAlertasLidos };
 
     public Db(ParquetStore store)
     {
@@ -47,6 +57,14 @@ public sealed class Db
         Auditorias = new(store, "auditoria");
         Usuarios = new(store, "usuarios");
         NotasViagem = new(store, "notas_viagem");
+        PlProjetos = new(store, "pl_projetos");
+        PlAtividades = new(store, "pl_atividades");
+        PlMateriais = new(store, "pl_materiais");
+        PlPendencias = new(store, "pl_pendencias");
+        PlComentarios = new(store, "pl_comentarios");
+        PlModelos = new(store, "pl_modelos");
+        PlVisoes = new(store, "pl_visoes");
+        PlAlertasLidos = new(store, "pl_alertas_lidos");
     }
 
     // ---- configuração (chave/valor) ----

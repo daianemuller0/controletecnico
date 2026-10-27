@@ -8,6 +8,8 @@ public enum Perm
     VerEquipe, VerContatos, EditarTecnicos, EditarClientes, EditarViagens, VerReservas, VerAnexosViagem,
     EditarAgenda, VerDocsConteudo, VerDocsStatus, EditarDocs, EditarRequisitos, ConfirmarLocal,
     Administrar, VerAuditoria,
+    // Planner de Manutenção
+    PlannerVer, PlannerEditar, PlannerCustos,
 }
 
 /// <summary>Quem está operando: papel + (para o técnico) a que ficha está ligado.
@@ -38,6 +40,11 @@ public sealed class Ator
         [Perm.ConfirmarLocal] = new[] { Roles.Admin, Roles.Gestao, Roles.Controladoria },
         [Perm.Administrar] = new[] { Roles.Admin },
         [Perm.VerAuditoria] = new[] { Roles.Admin, Roles.Gestao },
+        // Planner: Administrador = tudo · Gestão = gestor de manutenção · Controladoria = planejador · Consulta = visualizador
+        // Técnico: vê e atualiza só o que está atribuído a ele (regra no serviço do Planner)
+        [Perm.PlannerVer] = new[] { Roles.Admin, Roles.Gestao, Roles.Controladoria, Roles.Consulta, Roles.Tecnico },
+        [Perm.PlannerEditar] = new[] { Roles.Admin, Roles.Gestao, Roles.Controladoria },
+        [Perm.PlannerCustos] = new[] { Roles.Admin, Roles.Gestao },
     };
 
     /// <summary>Permissão geral (sem referência a um técnico específico).</summary>

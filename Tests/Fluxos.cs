@@ -1548,3 +1548,131 @@ public class MapaAssertivoTests
     [Fact]
     public void Texto_sem_coordenadas_nao_inventa() => Assert.Null(ControleTecnico.Logic.Geo.ExtrairCoordenadas("Rua das Flores, 120 - Sorocaba"));
 }
+
+public class PlannerTests
+{
+    private static Ator Tec(Tecnico t) => new() { Login = "tec1", Nome = t.Nome, Papel = Roles.Tecnico, TecnicoId = t.Id };
+    private static DateTime D(int dias) => PlannerEngine.Dia(DateTime.UtcNow.Date.AddDays(dias));
+
+    [Fact]
+    public void Projeto_por_modelo_cria_etapas_encadeadas_e_progresso_vem_das_atividades()
+    {
+        using var a = new Amb(); var pl = a.NovaPlanta("Usina");
+        var p = a.Svc.CriarProjeto(a.Contr, new PlProjeto { Nome = "Revisão geral do compressor C-101", PlantaId = pl.Id, IniPrev = D(0) }, "std_compressor");
+        Assert.StartsWith($"PM-{DateTime.UtcNow.Year}-", p.Codigo); Assert.Equal(pl.ClienteId, p.ClienteId);
+        var ats = a.Db.PlAtividades.Onde(x => x.ProjetoId == p.Id).OrderBy(x => x.Ordem).ToList();
+        Assert.Equal(9, ats.Count); Assert.Equal(ats[0].Id, ats[1].DependeDe);                       // etapas em sequência
+        Assert.Equal(ats[^1].FimPrev, a.Db.PlProjetos.Obter(p.Id)!.FimPrev);
+        Assert.Equal(0, PlannerEngine.Progresso(p, ats));
+        var e1 = ats[0]; e1.Status = PlVocab.AConcluida; a.Svc.SalvarAtividade(a.Contr, e1);
+        var ats2 = a.Db.PlAtividades.Onde(x => x.ProjetoId == p.Id);
+        var total = ats2.Sum(x => x.Peso);
+        Assert.Equal((int)Math.Round(100 * e1.Peso / total), PlannerEngine.Progresso(a.Db.PlProjetos.Obter(p.Id)!, ats2));
+        Assert.Equal(PlVocab.PAndamento, a.Db.PlProjetos.Obter(p.Id)!.Status);                    // primeira atividade iniciada → projeto em andamento
+        Assert.NotNull(a.Db.PlAtividades.Obter(e1.Id)!.FimReal);                                  // data real separada da prevista
+    }
+
+    [Fact]
+    public void Dependencias_checklist_obrigatorio_e_material_impedem_conclusao_indevida()
+    {
+        using var a = new Amb();
+        var p = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Troca de mancal", IniPrev = D(0), FimPrev = D(10) });
+        var x = a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p.Id, Nome = "Desmontagem", IniPrev = D(0), FimPrev = D(2) });
+        var y = a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p.Id, Nome = "Montagem", IniPrev = D(3), FimPrev = D(5), DependeDe = x.Id,
+            Checklist = PlannerEngine.GravarChecklist(new[] { new PlannerEngine.ItemChecklist { Texto = "Torque conferido", Obrigatorio = true } }) });
+        y.Status = PlVocab.AAndamento;
+        Assert.Contains("Desmontagem", Assert.Throws<ValidacaoException>(() => a.Svc.SalvarAtividade(a.Contr, y)).Message);   // depende da anterior
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p.Id, Nome = "Antes da hora", IniPrev = D(1), FimPrev = D(2), DependeDe = x.Id }));
+        x = a.Db.PlAtividades.Obter(x.Id)!; x.DependeDe = y.Id;
+        Assert.Contains("circular", Assert.Throws<ValidacaoException>(() => a.Svc.SalvarAtividade(a.Contr, x)).Message);
+        x = a.Db.PlAtividades.Obter(x.Id)!; x.Status = PlVocab.AConcluida; a.Svc.SalvarAtividade(a.Contr, x);
+        var m = a.Svc.SalvarMaterial(a.Contr, new PlMaterial { ProjetoId = p.Id, AtividadeId = y.Id, Descricao = "Rolamento 6310", Quantidade = 2 });
+        y = a.Db.PlAtividades.Obter(y.Id)!; y.Status = PlVocab.AConcluida;
+        var erro = Assert.Throws<ValidacaoException>(() => a.Svc.SalvarAtividade(a.Contr, y));
+        Assert.Contains("Torque conferido", erro.Message); Assert.Contains("Rolamento 6310", erro.Message);
+        m.Status = "recebido"; a.Svc.SalvarMaterial(a.Contr, m);
+        var ck = PlannerEngine.LerChecklist(y.Checklist); ck[0].Feito = true; y.Checklist = PlannerEngine.GravarChecklist(ck);
+        a.Svc.SalvarAtividade(a.Contr, y);
+        Assert.Equal(PlVocab.AConcluida, a.Db.PlAtividades.Obter(y.Id)!.Status);
+        Assert.Equal(100, PlannerEngine.Progresso(a.Db.PlProjetos.Obter(p.Id)!, a.Db.PlAtividades.Onde(z => z.ProjetoId == p.Id)));
+    }
+
+    [Fact]
+    public void Atraso_e_alertas_usam_a_mesma_regra_e_projeto_concluido_ou_pausado_nao_conta()
+    {
+        using var a = new Amb();
+        var p = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Preventiva bomba B-2", IniPrev = D(-10), FimPrev = D(-3), Status = PlVocab.PAndamento });
+        var at = a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p.Id, Nome = "Inspeção", IniPrev = D(-10), FimPrev = D(-4), Prioridade = "critica" });
+        var d = a.Svc.PlannerDados(a.Contr);
+        Assert.True(PlannerEngine.Atrasado(d.Projeto(p.Id)!, d.Hoje)); Assert.Equal(3, PlannerEngine.DiasAtraso(p.FimPrev, d.Hoje));
+        var al = PlannerEngine.Alertas(d, d.Projetos);
+        Assert.Contains(al, x => x.Chave.StartsWith("patraso:") && x.Nivel == "critico");
+        Assert.Contains(al, x => x.Chave.StartsWith("acritsem:"));                                   // crítica sem responsável
+        Assert.Equal(al.Count, al.Select(x => x.Chave).Distinct().Count());                          // sem duplicados
+        var pp = a.Db.PlProjetos.Obter(p.Id)!; pp.Status = PlVocab.PPausado; a.Svc.SalvarProjeto(a.Contr, pp);
+        Assert.False(PlannerEngine.Atrasado(a.Db.PlProjetos.Obter(p.Id)!, d.Hoje));
+        pp = a.Db.PlProjetos.Obter(p.Id)!; pp.Status = PlVocab.PConcluido;
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarProjeto(a.Contr, pp));                  // atividade pendente
+        var x = a.Db.PlAtividades.Obter(at.Id)!; x.Status = PlVocab.ACancelada; a.Svc.SalvarAtividade(a.Contr, x);
+        pp = a.Db.PlProjetos.Obter(p.Id)!; pp.Status = PlVocab.PConcluido; a.Svc.SalvarProjeto(a.Contr, pp);
+        Assert.False(PlannerEngine.Atrasado(a.Db.PlProjetos.Obter(p.Id)!, d.Hoje));
+        Assert.Contains(a.Db.Auditorias.Todos(), au => au.Entidade == "plprojeto" && au.EntidadeId == p.Id && au.Resumo.Contains("Concluído"));
+    }
+
+    [Fact]
+    public void Tecnico_ve_so_onde_participa_e_atualiza_so_o_andamento_das_suas_atividades()
+    {
+        using var a = new Amb(); var t = a.NovoTec(); var eu = Tec(t);
+        var p1 = a.Svc.SalvarProjeto(a.Gestao, new PlProjeto { Nome = "Projeto do técnico", CustoPlanejado = 5000 });
+        var p2 = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Projeto de outro" });
+        var minha = a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p1.Id, Nome = "Inspeção", Responsavel = "t:" + t.Id, IniPrev = D(0), FimPrev = D(2) });
+        a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p1.Id, Nome = "Compra", Responsavel = "u:c" });
+        var d = a.Svc.PlannerDados(eu);
+        Assert.Single(d.Projetos); Assert.Equal(p1.Id, d.Projetos[0].Id);
+        Assert.Null(d.Projetos[0].CustoPlanejado);                                                  // sem permissão financeira
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarProjeto(eu, d.Projetos[0]));
+        var m = a.Db.PlAtividades.Obter(minha.Id)!; m.Status = PlVocab.AAndamento; m.HorasReal = 3; m.Nome = "Tentou renomear"; m.FimPrev = D(30);
+        a.Svc.SalvarAtividade(eu, m);
+        var g = a.Db.PlAtividades.Obter(minha.Id)!;
+        Assert.Equal(PlVocab.AAndamento, g.Status); Assert.Equal(3, g.HorasReal);
+        Assert.Equal("Inspeção", g.Nome); Assert.Equal(D(2), g.FimPrev);                            // planejamento não muda
+        var outra = a.Db.PlAtividades.Onde(x => x.Nome == "Compra").Single(); outra.Status = PlVocab.AConcluida;
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarAtividade(eu, outra));
+        a.Svc.SalvarProjeto(a.Contr, a.Db.PlProjetos.Obter(p1.Id)!);                                // gestor sem tocar no custo não apaga
+        Assert.Equal(5000, a.Db.PlProjetos.Obter(p1.Id)!.CustoPlanejado);
+    }
+
+    [Fact]
+    public void Edicao_simultanea_e_reprogramacao_validam_e_registram()
+    {
+        using var a = new Amb();
+        var p = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Retrofit painel" });
+        var x = a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p.Id, Nome = "Etapa 1", IniPrev = D(0), FimPrev = D(1) });
+        var y = a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p.Id, Nome = "Etapa 2", IniPrev = D(2), FimPrev = D(3), DependeDe = x.Id });
+        var versao = a.Db.PlProjetos.Obter(p.Id)!.AtualizadoEm;
+        var outro = a.Db.PlProjetos.Obter(p.Id)!; outro.Obs = "outro usuário"; Thread.Sleep(1100); a.Svc.SalvarProjeto(a.Gestao, outro);
+        var meu = a.Db.PlProjetos.Obter(p.Id)!; meu.Obs = "eu";
+        Assert.Contains("alterado por", Assert.Throws<ValidacaoException>(() => a.Svc.SalvarProjeto(a.Contr, meu, versao)).Message);
+        Assert.Throws<ValidacaoException>(() => a.Svc.ReprogramarAtividade(a.Contr, y.Id, D(0), D(1)));   // antes do fim da anterior
+        a.Svc.ReprogramarAtividade(a.Contr, y.Id, D(5), D(7));
+        var g = a.Db.PlAtividades.Obter(y.Id)!; Assert.Equal(D(5), g.IniPrev); Assert.NotNull(g.DatasAlteradasEm);
+        a.Svc.ExcluirProjeto(a.Contr, p.Id);
+        Assert.Empty(a.Db.PlAtividades.Onde(z => z.ProjetoId == p.Id));
+    }
+
+    [Fact]
+    public void Capacidade_considera_jornada_e_aponta_sobrecarga()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        var p = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Parada", Status = PlVocab.PAndamento });
+        var seg = DateTime.UtcNow.Date; while (seg.DayOfWeek != DayOfWeek.Monday) seg = seg.AddDays(1);
+        while (Feriados.DoPeriodo("", seg, seg.AddDays(4)).Count > 0) seg = seg.AddDays(7);           // semana sem feriado (feriado não conta como capacidade)
+        seg = PlannerEngine.Dia(seg);
+        a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p.Id, Nome = "Atividade A", Responsavel = "t:" + t.Id, IniPrev = seg, FimPrev = seg.AddDays(4), HorasEst = 30 });
+        a.Svc.SalvarAtividade(a.Contr, new PlAtividade { ProjetoId = p.Id, Nome = "Atividade B", Responsavel = "t:" + t.Id, IniPrev = seg, FimPrev = seg.AddDays(4), HorasEst = 30 });
+        var d = a.Svc.PlannerDados(a.Contr);
+        var cap = PlannerEngine.Capacidade(d, d.Atividades, seg, seg.AddDays(4)).Single(c => c.Pessoa == "t:" + t.Id);
+        Assert.Equal(45, cap.HorasCapacidade);                                                       // 5 dias × 9 h (08–17)
+        Assert.Equal(60, cap.HorasPlanejadas, 1); Assert.Equal("sobrecarga", cap.Situacao);
+    }
+}

@@ -430,9 +430,12 @@ public sealed partial class Servicos
                 ator.Exigir(Perm.EditarViagens);
                 if (!Db.Viagens.Existe(donoId)) throw new ValidacaoException("Viagem não encontrada.");
                 break;
+            case "plprojeto":       // Planner: anexo do projeto; categoria = id da atividade (evidência) ou vazio
+                if (!PodeAnexarPlanner(ator, donoId)) throw new UnauthorizedAccessException("Você não participa deste projeto.");
+                break;
             default: throw new ValidacaoException("Destino de anexo inválido.");
         }
-        var a = await Arquivos.SalvarAsync(ator, donoTipo, donoId, nome, conteudo, donoTipo == "viagem", donoTipo == "viagem" ? categoria : "");
+        var a = await Arquivos.SalvarAsync(ator, donoTipo, donoId, nome, conteudo, donoTipo is "viagem" or "plprojeto", donoTipo is "viagem" or "plprojeto" ? categoria : "");
         Auditar(ator, "anexo.adicionar", donoTipo, donoId, $"Anexo \"{a.NomeOriginal}\" adicionado" + (string.IsNullOrEmpty(a.Categoria) ? "" : $" ({a.Categoria})"));
         return a;
     }
@@ -447,6 +450,7 @@ public sealed partial class Servicos
             if (d is not null && !d.Atual) throw new ValidacaoException("Anexos de versões anteriores são histórico e não podem ser removidos.");
         }
         else if (a.DonoTipo == "viagem") ator.Exigir(Perm.EditarViagens);
+        else if (a.DonoTipo == "plprojeto") { if (!ator.Pode(Perm.PlannerEditar) && a.EnviadoPor != ator.Login) throw new UnauthorizedAccessException("Só quem enviou (ou o planejamento) pode remover."); }
         else throw new UnauthorizedAccessException();
         Arquivos.Remover(a);
         Auditar(ator, "anexo.remover", a.DonoTipo, a.DonoId, $"Anexo \"{a.NomeOriginal}\" removido");
@@ -466,6 +470,8 @@ public sealed partial class Servicos
                 return v is not null && ator.Papel == Roles.Tecnico && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId);
             case "tecnico":
                 return ator.VeTecnico(a.DonoId);
+            case "plprojeto":
+                return PodeVerPlanner(ator, a.DonoId);
             case "marca":
             case "usuario":
                 return true;
