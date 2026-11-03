@@ -82,7 +82,8 @@ else
         {
             <div class="translado-add">
                 <button type="button" class="btn-ghost sm" @onclick="AdicionarTranslado">@Icons.Svg("plus")Adicionar translado (opcional)</button>
-                <span class="muted sm">Ex.: o técnico volta para casa no meio da viagem e depois retorna à planta. O serviço é pausado nesse intervalo.</span>
+                <button type="button" class="btn-ghost sm" @onclick="AdicionarServico">@Icons.Svg("plus")Adicionar serviço (opcional)</button>
+                <span class="muted sm">Translado: o técnico volta para casa no meio da viagem e depois retorna (o serviço é pausado nesse intervalo). Serviço: outro período de serviço na mesma planta, com o mesmo serviço ou outro.</span>
             </div>
         }
         @Bloco("volta", "Deslocamento de volta", "plane", "#c26a14", _volta, _fusoPlanta, _fusoOrigem, Dias(_volta.Ini, _volta.Fim), true)
@@ -167,7 +168,8 @@ else
     [Parameter] public string Id { get; set; } = "";
 
     /// <summary>Sentido (só translados extras): "casa" = da planta para casa no meio da viagem; "planta" = de casa de volta à planta.</summary>
-    private sealed class Faixa { public string Ini = "", Fim = "", Modal = Vocab.ModalAviao, Sentido = ""; public Trecho? T; public Atendimento? A; }
+    /// <summary>EhServico (só blocos extras): serviço adicional opcional, com o próprio tipo de serviço (vazio = o da viagem); Partes = divisões nas pausas.</summary>
+    private sealed class Faixa { public string Ini = "", Fim = "", Modal = Vocab.ModalAviao, Sentido = "", ServicoId = ""; public bool EhServico; public Trecho? T; public Atendimento? A; public List<Atendimento> Partes = new(); }
     private List<Faixa> _extras = new();
     /// <summary>Partes do serviço além da primeira (o serviço é dividido nas pausas em casa).</summary>
     private List<Atendimento> _servPartes = new();
@@ -235,7 +237,7 @@ else
             // viagem com itinerário complexo (vários trechos/atendimentos, trechos por técnico, entre plantas): usa o modo avançado, sem perder nada
             // idas/voltas a mais (translados no meio da viagem) e o serviço dividido nessas pausas continuam no modo simples
             var simples = trs.All(t => t.Tipo != Vocab.TrechoEntre && paraTodos(t.TecnicoIds))
-                          && ats.All(a => paraTodos(a.TecnicoIds) && (a.PlantaId == v.PlantaId || v.PlantaId == "")) && ats.Select(a => a.ServicoId).Distinct().Count() <= 1;
+                          && ats.All(a => paraTodos(a.TecnicoIds) && (a.PlantaId == v.PlantaId || v.PlantaId == "")) && ats.GroupBy(a => a.Bloco).All(g => g.Select(a => a.ServicoId).Distinct().Count() <= 1);
             if (!simples) { Nav.NavigateTo($"/viagens/{Id}/avancado", replace: true); return; }
             _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet(); _nNotas = ContarNotas();
             if (EmailQuery == true && !_emailAberto) { _email = true; _emailAberto = true; }
@@ -251,7 +253,15 @@ else
                 _extras.Add(new Faixa { T = x.Copia<Trecho>(), Modal = x.Modal, Sentido = paraCasa ? "casa" : "planta",
                     Ini = Ui.ParaInput(x.PartidaPrev, paraCasa ? _fusoPlanta : _fusoOrigem), Fim = Ui.ParaInput(x.ChegadaPrev, paraCasa ? _fusoOrigem : _fusoPlanta) });
             }
-            var atsOrd = ats.OrderBy(a => a.IniPrev).ToList();
+            var atsOrd = ats.Where(a => a.Bloco == 0).OrderBy(a => a.IniPrev).ToList();
+            // serviços adicionais (blocos 1, 2…), cada um com as suas partes
+            foreach (var g in ats.Where(a => a.Bloco > 0).GroupBy(a => a.Bloco).OrderBy(g => g.Key))
+            {
+                var ps = g.OrderBy(a => a.IniPrev).ToList();
+                _extras.Add(new Faixa { EhServico = true, A = ps[0].Copia<Atendimento>(), Partes = ps.Skip(1).Select(a => a.Copia<Atendimento>()).ToList(),
+                    ServicoId = ps[0].ServicoId == v.ServicoId ? "" : ps[0].ServicoId, Ini = Ui.ParaInput(ps[0].IniPrev, _fusoPlanta), Fim = Ui.ParaInput(ps.Max(a => a.FimPrev), _fusoPlanta) });
+            }
+            _extras = _extras.OrderBy(x => x.Ini == "" ? "9999" : x.Ini).ToList();      // translados e serviços extras em ordem cronológica
             if (atsOrd.Count > 0)
             {
                 var at = atsOrd[0];
@@ -303,7 +313,7 @@ else
         }
         // translados no meio da viagem (ex.: volta para casa e retorno à planta)
         var pausas = new List<(DateTime de, DateTime? ate)>(); var extrasTr = new List<Trecho>();
-        foreach (var x in _extras)
+        foreach (var x in _extras.Where(x => !x.EhServico))
         {
             var paraCasa = x.Sentido == "casa";
             var fIni = paraCasa ? _fusoPlanta : _fusoOrigem; var fFim = paraCasa ? _fusoOrigem : _fusoPlanta;
@@ -332,10 +342,14 @@ else
             var retorno = exOrd.FirstOrDefault(t => t.Tipo == Vocab.TrechoIda && (t.PartidaPrev ?? t.ChegadaPrev) > de);
             pausas.Add((de, retorno?.ChegadaPrev ?? retorno?.PartidaPrev));
         }
-        var si = Ui.DoInput(_serv.Ini, _fusoPlanta); var sf = Ui.DoInput(_serv.Fim, _fusoPlanta);
-        if (si.HasValue || sf.HasValue)
+        // serviço principal (bloco 0) e serviços adicionais (blocos 1, 2…); cada um é dividido nas pausas em casa (cada parte vira um atendimento)
+        var blocos = new List<(Faixa f, List<Atendimento> partesAntes, string servico, int bloco)> { (_serv, _servPartes, _v.ServicoId, 0) };
+        var nBloco = 0;
+        foreach (var x in _extras.Where(x => x.EhServico)) blocos.Add((x, x.Partes, string.IsNullOrEmpty(x.ServicoId) ? _v.ServicoId : x.ServicoId, ++nBloco));
+        foreach (var (f, partesAntes, servico, bloco) in blocos)
         {
-            // divide o serviço nas pausas em casa (cada parte vira um atendimento; as horas ficam na primeira)
+            var si = Ui.DoInput(f.Ini, _fusoPlanta); var sf = Ui.DoInput(f.Fim, _fusoPlanta);
+            if (!si.HasValue && !sf.HasValue) continue;                 // serviço opcional ainda em branco: ignora
             var partes = new List<(DateTime? ini, DateTime? fim)> { (si, sf) };
             if (si.HasValue && sf.HasValue)
                 foreach (var (de, ate) in pausas.OrderBy(p => p.de))
@@ -347,9 +361,9 @@ else
                 }
             for (var i = 0; i < partes.Count; i++)
             {
-                var a = (i == 0 ? _serv.A : i - 1 < _servPartes.Count ? _servPartes[i - 1] : null)?.Copia<Atendimento>() ?? new Atendimento();
-                a.PlantaId = _v.PlantaId; a.ServicoId = _v.ServicoId; a.ClienteId = _v.ClienteId; a.IniPrev = partes[i].ini ?? default; a.FimPrev = partes[i].fim ?? default; a.TecnicoIds = "";
-                a.HorasPrev = i == 0 ? _horasPrev : null; a.HorasReal = i == 0 ? _horasReal : null; a.ViagemId = _v.Id;
+                var a = (i == 0 ? f.A : i - 1 < partesAntes.Count ? partesAntes[i - 1] : null)?.Copia<Atendimento>() ?? new Atendimento();
+                a.PlantaId = _v.PlantaId; a.ServicoId = servico; a.ClienteId = _v.ClienteId; a.IniPrev = partes[i].ini ?? default; a.FimPrev = partes[i].fim ?? default; a.TecnicoIds = "";
+                a.HorasPrev = bloco == 0 && i == 0 ? _horasPrev : null; a.HorasReal = bloco == 0 && i == 0 ? _horasReal : null; a.ViagemId = _v.Id; a.Bloco = bloco;
                 at.Add(a);
             }
         }
@@ -406,9 +420,29 @@ else
         _extras.Add(new Faixa { Sentido = "planta", Modal = Vocab.ModalAviao });
     }
     private void RemoverTranslado(Faixa x) { _extras.Remove(x); Validar(); }
-    private static string TituloExtra(Faixa x) => x.Sentido == "casa" ? "Translado: volta para casa" : "Translado: retorno à planta";
+    private void AdicionarServico() => _extras.Add(new Faixa { EhServico = true });
+    private string TituloExtra(Faixa x) => x.EhServico ? $"Serviço adicional {_extras.Where(e => e.EhServico).ToList().IndexOf(x) + 1}"
+        : x.Sentido == "casa" ? "Translado: volta para casa" : "Translado: retorno à planta";
 
-    private RenderFragment BlocoExtra(Faixa x) => __builder =>
+    private RenderFragment BlocoExtra(Faixa x) => x.EhServico ? BlocoServico(x) : BlocoTranslado(x);
+
+    private RenderFragment BlocoServico(Faixa x) => __builder =>
+    {
+        var cor = "#0e7490";
+        <div class="diaria translado" style="--c:@cor">
+            <div class="diaria-cab"><span class="ev-selo sm" style="background:@cor">@Icons.Svg("customers")</span><strong>@TituloExtra(x)</strong><span class="tag">opcional</span>
+                <span class="grow"></span><span class="badge diar-n">@Diar(Dias(x.Ini, x.Fim))</span>
+                @if (_pode) { <button type="button" class="icon-btn perigo xs" title="Remover este serviço" aria-label="Remover serviço" @onclick="() => RemoverTranslado(x)">@Icons.Svg("trash")</button> }</div>
+            <div class="form-grid">
+                <label class="fld">Serviço <span class="hint">vazio = o mesmo da viagem</span>
+                    <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@x.ServicoId" ValueChanged="@(async (string v) => { x.ServicoId = v ?? string.Empty; Validar(); })" Placeholder="— o mesmo da viagem —" Criar="CriarServ" RotuloCriar="serviço" /></label>
+                <label class="fld">Início <span class="hint">@Tempo.Offset(_fusoPlanta, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Ini" @onchange="e => { x.Ini = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                <label class="fld">Fim <span class="hint">@Tempo.Offset(_fusoPlanta, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Fim" @onchange="e => { x.Fim = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+            </div>
+        </div>
+    };
+
+    private RenderFragment BlocoTranslado(Faixa x) => __builder =>
     {
         var paraCasa = x.Sentido == "casa"; var cor = paraCasa ? "#8a6d3b" : "#b7791f";
         <div class="diaria translado" style="--c:@cor">

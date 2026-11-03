@@ -193,6 +193,8 @@ public class Atendimento : Entity
     /// <summary>Só vale para atendimento avulso; vinculado herda o status da viagem.</summary>
     public string Status { get; set; } = Vocab.ViagemPlanejada;
     public string Obs { get; set; } = "";
+    /// <summary>Viagem simples: 0 = serviço principal; 1, 2… = serviços adicionais (opcionais). Partes do mesmo serviço divididas por pausas têm o mesmo número.</summary>
+    public int Bloco { get; set; }
 }
 
 public class Indisponibilidade : Entity
