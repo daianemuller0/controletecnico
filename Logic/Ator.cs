@@ -47,8 +47,16 @@ public sealed class Ator
         [Perm.PlannerCustos] = new[] { Roles.Admin, Roles.Gestao },
     };
 
+    /// <summary>Planner de Manutenção ligado? Desligado (Planner:Ativo = false no appsettings), some do menu e
+    /// ninguém acessa — nem o administrador. Os dados já gravados ficam guardados.</summary>
+    public static bool PlannerAtivo { get; set; } = true;
+
     /// <summary>Permissão geral (sem referência a um técnico específico).</summary>
-    public bool Pode(Perm p) => Matriz.TryGetValue(p, out var papeis) && papeis.Contains(Papel);
+    public bool Pode(Perm p)
+    {
+        if (!PlannerAtivo && p is Perm.PlannerVer or Perm.PlannerEditar or Perm.PlannerCustos) return false;
+        return Matriz.TryGetValue(p, out var papeis) && papeis.Contains(Papel);
+    }
 
     /// <summary>Permissão sobre os dados de UM técnico: o papel Técnico só vale na própria ficha.</summary>
     public bool Pode(Perm p, string? tecnicoId)

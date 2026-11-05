@@ -113,6 +113,7 @@ if (args.Contains("--redefinir-admin"))
     Console.WriteLine("Entre e troque a senha pelo cadeado no topo da tela.");
     return 0;
 }
+Ator.PlannerAtivo = builder.Configuration.GetValue("Planner:Ativo", false);      // oculto por enquanto para todos
 Repo<Tecnico>.SegundosEntreChecagens = builder.Configuration.GetValue("Data:AtualizarCacheSegundos", 3);
 // pasta de rede (VPN): telas leem a cópia local; a rede é conferida em segundo plano
 Repo<Tecnico>.SincronizarEmSegundoPlano = store.Remoto && builder.Configuration.GetValue("Data:SincronizarEmSegundoPlano", true);

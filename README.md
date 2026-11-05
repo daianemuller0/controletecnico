@@ -231,6 +231,8 @@ Ao criar uma viagem, a tela já traz a **lista de verificação**, os **document
 
 ## Planner de Manutenção
 
+> **Oculto por enquanto.** Com `Planner:Ativo = false` no `appsettings.json` (padrão atual), o item some do menu e as telas e operações ficam bloqueadas para todos os perfis, inclusive o administrador. Os dados já gravados ficam guardados; para liberar, troque para `true` e reabra o programa.
+
 Item **Planner de Manutenção** no menu, com abas: **Visão geral**, **Projetos**, **Quadro Kanban**, **Cronograma**, **Calendário**, **Equipe e recursos** e **Relatórios**. É o mesmo cadastro em todas as abas: os filtros do topo (busca, cliente, unidade, responsável, status, prioridade, tipo, período, atrasados, vencendo em 7 dias, incluir concluídos) valem para todas, e a regra de atraso é uma só: o fim previsto passou e o item não está encerrado. Projetos pausados não contam como atrasados, e os concluídos também não.
 
 - **Projetos**: código automático `PM-aaaa-0001`, unidade (planta, de onde vem o cliente), área, equipamento, tipo, responsável, equipe, datas previstas e reais separadas, prioridade, status (com quem mudou e quando), custos e observações. Ao criar, dá para escolher um **modelo**: há 3 prontos (compressor, ventilador, parada programada), e qualquer projeto pode virar modelo com "Salvar como modelo". Excluir pede o código digitado e lista o que vai junto. Se a ideia é só registrar que o projeto não vai acontecer, use o status **Cancelado**, que mantém o histórico.

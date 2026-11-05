@@ -339,6 +339,8 @@ else
         {
             var ini = _eventos.Where(e => e.ViagemId == v.Id).Select(e => (DateTime?)e.Ini).Min();
             if (ini is null || ini < _instante) continue;
+            // o técnico vê só as viagens em que está escalado; os demais perfis veem todas
+            if (!_ator.VeTodaEquipe && !Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId)) continue;
             prev.Add(v.Id); _prevIni[v.Id] = ini.Value;
             foreach (var t in Ui.Ids(v.TecnicoIds).Where(ids.Contains))
             { if (!_viagensPrevPorTec.TryGetValue(t, out var l)) _viagensPrevPorTec[t] = l = new(); l.Add(v.Id); }

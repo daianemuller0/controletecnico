@@ -394,7 +394,7 @@ else if (_p is not null)
     }
     protected override void OnParametersSet()
     {
-        if (!_ator.Pode(Perm.PlannerVer)) { _erroCarga = "Sem acesso ao Planner"; return; }
+        if (!_ator.Pode(Perm.PlannerVer)) { _erroCarga = Ator.PlannerAtivo ? "Sem acesso ao Planner" : "O Planner de Manutenção está desativado por enquanto."; return; }
         _pessoas = Svc.PlannerPessoas();
         Recarregar();
         // ?atividade= (link dos alertas): abre a atividade uma única vez

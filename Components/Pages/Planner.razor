@@ -9,7 +9,7 @@
 
 @if (!_ator.Pode(Perm.PlannerVer))
 {
-    <div class="empty-state"><div class="ico">@Icons.Svg("lock")</div><h3>Sem acesso ao Planner</h3><p>Peça ao administrador para liberar o seu perfil.</p></div>
+    <div class="empty-state"><div class="ico">@Icons.Svg("lock")</div><h3>@(Ator.PlannerAtivo ? "Sem acesso ao Planner" : "Planner de Manutenção indisponível")</h3><p>@(Ator.PlannerAtivo ? "Peça ao administrador para liberar o seu perfil." : "Este módulo está desativado por enquanto.")</p></div>
 }
 else
 {
