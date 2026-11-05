@@ -20,7 +20,7 @@ else
 <div class="page-head compacto">
     <div>
         <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
-        <p class="subtitle">@(_pode ? "Planejamento da viagem: trechos, atendimentos e tempos. Ao salvar, agenda, mapa e ficha dos técnicos são atualizados." : "Somente consulta.")</p>
+        <p class="subtitle">@(_pode ? "Planejamento da viagem: trechos, atendimentos e tempos. Ao salvar, agenda, mapa e ficha dos técnicos são atualizados." : _participa ? "Você pode marcar a lista de verificação e registrar o histórico e o feedback do serviço; o restante da viagem é somente consulta." : "Somente consulta.")</p>
     </div>
     @if (_pode)
     {
@@ -44,11 +44,12 @@ else
 @if (true)
 {
     <div class="tabs vg-abas" role="tablist">
-        <button role="tab" class="tab @(_abaV != "historico" ? "active" : "")" @onclick="@(() => _abaV = "viagem")">@Icons.Svg("plane")Viagem</button>
+        <button role="tab" class="tab @(_abaV == "viagem" ? "active" : "")" @onclick="@(() => _abaV = "viagem")">@Icons.Svg("plane")Viagem</button>
         <button role="tab" class="tab @(_abaV == "historico" ? "active" : "")" @onclick="@(() => _abaV = "historico")">@Icons.Svg("history")Histórico da viagem <span class="tab-n">@_nNotas</span></button>
+        <button role="tab" class="tab @(_abaV == "feedback" ? "active" : "")" @onclick="@(() => _abaV = "feedback")">@Icons.Svg("review")Feedback do serviço <span class="tab-n">@_nFb</span></button>
     </div>
 }
-<div class="vg-grid" style="@(_abaV == "historico" ? "display:none" : "")">
+<div class="vg-grid" style="@(_abaV != "viagem" ? "display:none" : "")">
 <div class="vg-main">
 <fieldset class="semborda" disabled="@(!_pode)">
 
@@ -175,7 +176,7 @@ else
 </div>
 
 <aside class="vg-lado">
-    @if (true) { <ChecklistViagem ViagemId="@(_novo ? "" : Id)" Itens="@Checklist.Ler(_v.Checklist)" Pode="@_pode" Sessao_Fuso="@_snap.FusoPadrao" OnMudou="@((List<Checklist.Item> l) => { _v.Checklist = Checklist.Gravar(l); })" /> }
+    @if (true) { <ChecklistViagem ViagemId="@(_novo ? "" : Id)" Itens="@Checklist.Ler(_v.Checklist)" Pode="@_participa" Sessao_Fuso="@_snap.FusoPadrao" OnMudou="@((List<Checklist.Item> l) => { _v.Checklist = Checklist.Gravar(l); })" /> }
     <div class="panel mt16">
         <div class="panel-head"><div class="panel-title">Controle dos tempos</div></div>
         <table class="tempos">
@@ -218,7 +219,8 @@ else
 }
 }
 
-@if (_abaV == "historico") { <HistoricoViagem ViagemId="@(_novo ? "" : Id)" Pendentes="_notasPend" Ator="@_ator" Pode="@_pode" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nNotas = n)" /> }
+@if (_abaV == "historico") { <HistoricoViagem ViagemId="@(_novo ? "" : Id)" Pendentes="_notasPend" Ator="@_ator" Pode="@_participa" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nNotas = n)" /> }
+@if (_abaV == "feedback") { <FeedbackServico ViagemId="@(_novo ? "" : Id)" Ator="@_ator" Pode="@_participa" VerAnexos="@_verAnexos" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nFb = n)" /> }
 @if (_email) { <EmailOsDialogo ViagemId="@Id" Ator="@_ator" OnFechar="@(() => _email = false)" OnGerado="@(() => { var x = Svc.Foto().Viagem(Id); if (x is not null) { _v.Checklist = x.Checklist; _v.OsGeradoEm = x.OsGeradoEm; } })" /> }
 
 @code {
@@ -233,7 +235,9 @@ else
     private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(c.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verReserva, _verAnexos, _email;
-    private string _abaV = "viagem"; private int _nNotas;
+    private string _abaV = "viagem"; private int _nNotas, _nFb;
+    /// <summary>Histórico, feedback e lista de verificação: quem edita viagens ou o técnico escalado nesta viagem.</summary>
+    private bool _participa;
     // ---- itens preparados antes de salvar a viagem nova: documentos e histórico
     private List<DocumentosViagem.Pendente> _docsPend = new(); private List<NotaViagem> _notasPend = new();
     [SupplyParameterFromQuery(Name = "email")] public bool? EmailQuery { get; set; }
@@ -251,6 +255,7 @@ else
     private Task AbrirEmail() { if (_novo) return Salvar(null, abrirEmail: true); _email = true; return Task.CompletedTask; }
 
     private int ContarNotas() { try { return Svc.NotasDaViagem(_ator, Id).Count; } catch { return 0; } }
+    private int ContarFeedbacks() { try { return Svc.FeedbacksDaViagem(_ator, Id).Count; } catch { return 0; } }
     private List<Usuario> _equipe = new();
     private void AoResponsavel(ChangeEventArgs e)
     {
@@ -281,13 +286,13 @@ else
         _pode = _ator.Pode(Perm.EditarViagens);
         if (_novo)
         {
-            _ok = _pode; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()) }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); _tr = new(); _at = new();
+            _ok = _pode; _participa = _pode; _nFb = 0; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()) }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); _tr = new(); _at = new();
         }
         else
         {
             var v = _snap.Viagem(Id);
             if (v is null || !(_ator.VeTodaEquipe || (_ator.Papel == Roles.Tecnico && Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId)))) { _ok = false; return; }
-            _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet(); _nNotas = ContarNotas();
+            _ok = true; _v = v.Copia<Viagem>(); _tecs = Ui.Ids(v.TecnicoIds).ToHashSet(); _nNotas = ContarNotas(); _nFb = ContarFeedbacks(); _participa = Svc.PodeParticipar(_ator, v);
             if (EmailQuery == true && !_emailAberto) { _email = true; _emailAberto = true; }
             _tr = _snap.Trechos.Where(t => t.ViagemId == Id).OrderBy(t => t.Ordem).Select(Vm).ToList();
             _at = _snap.Atendimentos.Where(a => a.ViagemId == Id).OrderBy(a => a.IniPrev).Select(Vm).ToList();

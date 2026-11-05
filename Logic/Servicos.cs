@@ -246,14 +246,32 @@ public sealed partial class Servicos
         return SalvarViagem(ator, v, trechos, atends);
     }
 
+    // ------------------------------------------------ quem participa da viagem
+    /// <summary>Pode registrar o histórico, o feedback do serviço e mexer na lista de verificação: quem edita viagens
+    /// ou o técnico escalado nesta viagem (o resto da viagem continua só para quem edita viagens).</summary>
+    public bool PodeParticipar(Ator ator, Viagem v) =>
+        ator.Pode(Perm.EditarViagens) || (ator.Papel == Roles.Tecnico && !string.IsNullOrEmpty(ator.TecnicoId) && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId));
+
+    /// <summary>Enxerga a viagem: quem vê a equipe ou o técnico escalado nela.</summary>
+    public bool VeViagem(Ator ator, Viagem v) =>
+        ator.VeTodaEquipe || (ator.Papel == Roles.Tecnico && !string.IsNullOrEmpty(ator.TecnicoId) && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId));
+
+    private Viagem ViagemParaParticipar(Ator ator, string viagemId)
+    {
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        if (!PodeParticipar(ator, v)) throw new UnauthorizedAccessException($"O perfil {Roles.Label(ator.Papel)} não tem permissão para esta operação.");
+        return v;
+    }
+
+    private string NomeDe(Ator ator) => Db.Usuarios.Obter(ator.Login)?.Nome is { Length: > 0 } n ? n : (string.IsNullOrWhiteSpace(ator.Nome) ? ator.Login : ator.Nome);
+
     // ------------------------------------------------ lista de verificação e responsável
     public List<Checklist.Item> MarcarItem(Ator ator, string viagemId, int indice, bool feito)
     {
-        ator.Exigir(Perm.EditarViagens);
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        var v = ViagemParaParticipar(ator, viagemId);
         var l = Checklist.Ler(v.Checklist);
         if (indice < 0 || indice >= l.Count) throw new ValidacaoException("Item inexistente na lista de verificação.");
-        l[indice].Feito = feito; l[indice].Por = feito ? (Db.Usuarios.Obter(ator.Login)?.Nome is { Length: > 0 } n ? n : ator.Login) : ""; l[indice].Em = feito ? DateTime.UtcNow : null;
+        l[indice].Feito = feito; l[indice].Por = feito ? NomeDe(ator) : ""; l[indice].Em = feito ? DateTime.UtcNow : null;
         v.Checklist = Checklist.Gravar(l); Db.Viagens.Salvar(v, ator.Login);
         Auditar(ator, "viagem.checklist", "viagem", v.Id, $"{v.Codigo}: \"{l[indice].Texto}\" {(feito ? "concluído" : "reaberto")} ({l.Count(i => i.Feito)}/{l.Count})");
         return l;
@@ -261,10 +279,9 @@ public sealed partial class Servicos
 
     public List<Checklist.Item> AdicionarItemChecklist(Ator ator, string viagemId, string texto)
     {
-        ator.Exigir(Perm.EditarViagens);
+        var v = ViagemParaParticipar(ator, viagemId);
         texto = string.Join(" ", (texto ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries));
         if (texto.Length is < 2 or > 80) throw new ValidacaoException("Descreva o item (2 a 80 caracteres).");
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         var l = Checklist.Ler(v.Checklist);
         if (l.Any(i => DocEngine.Norm(i.Texto) == DocEngine.Norm(texto))) throw new ValidacaoException("Este item já está na lista.");
         l.Add(new Checklist.Item { Texto = texto });
@@ -275,8 +292,7 @@ public sealed partial class Servicos
 
     public List<Checklist.Item> RemoverItemChecklist(Ator ator, string viagemId, int indice)
     {
-        ator.Exigir(Perm.EditarViagens);
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        var v = ViagemParaParticipar(ator, viagemId);
         var l = Checklist.Ler(v.Checklist);
         if (indice < 0 || indice >= l.Count) throw new ValidacaoException("Item inexistente na lista de verificação.");
         var t = l[indice].Texto; l.RemoveAt(indice);
@@ -336,14 +352,13 @@ public sealed partial class Servicos
     public List<NotaViagem> NotasDaViagem(Ator ator, string viagemId)
     {
         var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
-        if (!(ator.VeTodaEquipe || (ator.Papel == Roles.Tecnico && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId)))) throw new UnauthorizedAccessException("Sem acesso a esta viagem.");
+        if (!VeViagem(ator, v)) throw new UnauthorizedAccessException("Sem acesso a esta viagem.");
         return Db.NotasViagem.Onde(n => n.ViagemId == viagemId).OrderByDescending(n => n.Quando).ThenByDescending(n => n.EscritoEm).ToList();
     }
 
     public NotaViagem SalvarNota(Ator ator, NotaViagem n)
     {
-        ator.Exigir(Perm.EditarViagens);
-        var v = Db.Viagens.Obter(n.ViagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        var v = ViagemParaParticipar(ator, n.ViagemId);
         n.Texto = (n.Texto ?? "").Trim();
         if (n.Texto.Length < 2) throw new ValidacaoException("Escreva o que aconteceu.");
         if (n.Texto.Length > 8000) throw new ValidacaoException("Texto muito longo (até 8.000 caracteres).");
@@ -352,6 +367,7 @@ public sealed partial class Servicos
         var ant = string.IsNullOrEmpty(n.Id) ? null : Db.NotasViagem.Obter(n.Id);
         if (ant is not null)
         {
+            if (ant.ViagemId != v.Id) throw new ValidacaoException("Registro de outra viagem.");
             if (ant.Autor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu (ou o administrador) altera este registro.");
             n.EscritoEm = ant.EscritoEm; n.Autor = ant.Autor; n.AutorNome = ant.AutorNome; n.EditadoEm = DateTime.UtcNow;
         }
@@ -364,8 +380,8 @@ public sealed partial class Servicos
 
     public void ExcluirNota(Ator ator, string notaId)
     {
-        ator.Exigir(Perm.EditarViagens);
         var n = Db.NotasViagem.Obter(notaId) ?? throw new ValidacaoException("Registro não encontrado.");
+        ViagemParaParticipar(ator, n.ViagemId);
         if (n.Autor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu (ou o administrador) exclui este registro.");
         Db.NotasViagem.Apagar(n.Id);
         Auditar(ator, "viagem.historico.excluir", "viagem", n.ViagemId, $"Registro do histórico excluído: {(n.Texto.Length > 80 ? n.Texto[..80] + "…" : n.Texto)}");
@@ -375,6 +391,50 @@ public sealed partial class Servicos
     public List<Auditoria> EventosDaViagem(string viagemId) =>
         Db.Auditorias.Onde(a => a.Entidade == "viagem" && a.EntidadeId == viagemId && !a.Acao.StartsWith("viagem.historico") && a.Acao != "anexo.visualizar" && a.Acao != "anexo.baixar")
             .OrderByDescending(a => a.Quando).ToList();
+
+    // ------------------------------------------------ feedback do serviço
+    public List<FeedbackViagem> FeedbacksDaViagem(Ator ator, string viagemId)
+    {
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+        if (!VeViagem(ator, v)) throw new UnauthorizedAccessException("Sem acesso a esta viagem.");
+        return Db.FeedbacksViagem.Onde(f => f.ViagemId == viagemId).OrderByDescending(f => f.EscritoEm).ToList();
+    }
+
+    public List<Anexo> AnexosDoFeedback(string feedbackId) =>
+        Db.Anexos.Onde(a => a.DonoTipo == "feedback" && a.DonoId == feedbackId).OrderBy(a => a.NomeOriginal).ToList();
+
+    /// <summary>Grava o feedback do serviço. O texto pode ficar vazio quando o feedback é só o arquivo anexado
+    /// (<paramref name="comAnexos"/>): nesse caso os anexos são enviados logo em seguida, para este registro.</summary>
+    public FeedbackViagem SalvarFeedback(Ator ator, FeedbackViagem f, bool comAnexos = false)
+    {
+        var v = ViagemParaParticipar(ator, f.ViagemId);
+        f.Texto = (f.Texto ?? "").Trim();
+        var ant = string.IsNullOrEmpty(f.Id) ? null : Db.FeedbacksViagem.Obter(f.Id);
+        var temAnexo = comAnexos || (ant is not null && AnexosDoFeedback(ant.Id).Count > 0);
+        if (f.Texto.Length < 2 && !temAnexo) throw new ValidacaoException("Escreva o feedback do serviço ou anexe um arquivo.");
+        if (f.Texto.Length > 8000) throw new ValidacaoException("Texto muito longo (até 8.000 caracteres).");
+        if (ant is not null)
+        {
+            if (ant.ViagemId != v.Id) throw new ValidacaoException("Feedback de outra viagem.");
+            if (ant.Autor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu (ou o administrador) altera este feedback.");
+            f.EscritoEm = ant.EscritoEm; f.Autor = ant.Autor; f.AutorNome = ant.AutorNome; f.EditadoEm = DateTime.UtcNow;
+        }
+        else { f.EscritoEm = DateTime.UtcNow; f.Autor = ator.Login; f.AutorNome = NomeDe(ator); f.EditadoEm = null; }
+        Db.FeedbacksViagem.Salvar(f, ator.Login);
+        var resumo = f.Texto.Length == 0 ? "(arquivo anexado)" : f.Texto.Length > 120 ? f.Texto[..120] + "…" : f.Texto;
+        Auditar(ator, ant is null ? "viagem.feedback" : "viagem.feedback.editar", "viagem", v.Id, $"{v.Codigo}: feedback do serviço — {resumo}");
+        return f;
+    }
+
+    public void ExcluirFeedback(Ator ator, string feedbackId)
+    {
+        var f = Db.FeedbacksViagem.Obter(feedbackId) ?? throw new ValidacaoException("Feedback não encontrado.");
+        var v = ViagemParaParticipar(ator, f.ViagemId);
+        if (f.Autor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu (ou o administrador) exclui este feedback.");
+        foreach (var a in AnexosDoFeedback(f.Id)) Arquivos.Remover(a);
+        Db.FeedbacksViagem.Apagar(f.Id);
+        Auditar(ator, "viagem.feedback.excluir", "viagem", v.Id, $"{v.Codigo}: feedback do serviço excluído");
+    }
 
     /// <summary>Usuárias da equipe de controle (podem ser responsáveis por viagens e trocar entre si).</summary>
     public List<Usuario> EquipeControle() => Db.Usuarios.Todos().Where(u => u.Ativo && u.EquipeControle).OrderBy(u => u.Nome).ToList();
@@ -405,6 +465,11 @@ public sealed partial class Servicos
         foreach (var a in Db.Atendimentos.Onde(a => a.ViagemId == viagemId)) Db.Atendimentos.Apagar(a.Id);
         foreach (var an in Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == viagemId)) Arquivos.Remover(an);
         foreach (var n in Db.NotasViagem.Onde(n => n.ViagemId == viagemId)) Db.NotasViagem.Apagar(n.Id);
+        foreach (var f in Db.FeedbacksViagem.Onde(f => f.ViagemId == viagemId))
+        {
+            foreach (var an in AnexosDoFeedback(f.Id)) Arquivos.Remover(an);
+            Db.FeedbacksViagem.Apagar(f.Id);
+        }
         Db.Viagens.Apagar(viagemId);
         var proj = string.IsNullOrWhiteSpace(v.Projeto) ? "" : $" · projeto {v.Projeto}";
         Auditar(ator, "viagem.excluir", "viagem", viagemId, $"Viagem {v.Codigo}{proj} excluída (status {Vocab.Get(Vocab.StatusViagem, v.Status).Label})");

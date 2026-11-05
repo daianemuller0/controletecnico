@@ -430,12 +430,18 @@ public sealed partial class Servicos
                 ator.Exigir(Perm.EditarViagens);
                 if (!Db.Viagens.Existe(donoId)) throw new ValidacaoException("Viagem não encontrada.");
                 break;
+            case "feedback":        // feedback do serviço: técnico escalado ou quem edita viagens; só no feedback de quem escreveu (ou admin)
+                var fb = Db.FeedbacksViagem.Obter(donoId) ?? throw new ValidacaoException("Feedback não encontrado.");
+                var vfb = Db.Viagens.Obter(fb.ViagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
+                if (!PodeParticipar(ator, vfb)) throw new UnauthorizedAccessException($"O perfil {Roles.Label(ator.Papel)} não tem permissão para esta operação.");
+                if (fb.Autor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu o feedback (ou o administrador) anexa arquivos a ele.");
+                break;
             case "plprojeto":       // Planner: anexo do projeto; categoria = id da atividade (evidência) ou vazio
                 if (!PodeAnexarPlanner(ator, donoId)) throw new UnauthorizedAccessException("Você não participa deste projeto.");
                 break;
             default: throw new ValidacaoException("Destino de anexo inválido.");
         }
-        var a = await Arquivos.SalvarAsync(ator, donoTipo, donoId, nome, conteudo, donoTipo is "viagem" or "plprojeto", donoTipo is "viagem" or "plprojeto" ? categoria : "");
+        var a = await Arquivos.SalvarAsync(ator, donoTipo, donoId, nome, conteudo, donoTipo is "viagem" or "plprojeto" or "feedback", donoTipo is "viagem" or "plprojeto" ? categoria : "");
         Auditar(ator, "anexo.adicionar", donoTipo, donoId, $"Anexo \"{a.NomeOriginal}\" adicionado" + (string.IsNullOrEmpty(a.Categoria) ? "" : $" ({a.Categoria})"));
         return a;
     }
@@ -450,6 +456,12 @@ public sealed partial class Servicos
             if (d is not null && !d.Atual) throw new ValidacaoException("Anexos de versões anteriores são histórico e não podem ser removidos.");
         }
         else if (a.DonoTipo == "viagem") ator.Exigir(Perm.EditarViagens);
+        else if (a.DonoTipo == "feedback")
+        {
+            var fb = Db.FeedbacksViagem.Obter(a.DonoId); var vfb = fb is null ? null : Db.Viagens.Obter(fb.ViagemId);
+            if (vfb is null || !PodeParticipar(ator, vfb)) throw new UnauthorizedAccessException($"O perfil {Roles.Label(ator.Papel)} não tem permissão para esta operação.");
+            if (fb!.Autor != ator.Login && a.EnviadoPor != ator.Login && ator.Papel != Roles.Admin) throw new UnauthorizedAccessException("Só quem escreveu o feedback (ou o administrador) remove o arquivo.");
+        }
         else if (a.DonoTipo == "plprojeto") { if (!ator.Pode(Perm.PlannerEditar) && a.EnviadoPor != ator.Login) throw new UnauthorizedAccessException("Só quem enviou (ou o planejamento) pode remover."); }
         else throw new UnauthorizedAccessException();
         Arquivos.Remover(a);
@@ -468,6 +480,11 @@ public sealed partial class Servicos
                 if (ator.Pode(Perm.VerAnexosViagem)) return true;
                 var v = Db.Viagens.Obter(a.DonoId);
                 return v is not null && ator.Papel == Roles.Tecnico && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId);
+            case "feedback":
+                var fb = Db.FeedbacksViagem.Obter(a.DonoId); var vfb = fb is null ? null : Db.Viagens.Obter(fb.ViagemId);
+                if (vfb is null) return false;
+                if (ator.Pode(Perm.VerAnexosViagem)) return true;
+                return ator.Papel == Roles.Tecnico && Snapshot.Ids(vfb.TecnicoIds).Contains(ator.TecnicoId);
             case "tecnico":
                 return ator.VeTecnico(a.DonoId);
             case "plprojeto":

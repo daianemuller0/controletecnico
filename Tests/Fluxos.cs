@@ -1431,6 +1431,80 @@ public class HistoricoViagemTests
     }
 }
 
+public class TecnicoNaViagemTests
+{
+    private static (Amb a, Viagem v, Ator tec, Ator outroTec) Base()
+    {
+        var a = new Amb(); var t = a.NovoTec("Técnico Escalado"); var t2 = a.NovoTec("Outro Técnico"); var p = a.NovaPlanta();
+        var v = a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "P9", Status = Vocab.ViagemConfirmada, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(4, 17), TecnicoIds = t.Id } });
+        return (a, v, new Ator { Login = "tec1", Nome = "Técnico Escalado", Papel = Roles.Tecnico, TecnicoId = t.Id },
+                      new Ator { Login = "tec2", Nome = "Outro Técnico", Papel = Roles.Tecnico, TecnicoId = t2.Id });
+    }
+
+    [Fact]
+    public void Tecnico_escalado_registra_no_historico_e_mexe_na_lista_de_verificacao()
+    {
+        var (a, v, tec, outro) = Base(); using var _a = a;
+        Assert.True(a.Svc.PodeParticipar(tec, a.Db.Viagens.Obter(v.Id)!));
+        Assert.False(a.Svc.PodeParticipar(outro, a.Db.Viagens.Obter(v.Id)!));
+        Assert.False(a.Svc.PodeParticipar(a.Consulta, a.Db.Viagens.Obter(v.Id)!));
+        // histórico
+        var n = a.Svc.SalvarNota(tec, new NotaViagem { ViagemId = v.Id, Tipo = "cliente", Texto = "Cliente liberou a área às 9h." });
+        Assert.Equal("tec1", n.Autor);
+        n.Texto = "Cliente liberou a área às 10h."; a.Svc.SalvarNota(tec, n);
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarNota(outro, new NotaViagem { ViagemId = v.Id, Texto = "não é minha viagem" }));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarNota(a.Consulta, new NotaViagem { ViagemId = v.Id, Texto = "consulta não escreve" }));
+        var doGestor = a.Svc.SalvarNota(a.Gestao, new NotaViagem { ViagemId = v.Id, Texto = "Hotel confirmado." });
+        doGestor.Texto = "mexido"; Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarNota(tec, doGestor));     // registro de outra pessoa
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.ExcluirNota(outro, n.Id));
+        a.Svc.ExcluirNota(tec, n.Id);
+        Assert.Single(a.Svc.NotasDaViagem(tec, v.Id));
+        // lista de verificação
+        var l = a.Svc.MarcarItem(tec, v.Id, 0, true);
+        Assert.True(l[0].Feito); Assert.Equal("Técnico Escalado", l[0].Por);
+        a.Svc.AdicionarItemChecklist(tec, v.Id, "EPI conferido");
+        var tam = Checklist.Ler(a.Db.Viagens.Obter(v.Id)!.Checklist).Count;
+        a.Svc.RemoverItemChecklist(tec, v.Id, tam - 1);
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.MarcarItem(outro, v.Id, 1, true));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.AdicionarItemChecklist(a.Consulta, v.Id, "item"));
+        // o resto da viagem continua só para quem edita viagens
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.AlterarStatusViagem(tec, v.Id, Vocab.ViagemAndamento));
+    }
+
+    [Fact]
+    public async Task Feedback_do_servico_com_anexo_e_permissoes()
+    {
+        var (a, v, tec, outro) = Base(); using var _a = a;
+        var pdf = System.Text.Encoding.ASCII.GetBytes("%PDF-1.4 relatorio");
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarFeedback(tec, new FeedbackViagem { ViagemId = v.Id, Texto = " " }));
+        var f = a.Svc.SalvarFeedback(tec, new FeedbackViagem { ViagemId = v.Id, Texto = "Serviço concluído; troca do mancal feita." });
+        var an = await a.Svc.AnexarAsync(tec, "feedback", f.Id, "Relatorio de servico.pdf", new MemoryStream(pdf));
+        Assert.Single(a.Svc.AnexosDoFeedback(f.Id));
+        Assert.Empty(a.Db.Anexos.Onde(x => x.DonoTipo == "viagem" && x.DonoId == v.Id));      // não se mistura com os documentos da viagem
+        // só o arquivo, sem texto
+        var soArquivo = a.Svc.SalvarFeedback(tec, new FeedbackViagem { ViagemId = v.Id }, comAnexos: true);
+        Assert.Equal("", soArquivo.Texto);
+        // quem vê
+        Assert.True(a.Svc.PodeAcessar(tec, an)); Assert.True(a.Svc.PodeAcessar(a.Gestao, an));
+        Assert.False(a.Svc.PodeAcessar(outro, an)); Assert.False(a.Svc.PodeAcessar(a.Consulta, an));
+        Assert.Equal(2, a.Svc.FeedbacksDaViagem(a.Consulta, v.Id).Count);      // consulta lê o texto, sem abrir os arquivos
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.FeedbacksDaViagem(outro, v.Id));
+        // quem escreve e altera
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarFeedback(outro, new FeedbackViagem { ViagemId = v.Id, Texto = "não é minha" }));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => a.Svc.AnexarAsync(a.Gestao, "feedback", f.Id, "x.pdf", new MemoryStream(pdf)));
+        f.Texto = "Serviço concluído."; Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarFeedback(a.Gestao, f));
+        a.Svc.SalvarFeedback(a.Admin, f); Assert.NotNull(a.Db.FeedbacksViagem.Obter(f.Id)!.EditadoEm);
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.RemoverAnexo(outro, an.Id));
+        Assert.Contains(a.Svc.EventosDaViagem(v.Id), x => x.Acao == "viagem.feedback");
+        // excluir o feedback leva os arquivos; excluir a viagem leva tudo
+        a.Svc.ExcluirFeedback(tec, f.Id);
+        Assert.Empty(a.Db.Anexos.Onde(x => x.DonoTipo == "feedback" && x.DonoId == f.Id));
+        a.Svc.ExcluirViagem(a.Gestao, v.Id);
+        Assert.Empty(a.Db.FeedbacksViagem.Onde(x => x.ViagemId == v.Id));
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]

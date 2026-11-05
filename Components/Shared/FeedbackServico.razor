@@ -1,0 +1,174 @@
+@* Feedback do serviço: o técnico escalado (ou a equipe) conta como foi o serviço e anexa o relatório, fotos, aceite do cliente… *@
+@inject Servicos Svc
+@inject Sessao Sessao
+
+<div class="hv fb">
+    @if (Local)
+    {
+        <div class="alert-box alert-aviso">@Icons.Svg("info")<div>Salve a viagem para registrar o feedback do serviço.</div></div>
+    }
+    else
+    {
+        @if (Pode)
+        {
+            <div class="panel hv-novo">
+                <div class="panel-head"><div class="panel-title">@Icons.Svg("review")@(_edit is null ? "Feedback do serviço" : "Editar feedback")</div></div>
+                <textarea class="hv-texto" rows="4" @bind="_texto" @bind:event="oninput" placeholder="Conte como foi o serviço: o que foi feito, o que ficou pendente, condições encontradas no cliente, observações do cliente…"></textarea>
+                @if (_edit is null)
+                {
+                    <div class="fb-arquivos">
+                        <label class="dv-add fb-add" title="Anexar arquivos ao feedback">@Icons.Svg("paperclip")<span>Anexar feedback</span><small>PDF, foto ou e-mail</small>
+                            <InputFile OnChange="Escolher" multiple accept=".pdf,.jpg,.jpeg,.png,.msg,.eml" /></label>
+                        @foreach (var pd in _pend.ToList())
+                        {
+                            <div class="anexo">@Icons.Svg("file")<span>@pd.Nome</span><span class="muted sm">@(pd.Dados.Length / 1024) KB</span>
+                                <button class="row-act del" @onclick="() => _pend.Remove(pd)" title="Tirar" aria-label="Tirar @pd.Nome">@Icons.Svg("x")</button></div>
+                        }
+                    </div>
+                    <div class="muted sm">PDF, JPG, PNG ou e-mail salvo (.msg/.eml), até 15 MB cada. Pode enviar só o texto, só o arquivo ou os dois.</div>
+                }
+                <div class="hv-rodape">
+                    <span class="grow"></span>
+                    @if (_edit is not null) { <button class="btn-ghost" @onclick="Limpar">Cancelar</button> }
+                    <button class="btn-primary" @onclick="Salvar" disabled="@(_enviando || (string.IsNullOrWhiteSpace(_texto) && _pend.Count == 0 && _edit is null))">@Icons.Svg("check")@(_enviando ? "Enviando…" : _edit is null ? "Enviar feedback" : "Salvar alteração")</button>
+                </div>
+                @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+            </div>
+        }
+
+        @if (_lista.Count == 0)
+        {
+            <div class="empty-state sm"><div class="ico">@Icons.Svg("review")</div><h3>Nenhum feedback ainda</h3>
+                <p>@(Pode ? "Use o campo acima para contar como foi o serviço e anexar o relatório, fotos ou o aceite do cliente." : "O técnico escalado registra aqui como foi o serviço.")</p></div>
+        }
+        <ol class="hv-lista">
+            @foreach (var f in _lista)
+            {
+                var meu = Pode && (f.Autor == Ator.Login || Ator.Papel == Roles.Admin);
+                var anexos = Svc.AnexosDoFeedback(f.Id);
+                <li class="hv-item" style="--c:#0f7b8a">
+                    <span class="hv-ico">@Icons.Svg("review")</span>
+                    <div class="hv-corpo">
+                        <div class="hv-cab"><strong>@f.AutorNome</strong><span class="tag" style="color:#0f7b8a">Feedback do serviço</span>
+                            <span class="muted sm">@Tempo.ParaLocal(f.EscritoEm, Fuso).ToString("dd/MM/yyyy HH:mm")@(f.EditadoEm is not null ? " · editado" : "")</span>
+                            @if (meu) { <span class="hv-acoes"><button class="btn-link" @onclick="() => Editar(f)">Editar</button><button class="btn-link perigo" @onclick="() => _excluir = f">Excluir</button></span> }</div>
+                        @if (!string.IsNullOrWhiteSpace(f.Texto)) { <div class="hv-txt">@f.Texto</div> }
+                        @if (anexos.Count > 0 || meu)
+                        {
+                            <div class="fb-anexos">
+                                @foreach (var an in anexos)
+                                {
+                                    <div class="anexo">@Icons.Svg("file")
+                                        @if (VerAnexos) { <a href="/arquivos/@an.Id" target="_blank" rel="noopener">@an.NomeOriginal</a> } else { <span>@an.NomeOriginal</span> }
+                                        <span class="muted sm">@(an.Tamanho / 1024) KB</span>
+                                        @if (VerAnexos) { <a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal" title="Baixar">@Icons.Svg("download")</a> }
+                                        @if (meu) { <button class="row-act del" @onclick="() => RemoverAnexo(an)" title="Remover arquivo" aria-label="Remover @an.NomeOriginal">@Icons.Svg("x")</button> }</div>
+                                }
+                                @if (meu)
+                                {
+                                    <label class="btn-link fb-mais">@Icons.Svg("plus")Anexar arquivo<InputFile OnChange="e => AnexarEm(f, e)" multiple accept=".pdf,.jpg,.jpeg,.png,.msg,.eml" /></label>
+                                }
+                            </div>
+                        }
+                    </div>
+                </li>
+            }
+        </ol>
+    }
+</div>
+
+@if (_excluir is not null)
+{
+    <Dialogo Titulo="Excluir feedback do serviço" OnFechar="@(() => _excluir = null)">
+        <p class="confirma-txt">Você tem certeza que quer excluir este feedback? Os arquivos anexados a ele também serão excluídos.</p>
+        @if (!string.IsNullOrWhiteSpace(_excluir.Texto)) { <p class="muted">@(_excluir.Texto.Length > 200 ? _excluir.Texto[..200] + "…" : _excluir.Texto)</p> }
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _excluir = null)">Não</button><button class="btn-danger" @onclick="Excluir">@Icons.Svg("trash")Sim, excluir</button></div>
+    </Dialogo>
+}
+
+@code {
+    [Parameter, EditorRequired] public string ViagemId { get; set; } = "";
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter] public bool Pode { get; set; }
+    [Parameter] public bool VerAnexos { get; set; }
+    [Parameter] public string Fuso { get; set; } = "America/Sao_Paulo";
+    [Parameter] public EventCallback<int> OnContagem { get; set; }
+    private bool Local => string.IsNullOrEmpty(ViagemId);
+
+    private sealed record Pendente(string Nome, byte[] Dados);
+    private List<FeedbackViagem> _lista = new(); private List<Pendente> _pend = new(); private List<string>? _erros;
+    private FeedbackViagem? _edit, _excluir; private string _texto = ""; private bool _enviando;
+
+    protected override void OnParametersSet() => Carregar();
+    private void Carregar()
+    {
+        if (Local) { _lista = new(); return; }
+        try { _lista = Svc.FeedbacksDaViagem(Ator, ViagemId); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+    private void Limpar() { _edit = null; _texto = ""; _pend = new(); _erros = null; }
+
+    private async Task Escolher(InputFileChangeEventArgs e)
+    {
+        _erros = null; var falhas = new List<string>();
+        foreach (var f in e.GetMultipleFiles(20))
+            try
+            {
+                await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo);
+                using var ms = new MemoryStream(); await s.CopyToAsync(ms); var b = ms.ToArray();
+                Armazenamento.Validar(f.Name, b.Length, b.AsSpan(0, Math.Min(8, b.Length)), aceitaEmail: true);
+                _pend.Add(new Pendente(f.Name, b));
+            }
+            catch (Exception ex) { falhas.Add($"{f.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+        if (falhas.Count > 0) _erros = falhas;
+    }
+
+    private async Task Salvar()
+    {
+        _erros = null; _enviando = true;
+        try
+        {
+            var f = _edit?.Copia<FeedbackViagem>() ?? new FeedbackViagem { ViagemId = ViagemId };
+            f.Texto = _texto;
+            f = Svc.SalvarFeedback(Ator, f, comAnexos: _pend.Count > 0);
+            var falhas = new List<string>();
+            foreach (var pd in _pend)
+                try { await Svc.AnexarAsync(Ator, "feedback", f.Id, pd.Nome, new MemoryStream(pd.Dados)); }
+                catch (Exception ex) { falhas.Add($"{pd.Nome}: {string.Join(" ", Ui.Erros(ex))}"); }
+            if (_edit is null && f.Texto.Length == 0 && _pend.Count > 0 && falhas.Count == _pend.Count)
+            {   // era só o arquivo e nenhum entrou: não deixa um feedback vazio na lista
+                Svc.ExcluirFeedback(Ator, f.Id); _erros = falhas; return;
+            }
+            Sessao.Avisar(_edit is null ? "Feedback do serviço registrado." : "Feedback alterado.");
+            Limpar(); Carregar(); await OnContagem.InvokeAsync(_lista.Count);
+            if (falhas.Count > 0) _erros = falhas;
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        finally { _enviando = false; }
+    }
+
+    private void Editar(FeedbackViagem f) { _edit = f; _texto = f.Texto; _pend = new(); _erros = null; }
+
+    private async Task AnexarEm(FeedbackViagem f, InputFileChangeEventArgs e)
+    {
+        _erros = null; var falhas = new List<string>(); var n = 0;
+        foreach (var file in e.GetMultipleFiles(20))
+            try { await using var s = file.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(Ator, "feedback", f.Id, file.Name, s); n++; }
+            catch (Exception ex) { falhas.Add($"{file.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+        if (n > 0) Sessao.Avisar($"{n} arquivo(s) anexado(s) ao feedback.");
+        if (falhas.Count > 0) _erros = falhas;
+        Carregar();
+    }
+
+    private void RemoverAnexo(Anexo a)
+    {
+        try { Svc.RemoverAnexo(Ator, a.Id); Sessao.Avisar("Arquivo removido."); Carregar(); }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+
+    private async Task Excluir()
+    {
+        try { Svc.ExcluirFeedback(Ator, _excluir!.Id); _excluir = null; if (_edit is not null) Limpar(); Carregar(); Sessao.Avisar("Feedback excluído."); await OnContagem.InvokeAsync(_lista.Count); }
+        catch (Exception ex) { _excluir = null; Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+    }
+}

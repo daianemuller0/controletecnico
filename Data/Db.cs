@@ -24,6 +24,7 @@ public sealed class Db
     public Repo<Auditoria> Auditorias { get; }
     public Repo<Usuario> Usuarios { get; }
     public Repo<NotaViagem> NotasViagem { get; }
+    public Repo<FeedbackViagem> FeedbacksViagem { get; }
     // ---- Planner de Manutenção
     public Repo<PlProjeto> PlProjetos { get; }
     public Repo<PlAtividade> PlAtividades { get; }
@@ -34,7 +35,7 @@ public sealed class Db
     public Repo<PlVisao> PlVisoes { get; }
     public Repo<PlAlertaLido> PlAlertasLidos { get; }
     public IReadOnlyList<ISincronizavel> Repos => new ISincronizavel[] { Config, Usuarios, Tecnicos, Especialidades, Servicos, Clientes, Plantas, Viagens, Trechos,
-        Atendimentos, Indisponibilidades, Confirmacoes, Documentos, Anexos, Requisitos, NotasViagem, Auditorias,
+        Atendimentos, Indisponibilidades, Confirmacoes, Documentos, Anexos, Requisitos, NotasViagem, FeedbacksViagem, Auditorias,
         PlProjetos, PlAtividades, PlMateriais, PlPendencias, PlComentarios, PlModelos, PlVisoes, PlAlertasLidos };
 
     public Db(ParquetStore store)
@@ -57,6 +58,7 @@ public sealed class Db
         Auditorias = new(store, "auditoria");
         Usuarios = new(store, "usuarios");
         NotasViagem = new(store, "notas_viagem");
+        FeedbacksViagem = new(store, "feedbacks_viagem");
         PlProjetos = new(store, "pl_projetos");
         PlAtividades = new(store, "pl_atividades");
         PlMateriais = new(store, "pl_materiais");

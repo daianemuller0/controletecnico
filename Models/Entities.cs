@@ -287,6 +287,18 @@ public class NotaViagem : Entity
     public DateTime? EditadoEm { get; set; }
 }
 
+/// <summary>Feedback do serviço de uma viagem (escrito pelo técnico escalado ou pela equipe), com anexos próprios
+/// (Anexo com DonoTipo "feedback" e DonoId = Id deste registro).</summary>
+public class FeedbackViagem : Entity
+{
+    public string ViagemId { get; set; } = "";
+    public string Texto { get; set; } = "";
+    public DateTime EscritoEm { get; set; }
+    public string Autor { get; set; } = "";
+    public string AutorNome { get; set; } = "";
+    public DateTime? EditadoEm { get; set; }
+}
+
 public class Auditoria : Entity
 {
     public DateTime Quando { get; set; }
