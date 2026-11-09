@@ -13,30 +13,28 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 Lancador.RegistrarEmArquivo();
 // publicado: a pasta do programa é a raiz do conteúdo (wwwroot, appsettings.json), de onde quer que tenha sido aberto
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = Lancador.RaizConteudo() });
-var urlApp = builder.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5090";
+var urlConfigurada = builder.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5090";
 if (OperatingSystem.IsWindows()) try { Console.Title = "Controle Técnico" + (Lancador.Versao == "" ? "" : " · " + Lancador.Versao); } catch { }
-if (Lancador.Versao != "")
+// porta configurada (5090) em uso por outro programa: abre na próxima livre (5091, 5092…)
+string urlApp;
+try
 {
-    switch (Lancador.JaAberto(urlApp))
+    var (url, situacao) = Lancador.EscolherEndereco(urlConfigurada);
+    urlApp = url;
+    // segundo clique no atalho com o programa já aberto (ou abrindo) neste computador: só abre o navegador
+    if (situacao is Lancador.Situacao.MesmaVersao or Lancador.Situacao.Carregando)
     {
-        // segundo clique no atalho com o programa já aberto (ou abrindo) neste computador: só abre o navegador
-        case Lancador.Situacao.MesmaVersao or Lancador.Situacao.Carregando:
-            Console.WriteLine("[controletecnico] O Controle Técnico já está aberto neste computador: abrindo o navegador.");
-            Lancador.AbrirNavegador(urlApp); return 0;
-        // versão antiga ainda aberta (ex.: reabriu logo depois de publicar): fecha a antiga e abre esta
-        case Lancador.Situacao.OutraVersao:
-            Console.WriteLine("[controletecnico] Fechando a versão anterior que estava aberta …");
-            if (!Lancador.EncerrarAberto(urlApp)) { Lancador.AbrirNavegador(urlApp); return 0; }
-            break;
+        Console.WriteLine($"[controletecnico] O Controle Técnico já está aberto neste computador ({urlApp}): abrindo o navegador.");
+        Lancador.AbrirNavegador(urlApp); return 0;
     }
 }
-// "dotnet run" com o sistema já aberto neste computador (versão publicada ou outro teste): explica em vez de falhar no meio
-if (Lancador.Versao == "" && Lancador.JaAberto(urlApp) != Lancador.Situacao.Fechado)
+catch (InvalidOperationException ex)
 {
-    Console.Error.WriteLine($"[controletecnico] ERRO: já existe um Controle Técnico aberto neste computador em {urlApp}.");
-    Console.Error.WriteLine("[controletecnico] Feche-o antes (abas do sistema no navegador e a janela/terminal onde ele roda) ou rode:  powershell -ExecutionPolicy Bypass -File .\\diagnostico.ps1 -Corrigir");
+    Console.Error.WriteLine("[controletecnico] ERRO: " + ex.Message + " Feche programas que estejam usando essas portas ou rode:  powershell -ExecutionPolicy Bypass -File .\\diagnostico.ps1 -Corrigir");
     return 1;
 }
+if (urlApp != urlConfigurada.TrimEnd('/')) Console.WriteLine($"[controletecnico] Abrindo em {urlApp} (a porta configurada está em uso).");
+builder.Configuration["Kestrel:Endpoints:Http:Url"] = urlApp;
 // aberto da pasta da rede: roda uma cópia local desta versão (rápido pela VPN e libera a rede para publicar)
 if (Lancador.AbrirCopiaLocal(args, urlApp)) return 0;
 // tela de carregamento no navegador (logo + barra de progresso) enquanto o sistema abre
@@ -255,7 +253,7 @@ app.MapGet("/marca/{tipo}", (string tipo, HttpContext http, Servicos svc, Armaze
     return Results.Stream(s, a.ContentType);
 }).AllowAnonymous();
 
-app.MapGet("/saude", (HttpContext http) => { http.Response.Headers["X-ControleTecnico-Versao"] = Lancador.Versao; return Results.Ok("ok"); }).AllowAnonymous();
+app.MapGet("/saude", (HttpContext http) => { http.Response.Headers["X-ControleTecnico"] = "sim"; http.Response.Headers["X-ControleTecnico-Versao"] = Lancador.Versao; return Results.Ok("ok"); }).AllowAnonymous();
 // tela de carregamento: quando o sistema responde aqui, a página entra sozinha
 app.MapGet("/progresso", (HttpContext http) => { http.Response.Headers.CacheControl = "no-store"; return Results.Json(new { pronto = true }); }).AllowAnonymous();
 // presença do navegador: o programa publicado fecha sozinho quando o sistema é fechado no navegador

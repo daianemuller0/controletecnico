@@ -37,7 +37,65 @@ public static class Lancador
         catch { }
     }
 
-    public enum Situacao { Fechado, Carregando, MesmaVersao, OutraVersao }
+    /// <summary>Fechado = porta livre · Ocupada = outro programa (não é o Controle Técnico) está nela.</summary>
+    public enum Situacao { Fechado, Carregando, MesmaVersao, OutraVersao, Ocupada }
+
+    /// <summary>Quantas portas seguintes à configurada (5090) são tentadas quando ela está em uso.</summary>
+    public const int PortasTentadas = 30;
+
+    /// <summary>
+    /// Escolhe o endereço em que o sistema vai abrir, a partir do configurado (http://localhost:5090):
+    /// a porta ocupada por outro programa é pulada e usa-se a próxima livre (5091, 5092…).
+    /// Publicado: se encontrar o Controle Técnico desta versão já aberto numa dessas portas, devolve esse endereço
+    /// com <see cref="Situacao.MesmaVersao"/> (só abrir o navegador); versão antiga aberta é encerrada e a porta reaproveitada.
+    /// No "dotnet run", um Controle Técnico já aberto (publicado ou outro teste) também é pulado.
+    /// </summary>
+    public static (string url, Situacao situacao) EscolherEndereco(string urlConfigurada)
+    {
+        var u = new Uri(urlConfigurada);
+        string Url(int porta) => new UriBuilder(u) { Port = porta }.Uri.ToString().TrimEnd('/');
+        var portas = new List<int>();
+        // cópia local aberta pela versão da rede: usa a porta que ela já escolheu (o navegador já está nela)
+        if (Environment.GetEnvironmentVariable("CONTROLETECNICO_URL") is { Length: > 0 } herdada && Uri.TryCreate(herdada, UriKind.Absolute, out var h)) portas.Add(h.Port);
+        for (var p = u.Port; p < u.Port + PortasTentadas && p <= 65535; p++) if (!portas.Contains(p)) portas.Add(p);
+        foreach (var porta in portas)
+        {
+            var url = Url(porta);
+            var s = JaAberto(url);
+            if (s == Situacao.Fechado && PortaLivre(porta)) return (url, Situacao.Fechado);
+            if (s == Situacao.Fechado || s == Situacao.Ocupada)
+            {
+                Console.WriteLine($"[controletecnico] A porta {porta} está em uso por outro programa; tentando a próxima …");
+                continue;
+            }
+            if (Versao != "")
+            {
+                if (s is Situacao.MesmaVersao or Situacao.Carregando) return (url, s);
+                Console.WriteLine($"[controletecnico] Fechando a versão anterior que estava aberta em {url} …");
+                if (EncerrarAberto(url) && PortaLivre(porta)) return (url, Situacao.Fechado);
+                continue;
+            }
+            Console.WriteLine($"[controletecnico] Já existe um Controle Técnico aberto em {url}; este vai abrir na próxima porta livre.");
+        }
+        throw new InvalidOperationException($"Nenhuma porta livre entre {u.Port} e {u.Port + PortasTentadas - 1} neste computador.");
+    }
+
+    /// <summary>A porta está livre neste computador? (ninguém escutando nela, em nenhum endereço, e dá para reservá-la)</summary>
+    public static bool PortaLivre(int porta)
+    {
+        try
+        {
+            if (System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(e => e.Port == porta)) return false;
+        }
+        catch { }
+        try
+        {
+            var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, porta) { ExclusiveAddressUse = OperatingSystem.IsWindows() };
+            l.Start(); l.Stop();
+            return true;
+        }
+        catch { return false; }
+    }
 
     /// <summary>Já existe o sistema aberto neste computador? (segundo clique no atalho, ou versão antiga ainda aberta)</summary>
     public static Situacao JaAberto(string url)
@@ -47,6 +105,8 @@ public static class Lancador
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
             using var r = http.GetAsync(url.TrimEnd('/') + "/saude").GetAwaiter().GetResult();
             if (r.Headers.TryGetValues("X-ControleTecnico", out var v) && v.FirstOrDefault() == "carregando") return Situacao.Carregando;
+            // sem a marca do sistema: é outro programa usando a porta
+            if (!r.Headers.Contains("X-ControleTecnico-Versao") && !r.Headers.Contains("X-ControleTecnico")) return Situacao.Ocupada;
             var versao = r.Headers.TryGetValues("X-ControleTecnico-Versao", out var vv) ? vv.FirstOrDefault() ?? "" : "";
             return versao == Versao ? Situacao.MesmaVersao : Situacao.OutraVersao;
         }
@@ -117,6 +177,7 @@ public static class Lancador
             var psi = new ProcessStartInfo(exe) { WorkingDirectory = destino, UseShellExecute = false, CreateNoWindow = true };
             foreach (var a in args) psi.ArgumentList.Add(a);
             psi.Environment["CONTROLETECNICO_ORIGEM"] = origem;
+            psi.Environment["CONTROLETECNICO_URL"] = url;           // mesma porta em que a tela de carregamento/navegador já abriram
             if (NavegadorAberto) psi.Environment["CONTROLETECNICO_NAVEGADOR_ABERTO"] = "1";
             Process.Start(psi);
             return true;

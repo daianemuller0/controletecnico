@@ -39,7 +39,7 @@ Recria/reativa o usuário `admin` com a senha informada (mín. 8 caracteres), **
 ## Como executar
 
 ```bash
-dotnet run                  # Windows com acesso ao compartilhamento; abre em http://localhost:5090
+dotnet run                  # Windows com acesso ao compartilhamento; abre em http://localhost:5090 (ou na próxima porta livre: 5091, 5092…)
 dotnet test Tests           # 39 testes (regras de negócio, persistência e base compartilhada)
 ```
 
