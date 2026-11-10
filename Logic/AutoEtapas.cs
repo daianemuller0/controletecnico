@@ -28,7 +28,7 @@ public static class AutoEtapas
     public static readonly (string Chave, string Rotulo)[] Graficos =
     {
         ("cartoes", "Cartões de destaque (ocupação, dias de campo, documentos)"), ("situacao", "Situação da equipe (rosca)"),
-        ("semanas", "Ocupação das próximas 8 semanas"), ("meses", "Viagens e dias de campo por mês"),
+        ("semanas", "Ocupação das próximas 8 semanas"), ("meses", "Viagens e dias de campo por mês"), ("classificacao", "Viagens por classificação (NB, AFM, SV…)"),
         ("clientes", "Clientes com mais dias de atendimento"), ("docs", "Saúde documental"), ("transporte", "Meio de transporte"),
     };
 

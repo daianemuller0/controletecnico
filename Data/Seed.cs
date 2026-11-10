@@ -217,7 +217,7 @@ public static class Seed
         };
         Viagem V(string id, string cod, string status, string cli, string planta, string serv, string tecs, string origem, string destino, string resp = "Paulo Controladoria", string obs = "") => new()
         {
-            Id = id, Codigo = cod, Projeto = "45000" + cod[^4..], Equipamentos = "Ventilador VA-" + cod[^2..] + "\nMotor M-" + cod[^2..], Status = status, ClienteId = cli, PlantaId = planta, ServicoId = serv, TecnicoIds = tecs,
+            Id = id, Codigo = cod, Projeto = "45000" + cod[^4..], Classificacao = Vocab.ClassificacoesPadrao[int.Parse(cod[^2..]) % Vocab.ClassificacoesPadrao.Length], Equipamentos = "Ventilador VA-" + cod[^2..] + "\nMotor M-" + cod[^2..], Status = status, ClienteId = cli, PlantaId = planta, ServicoId = serv, TecnicoIds = tecs,
             Origem = origem, Destino = destino, Responsavel = resp, Obs = obs,
         };
 

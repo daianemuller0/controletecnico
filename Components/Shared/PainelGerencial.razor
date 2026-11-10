@@ -1,4 +1,5 @@
 @using System.Globalization
+@inject Servicos Svc
 @* Indicadores gerenciais da Visão operacional: tudo calculado da agenda e dos cadastros (nada é digitado à mão). Gráficos em SVG puro. *@
 
 <section class="gp @(Auto ? "gp-auto" : "")" aria-label="Indicadores gerenciais">
@@ -57,6 +58,26 @@
             <div class="gp-leg-h"><span><i style="background:#004785"></i>Viagens que começam no mês</span><span><i style="background:#7ec3a0"></i>Dias de campo (técnico-dias)</span></div>
         </div>}
 
+        @if (Ver("classificacao")) {<div class="gp-card gp-largo gp-classif">
+            <div class="gp-card-cab"><h3>Viagens por classificação <span class="hint">@(_anoClassif == 0 ? "todos os anos" : $"viagens que começam em {_anoClassif}") · @_classif.Sum(x => x.real + x.and + x.prev) no total</span></h3>
+                @if (!Auto) { <select class="field w-auto sm" value="@_anoClassif" @onchange="@(e => { _anoClassif = int.TryParse(e.Value?.ToString(), out var a) ? a : 0; CalcularClassif(); })" aria-label="Ano">
+                    <option value="0">Todos os anos</option>@foreach (var a in _anosClassif) { <option value="@a">@a</option> }</select> }</div>
+            @if (_classif.Sum(x => x.real + x.and + x.prev) == 0) { <p class="muted">Nenhuma viagem @(_anoClassif == 0 ? "" : $"em {_anoClassif}").</p> }
+            <div class="gp-cl">
+                @foreach (var c in _classif)
+                {
+                    var tot = c.real + c.and + c.prev;
+                    <div class="gp-cl-l" title="@c.nome: @c.real realizada(s), @c.and em andamento, @c.prev prevista(s)">
+                        <span class="gp-cl-n @(c.nome == SemClassif ? "sem" : "")">@c.nome</span>
+                        <div class="gp-cl-t">@if (tot > 0) {<div class="gp-cl-b" style="width:@Esc(tot, _maxClassif)">
+                            <span style="flex:@c.real;background:#1f9254"></span><span style="flex:@c.and;background:#0369a1"></span><span style="flex:@c.prev;background:#9fb3c8"></span></div>}</div>
+                        <strong>@tot</strong>
+                    </div>
+                }
+            </div>
+            <div class="gp-leg-h"><span><i style="background:#1f9254"></i>Realizadas (concluídas)</span><span><i style="background:#0369a1"></i>Em andamento</span><span><i style="background:#9fb3c8"></i>Previstas (rascunho, planejada, confirmada)</span><span class="muted">Canceladas não contam</span></div>
+        </div>}
+
         @if (Ver("clientes")) {<div class="gp-card">
             <h3>Clientes com mais dias de atendimento <span class="hint">próx. 90 dias</span></h3>
             @if (_clientes.Count == 0) { <p class="muted">Nenhum atendimento previsto.</p> }
@@ -107,6 +128,34 @@
     /// <summary>Quais blocos mostrar (null = todos). Chaves em AutoEtapas.Graficos.</summary>
     [Parameter] public HashSet<string>? Mostrar { get; set; }
     private bool Ver(string k) => Mostrar is null || Mostrar.Contains(k);
+    /// <summary>Quais viagens entram no gráfico de classificação (o técnico vê só as dele). Nulo = todas.</summary>
+    [Parameter] public Func<Viagem, bool>? VeViagem { get; set; }
+
+    private const string SemClassif = "Sem classificação";
+    private List<(string nome, int real, int and, int prev)> _classif = new(); private List<int> _anosClassif = new(); private int _anoClassif = -1, _maxClassif = 1;
+
+    /// <summary>Viagens (não canceladas) por classificação: todas as classificações conhecidas aparecem, mesmo com zero,
+    /// e uma nova digitada numa viagem entra sozinha no gráfico.</summary>
+    private void CalcularClassif()
+    {
+        var inicio = Eventos.Where(e => e.ViagemId != "").GroupBy(e => e.ViagemId).ToDictionary(g => g.Key, g => g.Min(e => e.Ini));
+        var vs = Snap.Viagens.Values.Where(v => v.Status != Vocab.ViagemCancelada && (VeViagem is null || VeViagem(v)))
+            .Select(v => (v, ano: Tempo.ParaLocal(inicio.TryGetValue(v.Id, out var i) ? i : v.CriadoEm, Snap.FusoPadrao).Year)).ToList();
+        _anosClassif = vs.Select(x => x.ano).Distinct().OrderByDescending(a => a).ToList();
+        if (_anoClassif == -1) _anoClassif = _anosClassif.Contains(_hoje.Year) ? _hoje.Year : 0;
+        var doAno = vs.Where(x => _anoClassif == 0 || x.ano == _anoClassif).Select(x => x.v).ToList();
+        var nomes = Svc.Classificacoes();
+        foreach (var c in doAno.Select(v => v.Classificacao.Trim()).Where(c => c != "" && !nomes.Contains(c, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase)) nomes.Add(c);
+        string Chave(Viagem v) => v.Classificacao.Trim() == "" ? SemClassif : nomes.First(n => string.Equals(n, v.Classificacao.Trim(), StringComparison.OrdinalIgnoreCase));
+        var grupos = doAno.GroupBy(Chave).ToDictionary(g => g.Key, g => g.ToList());
+        _classif = nomes.Append(SemClassif).Select(n =>
+        {
+            var l = grupos.TryGetValue(n, out var x) ? x : new List<Viagem>();
+            return (n, l.Count(v => v.Status == Vocab.ViagemConcluida), l.Count(v => v.Status == Vocab.ViagemAndamento),
+                l.Count(v => v.Status is not (Vocab.ViagemConcluida or Vocab.ViagemAndamento)));
+        }).Where(x => x.n != SemClassif || x.Item2 + x.Item3 + x.Item4 > 0).ToList();
+        _maxClassif = Math.Max(1, _classif.Max(x => x.real + x.and + x.prev));
+    }
 
     private static readonly CultureInfo Pt = new("pt-BR");
     private List<Estado> _estados = new(); private DateTime _hoje;
@@ -125,6 +174,7 @@
     private void Calcular()
     {
         _estados = Estados; _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
+        CalcularClassif();
         var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet();
         // ocupação: técnicos trainee não entram (nem no numerador nem no denominador)
         var idsOc = _estados.Where(e => !e.Tecnico.Trainee).Select(e => e.Tecnico.Id).ToHashSet(); var n = Math.Max(1, idsOc.Count);

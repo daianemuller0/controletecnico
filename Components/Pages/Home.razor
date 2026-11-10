@@ -180,10 +180,10 @@ else
 {
     <div class="auto-ger" style="--c:@_autoCor">
         <div class="auto-ger-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub · @_estados.Count técnicos ativos</div></div></div>
-        <PainelGerencial Auto="true" Mostrar="@_autoGraficos" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
+        <PainelGerencial Auto="true" Mostrar="@_autoGraficos" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
     </div>
 }
-<PainelGerencial Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
+<PainelGerencial VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
 
 @if (_grupo is not null)
 {
@@ -318,6 +318,8 @@ else
         catch (Exception ex) { _erro = ex.Message; }
         _carregando = false; _redesenhar = true;
     }
+
+    private bool VeViagem(Viagem v) => _ator.VeTodaEquipe || Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId);
 
     private void Calcular()
     {
