@@ -25,7 +25,7 @@ else
             <div class="ficha-ident">
                 <h1>@_t.Nome @if (!_t.Ativo) { <span class="tag neg">inativo</span> }</h1>
                 <div class="muted">@_t.Matricula @(string.IsNullOrEmpty(_t.Matricula) ? "" : "·") @_t.Cidade@(string.IsNullOrEmpty(_t.Estado) ? "" : "/" + _t.Estado), @_t.Pais</div>
-                <div class="ficha-chips">@if (!Vocab.SempreDisponivel(_t.Perfil) && _est is not null && !Vocab.NaVisao(_t.Perfil, _est.Status)) { <span class="tag perfil-tag" title="Só aparece na disponibilidade quando estiver em viagem ou atendimento">@Vocab.PerfilRotulo(_t.Perfil) · fora da disponibilidade</span> } else { <StatusBadge Item="@it" />@if (!Vocab.SempreDisponivel(_t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(_t.Perfil)</span> } }
+                <div class="ficha-chips">@if (_t.Trainee) { <span class="tag trainee-tag" title="Não entra na ocupação dos indicadores gerenciais">Trainee</span> }@if (!Vocab.SempreDisponivel(_t.Perfil) && _est is not null && !Vocab.NaVisao(_t.Perfil, _est.Status)) { <span class="tag perfil-tag" title="Só aparece na disponibilidade quando estiver em viagem ou atendimento">@Vocab.PerfilRotulo(_t.Perfil) · fora da disponibilidade</span> } else { <StatusBadge Item="@it" />@if (!Vocab.SempreDisponivel(_t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(_t.Perfil)</span> } }
                     @foreach (var e in _t.EspecialidadeIds.Split(',', StringSplitOptions.RemoveEmptyEntries)) { if (_snap.Especialidades.TryGetValue(e, out var esp)) { <span class="tag">@esp.Nome</span> } }</div>
             </div>
             <div class="ficha-resumo">
@@ -54,6 +54,8 @@ else
                     <label class="fld chk"><input type="checkbox" @bind="_f.Ativo" />Técnico ativo</label>
                     <label class="fld">Perfil <span class="hint">@(Vocab.PerfisTecnico.FirstOrDefault(p => p.Valor == (string.IsNullOrEmpty(_f.Perfil) ? Vocab.PerfilCampo : _f.Perfil)).Dica)</span>
                         <select @bind="_f.Perfil">@foreach (var p in Vocab.PerfisTecnico) { <option value="@p.Valor">@p.Rotulo</option> }</select></label>
+                    <label class="fld">Técnico trainee <span class="hint">trainee não entra na ocupação dos indicadores gerenciais</span>
+                        <select value="@(_f.Trainee ? "sim" : "nao")" @onchange="@(e => _f.Trainee = e.Value?.ToString() == "sim")"><option value="nao">Não</option><option value="sim">Sim</option></select></label>
                     @if (_verContato)
                     {
                         <label class="fld">Telefone<input @bind="_f.Telefone" /></label>

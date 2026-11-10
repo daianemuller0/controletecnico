@@ -141,6 +141,11 @@ public sealed partial class Servicos
         return r;
     }
 
+    /// <summary>Classificações oferecidas na viagem: as da equipe e as já digitadas por alguém.</summary>
+    public List<string> Classificacoes() =>
+        Vocab.ClassificacoesPadrao.Concat(Vocab.LerClassificacoes(Db.Cfg(Vocab.CfgClassificacoes)))
+            .Where(c => c != "").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
     public Viagem SalvarViagem(Ator ator, Viagem v, List<Trecho> trechos, List<Atendimento> atends)
     {
         ator.Exigir(Perm.EditarViagens);
@@ -162,6 +167,12 @@ public sealed partial class Servicos
             var u = Db.Usuarios.Obter(v.ResponsavelLogin) ?? throw new ValidacaoException("Responsável da viagem não encontrado.");
             v.Responsavel = string.IsNullOrWhiteSpace(u.Nome) ? u.Id : u.Nome;
         }
+        // classificação: grafia já conhecida; uma nova passa a ser oferecida nas próximas viagens
+        var conhecidas = Classificacoes();
+        v.Classificacao = Vocab.NormalizarClassificacao(v.Classificacao, conhecidas);
+        if (v.Classificacao.Length > 40) throw new ValidacaoException("Classificação muito longa (até 40 caracteres).");
+        if (v.Classificacao != "" && !conhecidas.Contains(v.Classificacao))
+            Db.SetCfg(Vocab.CfgClassificacoes, string.Join("\n", Vocab.LerClassificacoes(Db.Cfg(Vocab.CfgClassificacoes)).Append(v.Classificacao)), ator.Login);
         // cliente contratante (opcional): só guarda quando é outro cliente, diferente do dono da planta (cliente final)
         // (escolhido na mesma lista do cliente final; igual ao cliente final = em aberto)
         v.ContratantePlantaId = (v.ContratantePlantaId ?? "").Trim();

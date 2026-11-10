@@ -781,3 +781,7 @@ tr.muted td { color: var(--muted); }
 .rs-ok h3 { margin: 6px 0 0; color: #1d2b3f; }
 .rs-env { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 4px; } .rs-env svg { width: 13px; height: 13px; }
 @media (max-width: 860px) { .rs-tipos, .rs-arquivos { grid-template-columns: 1fr; } }
+
+/* classificação da viagem e técnico trainee */
+.classif-tag { display: inline-flex; align-items: center; font-weight: 700; color: #6b3fa0; background: #f2ecfb; border: 1px solid #d9c9f2; border-radius: 6px; padding: 1px 7px; font-size: 12px; white-space: nowrap; margin-left: 4px; vertical-align: middle; }
+.trainee-tag { color: #8a5a00; background: #fff4dc; border-color: #f1d7a0; }

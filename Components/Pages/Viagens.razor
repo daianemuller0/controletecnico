@@ -47,6 +47,7 @@
     {
         <tr>
             <td>@if (string.IsNullOrWhiteSpace(l.v.Projeto)) { <span class="proj-tag vazio" title="Viagem sem número de projeto">sem projeto</span> } else { <a href="/viagens/@l.v.Id" class="proj-tag">@l.v.Projeto</a> }
+                @if (!string.IsNullOrWhiteSpace(l.v.Classificacao)) { <span class="classif-tag">@l.v.Classificacao</span> }
                 @if (Ui.Linhas(l.v.Equipamentos) is { Count: > 0 } eqs) { <div class="muted sm" title="@string.Join(", ", eqs)">@eqs.Count equipamento(s)</div> }</td>
             <td><a href="/viagens/@l.v.Id"><strong>@l.v.Codigo</strong></a><div class="muted sm">@l.v.Responsavel</div></td>
             <td>@_snap.Cliente(l.v.ClienteId)?.Nome<div class="muted sm">@l.v.Destino</div>@if (!string.IsNullOrEmpty(l.v.ContratantePlantaId)) { <div class="sm contratante" title="Cliente que comprou (contratante)">via @_snap.NomePlanta(l.v.ContratantePlantaId)</div> }</td>

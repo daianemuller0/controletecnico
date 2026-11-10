@@ -53,7 +53,7 @@
             var nv = venc.Count(v => v.Status == Vocab.DocVencido); var np = venc.Count(v => v.Status == Vocab.DocProximo);
             var livre = e is null ? null : AgendaEngine.ProximoLivre(_snap, _eventos, t, DateTime.UtcNow);
             <tr>
-                <td><a class="lnk-tec" href="/tecnicos/@t.Id"><Avatar Nome="@t.Nome" FotoId="@t.FotoAnexoId" Cor="@it.Color" Tam="sm" /><strong>@t.Nome</strong></a>@if (!t.Ativo) { <span class="tag neg">inativo</span> }@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(t.Perfil)</span> }</td>
+                <td><a class="lnk-tec" href="/tecnicos/@t.Id"><Avatar Nome="@t.Nome" FotoId="@t.FotoAnexoId" Cor="@it.Color" Tam="sm" /><strong>@t.Nome</strong></a>@if (!t.Ativo) { <span class="tag neg">inativo</span> }@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(t.Perfil)</span> }@if (t.Trainee) { <span class="tag trainee-tag" title="Não entra na ocupação dos indicadores gerenciais">trainee</span> }</td>
                 <td>@if (!Vocab.SempreDisponivel(t.Perfil) && e is not null && !Vocab.NaVisao(t.Perfil, e.Status)) { <span class="muted sm" title="Só aparece na disponibilidade quando estiver em viagem ou atendimento">Fora da disponibilidade</span> } else { <StatusBadge Item="@it" /> }</td>
                 <td>@t.Cidade@(string.IsNullOrEmpty(t.Estado) ? "" : "/" + t.Estado)</td>
                 <td>@string.Join(", ", Ui.Ids(t.EspecialidadeIds).Select(i => _snap.Especialidades.GetValueOrDefault(i)?.Nome).Where(n => n != null))</td>

@@ -20,7 +20,7 @@ else
 {
 <div class="page-head compacto">
     <div>
-        <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") @if (!string.IsNullOrWhiteSpace(_v.Projeto)) { <span class="proj-tag">Proj. @_v.Projeto</span> } <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
+        <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") @if (!string.IsNullOrWhiteSpace(_v.Projeto)) { <span class="proj-tag">Proj. @_v.Projeto</span> } @if (!string.IsNullOrWhiteSpace(_v.Classificacao)) { <span class="classif-tag">@_v.Classificacao</span> } <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
         @if (!_pode && _participa) { <p class="subtitle">Você pode marcar a lista de verificação e registrar o histórico e o feedback do serviço; o restante da viagem é somente consulta.</p> }
     </div>
     @if (_pode)
@@ -54,6 +54,7 @@ else
     <div class="panel">
         <div class="form-grid">
             <label class="fld">Nº do projeto *<CampoLista Value="@_v.Projeto" ValueChanged="@((string x) => { _v.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
+            <label class="fld">Classificação <span class="hint">escolha ou digite outra</span><CampoLista Value="@_v.Classificacao" ValueChanged="@((string x) => { _v.Classificacao = x; })" Opcoes="@Svc.Classificacoes()" Placeholder="NB, AFM, SV, Visita comercial…" /></label>
             <div class="fld full"><span>Equipamentos <span class="hint">um ou mais</span></span><CampoEquipamentos Value="@_v.Equipamentos" ValueChanged="@((string x) => { _v.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" Disabled="@(!_pode)" /></div>
             <label class="fld">Responsável da viagem <span class="hint">equipe de controle</span>
                 <select value="@_v.ResponsavelLogin" @onchange="AoResponsavel">

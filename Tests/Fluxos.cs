@@ -1575,6 +1575,25 @@ public class RelatorioServicoTests
     }
 }
 
+public class ClassificacaoETraineeTests
+{
+    [Fact]
+    public void Classificacao_padrao_e_digitada_fica_para_as_proximas_viagens()
+    {
+        using var a = new Amb(); var t = a.NovoTec(); var p = a.NovaPlanta();
+        Assert.Equal(new[] { "NB", "AFM", "SV", "Visita comercial", "Visita técnica" }, a.Svc.Classificacoes());
+        Viagem Nova(string c) => a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "P1", Classificacao = c, Status = Vocab.ViagemRascunho, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(3, 17), TecnicoIds = t.Id } });
+        Assert.Equal("AFM", Nova(" afm ").Classificacao);                 // usa a grafia já conhecida
+        Assert.Equal("Visita técnica", Nova("visita TECNICA").Classificacao);
+        Assert.Equal("Treinamento cliente", Nova("Treinamento  cliente").Classificacao);
+        Assert.Contains("Treinamento cliente", a.Svc.Classificacoes());     // digitada: passa a ser oferecida
+        Nova("treinamento cliente");
+        Assert.Single(a.Svc.Classificacoes(), c => c == "Treinamento cliente");
+        Assert.Equal("", Nova("").Classificacao);                          // opcional
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]

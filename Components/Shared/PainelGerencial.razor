@@ -5,7 +5,7 @@
     @if (!Auto) {<div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Calculados a partir da agenda, a partir de @_hoje.ToString("dd/MM/yyyy") · técnicos ativos visíveis para você</span></div>}
 
     @if (Ver("cartoes")) {<div class="gp-heads">
-        @Head("Ocupação hoje", $"{_ocupHoje:0}%", "Técnicos em atendimento ou em viagem", "#0369a1", _ocupHoje)
+        @Head("Ocupação hoje", $"{_ocupHoje:0}%", "Técnicos em atendimento ou em viagem" + (_trainees > 0 ? $" · sem {_trainees} trainee(s)" : ""), "#0369a1", _ocupHoje)
         @Head("Ocupação média, próx. 30 dias", $"{_ocup30:0}%", "Dias de campo ÷ dias úteis disponíveis", "#d9822b", _ocup30)
         @Head("Dias de campo previstos (30 d)", _diasCampo30.ToString("N0"), "Técnico-dias com atendimento ou deslocamento", "#004785", null)
         @Head("Documentos em dia", $"{_docOk:0}%", $"{_docs.Valido + _docs.SemVenc} de {_docs.Total} válidos", _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
@@ -110,7 +110,7 @@
 
     private static readonly CultureInfo Pt = new("pt-BR");
     private List<Estado> _estados = new(); private DateTime _hoje;
-    private double _ocupHoje, _ocup30, _docOk; private int _diasCampo30;
+    private double _ocupHoje, _ocup30, _docOk; private int _diasCampo30, _trainees;
     private (int Total, int Valido, int SemVenc, int Proximo, int Vencido) _docs;
     private List<(string rot, string cor, int n)> _situacao = new(), _modais = new();
     private List<(string rot, double at, double des, double prov)> _semanas = new();
@@ -125,17 +125,21 @@
     private void Calcular()
     {
         _estados = Estados; _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
-        var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet(); var n = Math.Max(1, ids.Count);
+        var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet();
+        // ocupação: técnicos trainee não entram (nem no numerador nem no denominador)
+        var idsOc = _estados.Where(e => !e.Tecnico.Trainee).Select(e => e.Tecnico.Id).ToHashSet(); var n = Math.Max(1, idsOc.Count);
+        _trainees = ids.Count - idsOc.Count;
 
         _situacao = Vocab.StatusOp.Select(s => (s.Label, s.Color, _estados.Count(e => e.Status == s.Key))).Where(x => x.Item3 > 0).ToList();
-        _ocupHoje = 100.0 * _estados.Count(e => e.Status is Vocab.OpAtendimento or Vocab.OpViagem) / n;
+        _ocupHoje = 100.0 * _estados.Count(e => !e.Tecnico.Trainee && e.Status is Vocab.OpAtendimento or Vocab.OpViagem) / n;
 
         var ev = Eventos.Where(e => ids.Contains(e.TecnicoId) && e.Status != "cancelado" && !e.EhIndisp).ToList();
         // técnico-dias por dia: (atendimento, deslocamento, provisório)
-        (int at, int des, int prov) Dia(DateTime d)
+        var evOc = ev.Where(e => idsOc.Contains(e.TecnicoId)).ToList();
+        (int at, int des, int prov) Dia(DateTime d, bool soOcupacao = true)
         {
             var (a, b) = Janela(d); int at = 0, des = 0, prov = 0;
-            foreach (var g in ev.Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
+            foreach (var g in (soOcupacao ? evOc : ev).Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
             {
                 var bl = g.Where(e => e.Bloqueia).ToList();
                 if (bl.Any(e => !e.EhViagem)) at++; else if (bl.Any()) des++; else if (g.Any(e => e.Provisorio)) prov++;
@@ -165,7 +169,7 @@
             var ini = m0.AddMonths(m); var fim = ini.AddMonths(1);
             var (ua, _) = Janela(ini); var (ub, _) = Janela(fim);
             var nv = viagensIni.Count(i => i >= ua && i < ub);
-            var dm = 0; for (var d = ini; d < fim; d = d.AddDays(1)) if (DiaUtil(d)) { var r = Dia(d); dm += r.at + r.des; }
+            var dm = 0; for (var d = ini; d < fim; d = d.AddDays(1)) if (DiaUtil(d)) { var r = Dia(d, soOcupacao: false); dm += r.at + r.des; }
             _meses.Add((ini.ToString("MMM/yy", Pt), nv, dm));
         }
         _maxViag = Math.Max(1, _meses.Max(x => x.viagens)); _maxDias = Math.Max(1, _meses.Max(x => x.dias));

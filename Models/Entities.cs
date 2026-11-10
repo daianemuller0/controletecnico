@@ -38,6 +38,8 @@ public class Tecnico : Entity
     /// <summary>campo (padrão: sempre na disponibilidade) | esporadico | engenharia | terceiro | fabrica.
     /// Os demais só aparecem na visão quando estão em viagem ou atendimento; cadastro e histórico continuam.</summary>
     public string Perfil { get; set; } = "campo";
+    /// <summary>Técnico trainee: não entra nos indicadores de ocupação (painel gerencial).</summary>
+    public bool Trainee { get; set; }
     public bool Ativo { get; set; } = true;
     public string Obs { get; set; } = "";
     public string FotoAnexoId { get; set; } = "";
@@ -100,6 +102,8 @@ public class Viagem : Entity
     public string Codigo { get; set; } = "";
     /// <summary>Número do projeto: é por ele que a equipe controla as viagens.</summary>
     public string Projeto { get; set; } = "";
+    /// <summary>Classificação da viagem: NB, AFM, SV, Visita comercial, Visita técnica ou outra digitada (que passa a ser sugerida).</summary>
+    public string Classificacao { get; set; } = "";
     /// <summary>Equipamentos atendidos, um por linha.</summary>
     public string Equipamentos { get; set; } = "";
     /// <summary>Login da responsável pela viagem (equipe de controle). "Minhas viagens" filtra por ele.</summary>

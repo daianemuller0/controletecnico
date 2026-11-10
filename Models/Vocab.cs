@@ -95,6 +95,19 @@ public static class Vocab
     {
         (IndFerias, "Férias"), (IndFolga, "Folga"), (IndAfastamento, "Afastamento"), (IndBloqueio, "Bloqueio / outra"),
     };
+    /// <summary>Classificação da viagem: as da equipe e as digitadas pelos usuários (guardadas na configuração).</summary>
+    public static readonly string[] ClassificacoesPadrao = { "NB", "AFM", "SV", "Visita comercial", "Visita técnica" };
+    public const string CfgClassificacoes = "classificacoes_viagem";
+    public static List<string> LerClassificacoes(string cfg) =>
+        (cfg ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    /// <summary>Forma já usada da classificação (mesma grafia), ou o texto limpo se for nova.</summary>
+    public static string NormalizarClassificacao(string? c, IEnumerable<string> conhecidas)
+    {
+        var t = string.Join(" ", (c ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        return conhecidas.FirstOrDefault(k => string.Equals(DocEngineNorm(k), DocEngineNorm(t), StringComparison.Ordinal)) ?? t;
+    }
+    private static string DocEngineNorm(string s) => ControleTecnico.Logic.DocEngine.Norm(s);
+
     /// <summary>Tipos de compromisso criados pelos usuários (Agenda → Novo compromisso → Tipo → "+ Novo tipo"), guardados na
     /// configuração. Funcionam como indisponibilidade (o técnico fica ocupado) e aparecem com o próprio nome.</summary>
     public const string CfgTiposCompromisso = "tipos_compromisso";
