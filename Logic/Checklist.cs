@@ -23,6 +23,7 @@ public static class Checklist
     };
 
     public const string ItemOrdemServico = "Ordem de Serviço";
+    public const string ItemPowra = "POWRA";
     public const string ItemLiberado = "LIBERADO PARA ENTRADA NO CLIENTE";
 
     private static readonly JsonSerializerOptions Js = new() { PropertyNameCaseInsensitive = true };

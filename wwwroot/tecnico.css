@@ -747,3 +747,37 @@ tr.muted td { color: var(--muted); }
 .fb-mais { position: relative; display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; cursor: pointer; width: fit-content; margin-top: 2px; }
 .fb-mais svg { width: 13px; height: 13px; }
 .fb-mais input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* relatório do serviço (assistente em 3 passos) */
+.rs-cta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: linear-gradient(120deg, #eaf3fb, #f4f9f6); border: 1px solid #cfe0ef; border-radius: 14px; padding: 16px 18px; }
+.rs-cta-txt { flex: 1; min-width: 260px; display: grid; gap: 4px; } .rs-cta-txt strong { font-size: 16px; color: #0e2f52; } .rs-cta-txt span { color: #4b5d73; font-size: 13.5px; }
+.rs-cta-btn { font-size: 15px; padding: 12px 18px; }
+.rs-passos { list-style: none; display: flex; gap: 8px; margin: 0 0 16px; padding: 0; flex-wrap: wrap; }
+.rs-passos li { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #8391a4; padding: 6px 12px 6px 6px; border-radius: 999px; background: #f2f5f9; }
+.rs-passos li span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #dfe6ee; color: #5b6b80; font-weight: 800; font-size: 12px; }
+.rs-passos li.atual { background: #e6f0fa; color: #004785; font-weight: 700; } .rs-passos li.atual span { background: #004785; color: #fff; }
+.rs-passos li.feito { color: #1f9254; } .rs-passos li.feito span { background: #1f9254; color: #fff; }
+.rs-pergunta { font-size: 17px; font-weight: 700; color: #1d2b3f; margin: 4px 0 12px; }
+.rs-tipos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.rs-tipo { display: grid; justify-items: start; gap: 6px; text-align: left; padding: 18px; border: 2px solid #dde3ea; border-radius: 14px; background: #fff; cursor: pointer; font: inherit; color: #1d2b3f; transition: all .15s; }
+.rs-tipo:hover { border-color: var(--c); box-shadow: 0 4px 14px color-mix(in srgb, var(--c) 18%, transparent); transform: translateY(-1px); }
+.rs-tipo.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 7%, #fff); }
+.rs-tipo-ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 14%, #fff); color: var(--c); }
+.rs-tipo-ico svg { width: 24px; height: 24px; } .rs-tipo strong { font-size: 15.5px; } .rs-tipo small { color: #5b6b80; font-size: 13px; line-height: 1.4; }
+.rs-escolhido { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: color-mix(in srgb, var(--c) 10%, #fff); color: var(--c); font-weight: 700; margin-bottom: 12px; }
+.rs-escolhido svg { width: 16px; height: 16px; } .rs-escolhido .btn-link { font-weight: 400; margin-left: 4px; }
+.rs-texto textarea { min-height: 110px; font-size: 14px; }
+.rs-arquivos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 6px; }
+.rs-slot { border: 2px dashed #c9d6e4; border-radius: 14px; padding: 14px; display: grid; gap: 8px; background: #fbfcfe; }
+.rs-slot.ok { border-style: solid; border-color: #9fd3b4; background: #f3fbf6; }
+.rs-slot-cab { display: flex; gap: 10px; align-items: center; } .rs-slot-cab div { display: grid; } .rs-slot-cab small { color: #5b6b80; font-size: 12.5px; }
+.rs-n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #004785; color: #fff; font-weight: 800; flex: none; }
+.rs-slot.ok .rs-n { background: #1f9254; }
+.rs-add { grid-auto-flow: column; gap: 8px; padding: 10px 14px; align-items: center; justify-content: center; } .rs-add svg { width: 18px; height: 18px; }
+.rs-chips { display: flex; flex-wrap: wrap; gap: 6px; } .rs-chips .chip { cursor: default; }
+.rs-enviar { font-size: 15px; padding: 11px 18px; }
+.rs-ok { text-align: center; padding: 16px 10px; display: grid; justify-items: center; gap: 6px; }
+.rs-ok-ico { width: 64px; height: 64px; border-radius: 50%; background: #e3f5ea; color: #1f9254; display: grid; place-items: center; } .rs-ok-ico svg { width: 34px; height: 34px; }
+.rs-ok h3 { margin: 6px 0 0; color: #1d2b3f; }
+.rs-env { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 4px; } .rs-env svg { width: 13px; height: 13px; }
+@media (max-width: 860px) { .rs-tipos, .rs-arquivos { grid-template-columns: 1fr; } }

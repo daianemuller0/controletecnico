@@ -297,6 +297,12 @@ public class FeedbackViagem : Entity
     public string Autor { get; set; } = "";
     public string AutorNome { get; set; } = "";
     public DateTime? EditadoEm { get; set; }
+    /// <summary>Relatório do serviço: finalizado | oportunidade | ocorrencia. Vazio = feedback livre.</summary>
+    public string Tipo { get; set; } = "";
+    /// <summary>Relatório do serviço: assunto e destinatários do e-mail, e como saiu ("aberto no Outlook" / "gerado (.eml)").</summary>
+    public string Assunto { get; set; } = "";
+    public string EnviadoPara { get; set; } = "";
+    public string Envio { get; set; } = "";
 }
 
 public class Auditoria : Entity

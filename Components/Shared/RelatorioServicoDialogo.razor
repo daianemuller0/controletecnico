@@ -1,0 +1,209 @@
+@* Relatório do serviço: 1) como terminou  2) arquivos (relatório de serviços + POWRA STAR) e o texto  3) conferir e enviar pelo Outlook. *@
+@inject Servicos Svc
+@inject Sessao Sessao
+@inject DownloadsTemporarios Dl
+@inject IJSRuntime JS
+
+<Dialogo Titulo="Enviar relatório do serviço" Largo="true" OnFechar="Fechar" Erros="_erros">
+    <ol class="rs-passos" aria-label="Etapas">
+        @foreach (var (n, rot) in new[] { (1, "Como terminou"), (2, "Arquivos"), (3, "Conferir e enviar") })
+        {
+            <li class="@(_passo == n ? "atual" : _passo > n ? "feito" : "")"><span>@(_passo > n ? "✓" : n.ToString())</span>@rot</li>
+        }
+    </ol>
+
+    @if (_enviado)
+    {
+        <div class="rs-ok">
+            <div class="rs-ok-ico">@Icons.Svg("check")</div>
+            <h3>@(_como == "aberto no Outlook" ? "Pronto! O e-mail está aberto no Outlook." : "Pronto! O e-mail foi baixado.")</h3>
+            <p>@(_como == "aberto no Outlook" ? "Confira o e-mail no Outlook e clique em Enviar." : "Abra o arquivo .eml baixado: ele abre no Outlook como e-mail novo. Confira e clique em Enviar.")</p>
+            <p class="muted sm">O relatório e os arquivos ficaram guardados na aba Feedback do serviço desta viagem.</p>
+            <div class="modal-actions"><button class="btn-primary" @onclick="Fechar">Concluir</button></div>
+        </div>
+    }
+    else if (_passo == 1)
+    {
+        <p class="rs-pergunta">Como terminou o serviço no cliente?</p>
+        <div class="rs-tipos">
+            @foreach (var t in RelatorioServico.Tipos)
+            {
+                <button type="button" class="rs-tipo @(_r.Tipo == t.Key ? "on" : "")" style="--c:@t.Cor" @onclick="() => Escolher(t.Key)">
+                    <span class="rs-tipo-ico">@Icons.Svg(t.Icone)</span>
+                    <strong>@t.Rotulo</strong>
+                    <small>@t.Dica</small>
+                </button>
+            }
+        </div>
+    }
+    else if (_passo == 2)
+    {
+        var tipo = RelatorioServico.DeKey(_r.Tipo)!;
+        <div class="rs-escolhido" style="--c:@tipo.Cor">@Icons.Svg(tipo.Icone)<span>@tipo.Rotulo</span><button type="button" class="btn-link" @onclick="() => _passo = 1">trocar</button></div>
+        @if (RelatorioServico.PedeTexto(_r.Tipo))
+        {
+            <label class="fld rs-texto"><span><strong>@tipo.PerguntaTexto</strong> <span class="hint">obrigatório — vai no corpo do e-mail</span></span>
+                <textarea rows="5" @bind="_r.Texto" @bind:event="oninput" placeholder="@(_r.Tipo == RelatorioServico.Oportunidade ? "Ex.: Cliente precisa trocar os rolamentos do ventilador 2 nos próximos 3 meses; pediu orçamento de peças sobressalentes." : "Ex.: A área não foi liberada no horário combinado; o serviço atrasou 4 horas.")"></textarea></label>
+        }
+        <div class="rs-arquivos">
+            @Slot("1", "Relatório de serviços", "O relatório que você preencheu no cliente.", _relatorio, "relatorio")
+            @Slot("2", "Formulário POWRA STAR", "Foto ou PDF do formulário preenchido.", _powra, "powra")
+        </div>
+        <p class="muted sm">Aceita PDF, foto (JPG/PNG), Word, Excel ou e-mail salvo — até 15 MB cada. Pode escolher mais de um arquivo em cada item.</p>
+        @if (_faltam.Count > 0 && _tentou) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@foreach (var f in _faltam) { <div>@f</div> }</div></div> }
+        <div class="modal-actions">
+            <button class="btn-ghost" @onclick="() => _passo = 1">Voltar</button>
+            <button class="btn-primary" @onclick="Continuar">Continuar @Icons.Svg("arrow-right")</button>
+        </div>
+    }
+    else
+    {
+        <div class="os-grid">
+            <div class="os-form">
+                <div class="fld"><span>Para</span>
+                    @if (!_editarPara) { <div class="rs-chips">@foreach (var e in _r.Para.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) { <span class="chip">@e</span> }</div>
+                        <button type="button" class="btn-link sm" @onclick="() => _editarPara = true">Alterar destinatários</button> }
+                    else { <textarea rows="3" @bind="_r.Para" @bind:event="oninput"></textarea><span class="hint">separe os e-mails com ;</span> }
+                </div>
+                <label class="fld">Assunto<input @bind="_r.Assunto" @bind:event="oninput" /></label>
+                @if (string.IsNullOrWhiteSpace(Projeto)) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>Esta viagem está sem número de projeto. Digite o número no assunto antes de enviar.</div></div> }
+                <div class="fld"><span>Anexos</span>
+                    @foreach (var a in _relatorio.Concat(_powra)) { <div class="anexo">@Icons.Svg("paperclip")<span>@a.Nome</span><span class="muted sm">@(a.Dados.Length / 1024) KB</span></div> }
+                </div>
+                <label class="chk-inline"><input type="checkbox" @bind="_marcarPowra" />Marcar "POWRA" na lista de verificação</label>
+            </div>
+            <div class="os-prev">
+                <div class="os-prev-cab"><div><b>Assunto:</b> @_r.Assunto</div><div><b>Para:</b> @_r.Para</div>
+                    <div class="os-prev-anexos">@foreach (var a in _relatorio.Concat(_powra)) { <span>@Icons.Svg("paperclip")@a.Nome</span> }</div></div>
+                <div class="os-prev-corpo">@((MarkupString)RelatorioServico.Html(_r))<div class="os-assin">— sua assinatura completa do Outlook entra aqui —</div></div>
+            </div>
+        </div>
+        @if (_faltam.Count > 0) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@foreach (var f in _faltam) { <div>@f</div> }</div></div> }
+        <div class="modal-actions">
+            <button class="btn-ghost" @onclick="() => _passo = 2">Voltar</button>
+            <button class="btn-ghost" @onclick="Baixar" disabled="@_ocupado">@Icons.Svg("download")Baixar e-mail (.eml)</button>
+            <button class="btn-primary rs-enviar" @onclick="Outlook" disabled="@_ocupado">@Icons.Svg("mail")@(_ocupado ? "Abrindo o Outlook…" : "Abrir no Outlook para enviar")</button>
+        </div>
+        <p class="muted sm">"Abrir no Outlook" cria o e-mail no Outlook deste computador com a sua assinatura, os anexos e o texto — é só conferir e clicar em Enviar. Se o Outlook não abrir, use "Baixar e-mail (.eml)" (nele, a assinatura entra por Inserir → Assinatura).</p>
+    }
+</Dialogo>
+
+@code {
+    [Parameter, EditorRequired] public string ViagemId { get; set; } = "";
+    [Parameter, EditorRequired] public Ator Ator { get; set; } = default!;
+    [Parameter] public string Projeto { get; set; } = "";
+    [Parameter] public EventCallback OnFechar { get; set; }
+    [Parameter] public EventCallback OnRegistrado { get; set; }
+
+    private sealed record Arq(string Nome, byte[] Dados);
+    private RelatorioServico.Rascunho _r = new() { Tipo = "" };
+    private List<Arq> _relatorio = new(), _powra = new();
+    private List<string>? _erros; private List<string> _faltam = new();
+    private int _passo = 1; private bool _ocupado, _enviado, _editarPara, _tentou, _marcarPowra = true;
+    private string _como = ""; private string? _feedbackId;
+
+    private RenderFragment Slot(string n, string titulo, string dica, List<Arq> lista, string qual) => __builder =>
+    {
+        <div class="rs-slot @(lista.Count > 0 ? "ok" : "")">
+            <div class="rs-slot-cab"><span class="rs-n">@(lista.Count > 0 ? "✓" : n)</span><div><strong>@titulo</strong><small>@dica</small></div></div>
+            @foreach (var a in lista.ToList())
+            {
+                <div class="anexo">@Icons.Svg("file")<span>@a.Nome</span><span class="muted sm">@(a.Dados.Length / 1024) KB</span>
+                    <button type="button" class="row-act del" title="Tirar" aria-label="Tirar @a.Nome" @onclick="() => { lista.Remove(a); Conferir(); }">@Icons.Svg("x")</button></div>
+            }
+            <label class="dv-add rs-add">@Icons.Svg("paperclip")<span>@(lista.Count > 0 ? "Adicionar outro arquivo" : "Escolher arquivo")</span>
+                <InputFile OnChange="e => Receber(e, lista)" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.doc,.xls,.msg,.eml" /></label>
+        </div>
+    };
+
+    private void Escolher(string tipo)
+    {
+        var texto = _r.Texto; var tipoAntes = _r.Tipo; var paraEditado = _editarPara ? _r.Para : null; var assuntoAntes = _r.Assunto;
+        try
+        {
+            _r = Svc.RascunhoRelatorio(Ator, ViagemId, tipo, texto);
+            if (paraEditado is not null) _r.Para = paraEditado;
+            // o assunto digitado à mão (ex.: número do projeto) é mantido quando só se troca o desfecho
+            if (!string.IsNullOrEmpty(assuntoAntes) && tipoAntes != "" && assuntoAntes != RelatorioServico.Assunto(Projeto, tipoAntes)) _r.Assunto = assuntoAntes;
+            _erros = null; _tentou = false; _passo = 2;
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+    }
+
+    private async Task Receber(InputFileChangeEventArgs e, List<Arq> lista)
+    {
+        _erros = null; var falhas = new List<string>();
+        foreach (var f in e.GetMultipleFiles(10))
+            try
+            {
+                await using var s = f.OpenReadStream(Armazenamento.TamanhoMaximo);
+                using var ms = new MemoryStream(); await s.CopyToAsync(ms); var b = ms.ToArray();
+                Armazenamento.Validar(f.Name, b.Length, b.AsSpan(0, Math.Min(8, b.Length)), aceitaEmail: true, aceitaOffice: true);
+                lista.Add(new Arq(f.Name, b));
+            }
+            catch (Exception ex) { falhas.Add($"{f.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
+        if (falhas.Count > 0) _erros = falhas;
+        Conferir();
+    }
+
+    private void Conferir() => _faltam = RelatorioServico.Pendencias(_r, _relatorio.Count > 0, _powra.Count > 0);
+
+    private void Continuar()
+    {
+        _tentou = true; Conferir();
+        if (_faltam.Count == 0) _passo = 3;
+    }
+
+    private List<(string nome, string tipo, byte[] dados)> Arquivos() =>
+        _relatorio.Concat(_powra).Select(a => (a.Nome, "application/octet-stream", a.Dados)).ToList();
+
+    private async Task Outlook()
+    {
+        Conferir(); if (_faltam.Count > 0) return;
+        _ocupado = true; _erros = null; StateHasChanged();
+        try
+        {
+            var (ok, msg) = await EmailOs.AbrirNoOutlookAsync(_r.Para, "", _r.Assunto, RelatorioServico.Html(_r), _relatorio.Concat(_powra).Select(a => (a.Nome, a.Dados)));
+            if (ok) await Registrar("aberto no Outlook");
+            else _erros = new() { msg };
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _ocupado = false;
+    }
+
+    private async Task Baixar()
+    {
+        Conferir(); if (_faltam.Count > 0) return;
+        _ocupado = true; _erros = null;
+        try
+        {
+            var eml = EmailOs.Eml(_r.Para, "", _r.Assunto, RelatorioServico.Html(_r), RelatorioServico.TextoSimples(_r), Arquivos());
+            var token = Dl.Guardar(eml, EmailOs.NomeSeguro(_r.Assunto) + ".eml", "message/rfc822", Ator.Login);
+            await JS.InvokeVoidAsync("app.baixarUrl", $"/download/{token}");
+            await Registrar("gerado (.eml)");
+        }
+        catch (Exception ex) { _erros = Ui.Erros(ex); }
+        _ocupado = false;
+    }
+
+    /// <summary>Guarda o relatório (uma vez só, mesmo que abra no Outlook e também baixe o .eml) com os arquivos.</summary>
+    private async Task Registrar(string como)
+    {
+        var primeiro = _feedbackId is null;
+        var f = Svc.RegistrarRelatorio(Ator, ViagemId, _r, como, _marcarPowra, _feedbackId);
+        _feedbackId = f.Id;
+        if (primeiro)
+        {
+            var falhas = new List<string>();
+            foreach (var a in _relatorio.Concat(_powra))
+                try { await Svc.AnexarAsync(Ator, "feedback", f.Id, a.Nome, new MemoryStream(a.Dados)); }
+                catch (Exception ex) { falhas.Add($"{a.Nome}: {string.Join(" ", Ui.Erros(ex))}"); }
+            if (falhas.Count > 0) _erros = new List<string> { "O e-mail saiu, mas alguns arquivos não ficaram guardados na viagem:" }.Concat(falhas).ToList();
+        }
+        _como = como; _enviado = true;
+        Sessao.Avisar(como == "aberto no Outlook" ? "E-mail aberto no Outlook. Confira e clique em Enviar." : "E-mail baixado: abra o .eml no Outlook e clique em Enviar.");
+        await OnRegistrado.InvokeAsync();
+    }
+
+    private Task Fechar() => OnFechar.InvokeAsync();
+}

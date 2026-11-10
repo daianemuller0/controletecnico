@@ -1505,6 +1505,76 @@ public class TecnicoNaViagemTests
     }
 }
 
+public class RelatorioServicoTests
+{
+    [Fact]
+    public async Task Relatorio_do_servico_monta_email_por_desfecho_e_fica_guardado_na_viagem()
+    {
+        using var a = new Amb(); var t = a.NovoTec("Técnico Escalado"); var p = a.NovaPlanta();
+        var v = a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "4500123", Status = Vocab.ViagemConfirmada, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(4, 17), TecnicoIds = t.Id } });
+        var tec = new Ator { Login = "tec1", Nome = "Técnico Escalado", Papel = Roles.Tecnico, TecnicoId = t.Id };
+        var outro = new Ator { Login = "tec2", Papel = Roles.Tecnico, TecnicoId = "x" };
+
+        // finalizado: 3 destinatários, assunto simples, sem bloco de texto
+        var r = a.Svc.RascunhoRelatorio(tec, v.Id, RelatorioServico.Finalizado);
+        Assert.Equal("Ordem de serviço-4500123", r.Assunto);
+        Assert.Equal(3, r.Para.Split(';').Length); Assert.DoesNotContain("adriana", r.Para);
+        var html = RelatorioServico.Html(r);
+        Assert.Contains("Segue anexo o relatório de serviços em anexo.", html); Assert.Contains("Anexo formulário do powra star.", html); Assert.Contains("Atenciosamente,", html);
+        Assert.DoesNotContain("Oportunidade", html);
+
+        // oportunidade: + adriana, sufixo no assunto e o texto digitado no corpo
+        r = a.Svc.RascunhoRelatorio(tec, v.Id, RelatorioServico.Oportunidade, "Cliente quer orçamento de rolamentos.");
+        Assert.Equal("Ordem de serviço-4500123- Oportunidade de Venda", r.Assunto);
+        Assert.Contains("adriana.slomp@chartindustries.com", r.Para); Assert.Equal(4, r.Para.Split(';').Length);
+        Assert.Contains("<b>Oportunidade de negócios:</b><br>Cliente quer orçamento de rolamentos.", System.Net.WebUtility.HtmlDecode(RelatorioServico.Html(r)));
+
+        // ocorrência
+        r = a.Svc.RascunhoRelatorio(tec, v.Id, RelatorioServico.Ocorrencia, "Área liberada com 4 h de atraso.");
+        Assert.Equal("Ordem de serviço-4500123- Ocorrência", r.Assunto);
+        Assert.Contains("<b>Ocorrência:</b>", System.Net.WebUtility.HtmlDecode(RelatorioServico.Html(r)));
+
+        // o que falta antes de enviar
+        var vazio = a.Svc.RascunhoRelatorio(tec, v.Id, RelatorioServico.Oportunidade, "");
+        var falta = RelatorioServico.Pendencias(vazio, temRelatorio: false, temPowra: false);
+        Assert.Contains("Anexe o relatório de serviços.", falta); Assert.Contains("Anexe o formulário POWRA STAR.", falta); Assert.Contains("Descreva a oportunidade de venda.", falta);
+        Assert.Empty(RelatorioServico.Pendencias(r, true, true));
+        r.Para += "; nao-e-email"; Assert.Contains(RelatorioServico.Pendencias(r, true, true), x => x.StartsWith("E-mail inválido"));
+        r.Para = a.Svc.RascunhoRelatorio(tec, v.Id, RelatorioServico.Ocorrencia).Para;
+
+        // só quem participa da viagem
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.RascunhoRelatorio(outro, v.Id, RelatorioServico.Finalizado));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.RascunhoRelatorio(a.Consulta, v.Id, RelatorioServico.Finalizado));
+
+        // registrar: vira feedback com o desfecho, marca POWRA, vai para o histórico; segundo envio não duplica
+        var f = a.Svc.RegistrarRelatorio(tec, v.Id, r, "aberto no Outlook", marcarPowra: true);
+        await a.Svc.AnexarAsync(tec, "feedback", f.Id, "Relatorio.docx", new MemoryStream(new byte[] { 0x50, 0x4B, 0x03, 0x04, 1, 2, 3 }));
+        await a.Svc.AnexarAsync(tec, "feedback", f.Id, "POWRA.pdf", new MemoryStream(System.Text.Encoding.ASCII.GetBytes("%PDF-1.4 powra")));
+        a.Svc.RegistrarRelatorio(tec, v.Id, r, "gerado (.eml)", marcarPowra: true, feedbackId: f.Id);
+        var lista = a.Svc.FeedbacksDaViagem(tec, v.Id);
+        Assert.Single(lista);
+        Assert.Equal(RelatorioServico.Ocorrencia, lista[0].Tipo); Assert.Equal("Ordem de serviço-4500123- Ocorrência", lista[0].Assunto);
+        Assert.Equal("aberto no Outlook · gerado (.eml)", lista[0].Envio);
+        Assert.Equal(2, a.Svc.AnexosDoFeedback(f.Id).Count);
+        Assert.True(Checklist.Ler(a.Db.Viagens.Obter(v.Id)!.Checklist).Single(i => i.Texto == Checklist.ItemPowra).Feito);
+        Assert.Contains(a.Svc.EventosDaViagem(v.Id), x => x.Acao == "viagem.relatorio");
+        Assert.Throws<ValidacaoException>(() => a.Svc.RegistrarRelatorio(tec, v.Id, new RelatorioServico.Rascunho { Tipo = RelatorioServico.Oportunidade, Para = "a@b.com", Assunto = "x" }, "x", false));
+
+        // e-mail .eml com os anexos
+        var eml = System.Text.Encoding.UTF8.GetString(EmailOs.Eml(r.Para, "", r.Assunto, RelatorioServico.Html(r), RelatorioServico.TextoSimples(r),
+            new[] { ("POWRA.pdf", "application/pdf", new byte[] { 1, 2 }) }));
+        Assert.Contains("X-Unsent: 1", eml); Assert.Contains("To: Demis.Buffulin@chartindustries.com, Rayssa.Costa@chartindustries.com", eml);
+
+        // destinatários configuráveis (administrador)
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarDestinatariosRelatorio(tec, "a@b.com", ""));
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarDestinatariosRelatorio(a.Admin, "a@b.com; errado", ""));
+        a.Svc.SalvarDestinatariosRelatorio(a.Admin, "a@b.com;A@B.com; c@d.com", "e@f.com");
+        Assert.Equal("a@b.com; c@d.com", a.Svc.DestinatariosRelatorio().para);
+        Assert.Equal("a@b.com; c@d.com; e@f.com", a.Svc.RascunhoRelatorio(tec, v.Id, RelatorioServico.Oportunidade).Para);
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]

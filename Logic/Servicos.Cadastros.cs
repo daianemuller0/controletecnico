@@ -441,7 +441,7 @@ public sealed partial class Servicos
                 break;
             default: throw new ValidacaoException("Destino de anexo inválido.");
         }
-        var a = await Arquivos.SalvarAsync(ator, donoTipo, donoId, nome, conteudo, donoTipo is "viagem" or "plprojeto" or "feedback", donoTipo is "viagem" or "plprojeto" ? categoria : "");
+        var a = await Arquivos.SalvarAsync(ator, donoTipo, donoId, nome, conteudo, donoTipo is "viagem" or "plprojeto" or "feedback", donoTipo is "viagem" or "plprojeto" ? categoria : "", aceitaOffice: donoTipo == "feedback");
         Auditar(ator, "anexo.adicionar", donoTipo, donoId, $"Anexo \"{a.NomeOriginal}\" adicionado" + (string.IsNullOrEmpty(a.Categoria) ? "" : $" ({a.Categoria})"));
         return a;
     }

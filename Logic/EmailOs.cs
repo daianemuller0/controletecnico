@@ -130,19 +130,23 @@ public static class EmailOs
     }
 
     /// <summary>Arquivo .eml de rascunho ("X-Unsent: 1"): o Outlook abre como e-mail novo, pronto para enviar, com os anexos.</summary>
-    public static byte[] Eml(Rascunho r, IEnumerable<(string nome, string tipo, byte[] dados)> anexos)
+    public static byte[] Eml(Rascunho r, IEnumerable<(string nome, string tipo, byte[] dados)> anexos) =>
+        Eml(r.Para, r.Cc, r.Assunto, Html(r), Texto(r), anexos);
+
+    /// <summary>.eml de rascunho genérico (usado também pelo relatório do serviço).</summary>
+    public static byte[] Eml(string para, string cc, string assunto, string html, string texto, IEnumerable<(string nome, string tipo, byte[] dados)> anexos)
     {
         var lim = "=_ct_" + Guid.NewGuid().ToString("N");
         var alt = "=_alt_" + Guid.NewGuid().ToString("N");
         var sb = new StringBuilder();
         sb.Append("X-Unsent: 1\r\n");
-        sb.Append($"To: {r.Para.Replace(';', ',')}\r\n");
-        if (!string.IsNullOrWhiteSpace(r.Cc)) sb.Append($"Cc: {r.Cc.Replace(';', ',')}\r\n");
-        sb.Append($"Subject: {Cab(r.Assunto)}\r\nMIME-Version: 1.0\r\n");
+        sb.Append($"To: {para.Replace(';', ',')}\r\n");
+        if (!string.IsNullOrWhiteSpace(cc)) sb.Append($"Cc: {cc.Replace(';', ',')}\r\n");
+        sb.Append($"Subject: {Cab(assunto)}\r\nMIME-Version: 1.0\r\n");
         sb.Append($"Content-Type: multipart/mixed; boundary=\"{lim}\"\r\n\r\n");
         sb.Append($"--{lim}\r\nContent-Type: multipart/alternative; boundary=\"{alt}\"\r\n\r\n");
-        sb.Append($"--{alt}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{B64(Encoding.UTF8.GetBytes(Texto(r)))}");
-        sb.Append($"--{alt}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{B64(Encoding.UTF8.GetBytes("<html><body>" + Html(r) + "</body></html>"))}");
+        sb.Append($"--{alt}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{B64(Encoding.UTF8.GetBytes(texto))}");
+        sb.Append($"--{alt}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n{B64(Encoding.UTF8.GetBytes("<html><body>" + html + "</body></html>"))}");
         sb.Append($"--{alt}--\r\n");
         foreach (var (nome, tipo, dados) in anexos)
         {
@@ -179,7 +183,11 @@ if ($i -ge 0) { $j = $sig.IndexOf('>', $i); $m.HTMLBody = $sig.Insert($j + 1, $d
     /// Abre o e-mail no Outlook deste computador (com a assinatura padrão), já com destinatários, assunto, corpo e anexos.
     /// Só funciona no Windows com o Outlook instalado; o sistema precisa estar rodando no computador de quem envia.
     /// </summary>
-    public static async Task<(bool ok, string msg)> AbrirNoOutlookAsync(Rascunho r, IEnumerable<(string nome, byte[] dados)> anexos)
+    public static Task<(bool ok, string msg)> AbrirNoOutlookAsync(Rascunho r, IEnumerable<(string nome, byte[] dados)> anexos) =>
+        AbrirNoOutlookAsync(r.Para, r.Cc, r.Assunto, Html(r), anexos);
+
+    /// <summary>Abre no Outlook deste computador um e-mail qualquer (com a assinatura padrão de quem envia).</summary>
+    public static async Task<(bool ok, string msg)> AbrirNoOutlookAsync(string para, string cc, string assunto, string html, IEnumerable<(string nome, byte[] dados)> anexos)
     {
         if (!OperatingSystem.IsWindows()) return (false, "O Outlook só pode ser aberto quando o sistema roda no Windows. Use \"Baixar e-mail (.eml)\".");
         var raiz = Path.Combine(Path.GetTempPath(), "ControleTecnico", "email");
@@ -193,7 +201,7 @@ if ($i -ge 0) { $j = $sig.IndexOf('>', $i); $m.HTMLBody = $sig.Insert($j + 1, $d
             await File.WriteAllBytesAsync(c, dados); caminhos.Add(c);
         }
         var json = Path.Combine(pasta, "email.json");
-        await File.WriteAllTextAsync(json, JsonSerializer.Serialize(new { para = r.Para, cc = r.Cc, assunto = r.Assunto, html = Html(r), anexos = caminhos }), new UTF8Encoding(true));
+        await File.WriteAllTextAsync(json, JsonSerializer.Serialize(new { para, cc, assunto, html, anexos = caminhos }), new UTF8Encoding(true));
         var ps1 = Path.Combine(pasta, "abrir.ps1");
         await File.WriteAllTextAsync(ps1, Script, new UTF8Encoding(true));
         var psi = new ProcessStartInfo("powershell.exe")

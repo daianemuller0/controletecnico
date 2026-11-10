@@ -426,6 +426,59 @@ public sealed partial class Servicos
         return f;
     }
 
+    // ------------------------------------------------ relatório do serviço (e-mail de encerramento da visita)
+    public (string para, string paraVenda) DestinatariosRelatorio() =>
+        (Db.Cfg(RelatorioServico.CfgPara, RelatorioServico.ParaPadrao), Db.Cfg(RelatorioServico.CfgParaVenda, RelatorioServico.ParaVendaPadrao));
+
+    public void SalvarDestinatariosRelatorio(Ator ator, string para, string paraVenda)
+    {
+        ator.Exigir(Perm.Administrar);
+        para = RelatorioServico.Juntar(para); paraVenda = RelatorioServico.Juntar(paraVenda);
+        if (para == "") throw new ValidacaoException("Informe ao menos um e-mail para o relatório do serviço.");
+        var inv = RelatorioServico.Invalidos(para + ";" + paraVenda);
+        if (inv.Count > 0) throw new ValidacaoException("E-mail inválido: " + string.Join(", ", inv));
+        Db.SetCfg(RelatorioServico.CfgPara, para, ator.Login);
+        Db.SetCfg(RelatorioServico.CfgParaVenda, paraVenda, ator.Login);
+        Auditar(ator, "config", "config", RelatorioServico.CfgPara, $"Destinatários do relatório do serviço: {para} · venda/ocorrência: {(paraVenda == "" ? "—" : paraVenda)}");
+    }
+
+    /// <summary>E-mail padrão do relatório do serviço para esta viagem e este desfecho.</summary>
+    public RelatorioServico.Rascunho RascunhoRelatorio(Ator ator, string viagemId, string tipo, string texto = "")
+    {
+        var v = ViagemParaParticipar(ator, viagemId);
+        if (RelatorioServico.DeKey(tipo) is null) throw new ValidacaoException("Escolha como terminou o serviço.");
+        var (para, venda) = DestinatariosRelatorio();
+        return RelatorioServico.Montar(v, tipo, texto, para, venda);
+    }
+
+    /// <summary>Guarda o relatório enviado como feedback do serviço (os arquivos são anexados a ele em seguida),
+    /// marca o POWRA na lista de verificação se pedido e registra no histórico da viagem.
+    /// Com <paramref name="feedbackId"/> (segundo envio do mesmo relatório) só atualiza o registro.</summary>
+    public FeedbackViagem RegistrarRelatorio(Ator ator, string viagemId, RelatorioServico.Rascunho r, string como, bool marcarPowra, string? feedbackId = null)
+    {
+        var v = ViagemParaParticipar(ator, viagemId);
+        var tipo = RelatorioServico.DeKey(r.Tipo) ?? throw new ValidacaoException("Escolha como terminou o serviço.");
+        var texto = (r.Texto ?? "").Trim();
+        if (RelatorioServico.PedeTexto(tipo.Key) && texto.Length < 5) throw new ValidacaoException(tipo.Key == RelatorioServico.Oportunidade ? "Descreva a oportunidade de venda." : "Descreva a ocorrência.");
+        if (texto.Length > 8000) throw new ValidacaoException("Texto muito longo (até 8.000 caracteres).");
+        var f = feedbackId is { Length: > 0 } ? Db.FeedbacksViagem.Obter(feedbackId) : null;
+        if (f is not null && (f.ViagemId != v.Id || (f.Autor != ator.Login && ator.Papel != Roles.Admin))) f = null;
+        var novo = f is null;
+        f ??= new FeedbackViagem { ViagemId = v.Id, EscritoEm = DateTime.UtcNow, Autor = ator.Login, AutorNome = NomeDe(ator) };
+        f.Tipo = tipo.Key; f.Texto = texto; f.Assunto = (r.Assunto ?? "").Trim(); f.EnviadoPara = RelatorioServico.Juntar(r.Para);
+        f.Envio = string.IsNullOrEmpty(f.Envio) || f.Envio == como ? como : f.Envio + " · " + como;
+        if (!novo) f.EditadoEm = DateTime.UtcNow;
+        Db.FeedbacksViagem.Salvar(f, ator.Login);
+        if (marcarPowra)
+        {
+            var l = Checklist.Ler(v.Checklist);
+            var it = l.FirstOrDefault(i => DocEngine.Norm(i.Texto) == DocEngine.Norm(Checklist.ItemPowra));
+            if (it is { Feito: false }) { it.Feito = true; it.Por = NomeDe(ator); it.Em = DateTime.UtcNow; v.Checklist = Checklist.Gravar(l); Db.Viagens.Salvar(v, ator.Login); }
+        }
+        Auditar(ator, "viagem.relatorio", "viagem", v.Id, $"{v.Codigo}: relatório do serviço ({tipo.Rotulo}) {como} para {f.EnviadoPara} — \"{f.Assunto}\"");
+        return f;
+    }
+
     public void ExcluirFeedback(Ator ator, string feedbackId)
     {
         var f = Db.FeedbacksViagem.Obter(feedbackId) ?? throw new ValidacaoException("Feedback não encontrado.");

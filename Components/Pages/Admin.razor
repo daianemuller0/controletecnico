@@ -90,6 +90,16 @@ else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
         @if (_errosH is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosH) { <div>@e</div> }</div></div> }
         <div class="modal-actions"><button class="btn-primary" @onclick="SalvarHowden">@Icons.Svg("check")Salvar endereço da empresa</button></div>
     </div>
+    <div class="panel mt16" style="max-width:900px">
+        <div class="panel-head"><div class="panel-title">@Icons.Svg("mail")E-mail do relatório do serviço</div></div>
+        <p class="muted sm">Quem recebe o e-mail que o técnico envia ao terminar a visita (aba <strong>Feedback do serviço</strong> da viagem). Separe os e-mails com ponto e vírgula.</p>
+        <div class="form-grid">
+            <label class="fld full">Sempre recebem <span class="hint">serviço finalizado, com oportunidade de venda ou com ocorrência</span><textarea rows="2" @bind="_relPara"></textarea></label>
+            <label class="fld full">Também recebem quando há oportunidade de venda ou ocorrência<textarea rows="2" @bind="_relVenda"></textarea></label>
+        </div>
+        @if (_errosRel is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosRel) { <div>@e</div> }</div></div> }
+        <div class="modal-actions"><button class="btn-primary" @onclick="SalvarRelatorio">@Icons.Svg("check")Salvar destinatários</button></div>
+    </div>
 }
 else if (_aba == "aud")
 {
@@ -227,7 +237,7 @@ else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
 @code {
     [SupplyParameterFromQuery(Name = "aba")] public string? AbaQuery { get; set; }
     private Ator _ator = new(); private string _aba = "aud"; private List<Usuario> _usuarios = new(); private List<Auditoria> _aud = new();
-    private List<string>? _erros; private Usuario? _u; private bool _novoU; private string _senha = "", _alertas = "", _fuso = "", _buscaAud = "", _fAcao = "", _confirma = ""; private int _horas; private string _contatoGeo = "";
+    private List<string>? _erros; private Usuario? _u; private bool _novoU; private string _senha = "", _alertas = "", _fuso = "", _buscaAud = "", _fAcao = "", _confirma = ""; private int _horas; private string _contatoGeo = "", _relPara = "", _relVenda = ""; private List<string>? _errosRel;
 
     private static readonly (Perm, string)[] Matriz =
     {
@@ -245,7 +255,7 @@ else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
         _ator = await Sessao.AtorAsync();
         _aba = _ator.Pode(Perm.Administrar) ? "usr" : "aud"; Carregar();
         if (AbaQuery is "marca" or "apres" or "cfg" or "usr" or "aud" or "arm") _aba = AbaQuery;
-        ApCarregar(); HowdenCarregar(); _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _contatoGeo = Db.Cfg("geocoding_contato");
+        ApCarregar(); HowdenCarregar(); _alertas = string.Join(", ", Db.DiasAlerta); _fuso = Db.FusoPadrao; _horas = Db.ConfirmacaoValidadeHoras; _contatoGeo = Db.Cfg("geocoding_contato"); (_relPara, _relVenda) = Svc.DestinatariosRelatorio();
     }
     private void Carregar() { _usuarios = Db.Usuarios.Todos().OrderBy(u => u.Id).ToList(); _aud = Db.Auditorias.Todos().OrderByDescending(a => a.Quando).ToList(); }
     private IEnumerable<Auditoria> AudFiltrada => _aud.Where(a => (_fAcao == "" || a.Acao.StartsWith(_fAcao)) && (string.IsNullOrWhiteSpace(_buscaAud) || DocEngine.Norm($"{a.Usuario} {a.Acao} {a.Resumo}").Contains(DocEngine.Norm(_buscaAud))));
@@ -319,6 +329,7 @@ else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
     private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar("Usuário salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void SalvarRelatorio() { _errosRel = null; try { Svc.SalvarDestinatariosRelatorio(_ator, _relPara, _relVenda); Sessao.Avisar("Destinatários do relatório do serviço salvos."); Carregar(); } catch (Exception ex) { _errosRel = Ui.Erros(ex); } }
     private void SalvarCfg() { _erros = null; try { Svc.SalvarConfig(_ator, _alertas, _fuso, _horas, _contatoGeo); Sessao.Avisar("Configurações salvas."); Carregar(); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
     private void ExecutarDados()
     {
