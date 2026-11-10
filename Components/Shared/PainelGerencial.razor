@@ -1,15 +1,26 @@
 @using System.Globalization
 @inject Servicos Svc
-@* Indicadores gerenciais da Visão operacional: tudo calculado da agenda e dos cadastros (nada é digitado à mão). Gráficos em SVG puro. *@
+@* Indicadores gerenciais da Visão operacional: tudo calculado da agenda e dos cadastros (nada é digitado à mão), para o PERÍODO
+   escolhido (mês, ano ou De/Até) — serve para ver o que vem pela frente e também para relatórios de meses passados. *@
 
 <section class="gp @(Auto ? "gp-auto" : "")" aria-label="Indicadores gerenciais">
-    @if (!Auto) {<div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Calculados a partir da agenda, a partir de @_hoje.ToString("dd/MM/yyyy") · técnicos ativos visíveis para você</span></div>}
+    @if (!Auto)
+    {
+        <div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Período: <strong>@_de.ToString("dd/MM/yyyy") a @_ate.ToString("dd/MM/yyyy")</strong> · @RotuloPeriodo()</span></div>
+        <div class="gp-periodo" role="group" aria-label="Período dos indicadores">
+            @foreach (var (k, r) in Atalhos) { <button type="button" class="chip @(_atalho == k ? "active" : "")" @onclick="() => Atalho(k)">@r</button> }
+            <label class="gp-per-f">Mês<input type="month" value="@(_atalho == "mesesc" ? _de.ToString("yyyy-MM") : "")" @onchange="EscolherMes" /></label>
+            <label class="gp-per-f">De<input type="date" value="@_de.ToString("yyyy-MM-dd")" @onchange="@(e => Datas(e.Value?.ToString(), null))" /></label>
+            <label class="gp-per-f">Até<input type="date" value="@_ate.ToString("yyyy-MM-dd")" @onchange="@(e => Datas(null, e.Value?.ToString()))" /></label>
+            <button type="button" class="btn-ghost sm gp-imprimir" onclick="window.print()">@Icons.Svg("download")Imprimir / PDF</button>
+        </div>
+    }
 
     @if (Ver("cartoes")) {<div class="gp-heads">
-        @Head("Ocupação hoje", $"{_ocupHoje:0}%", "Técnicos em atendimento ou em viagem" + (_trainees > 0 ? $" · sem {_trainees} trainee(s)" : ""), "#0369a1", _ocupHoje)
-        @Head("Ocupação média, próx. 30 dias", $"{_ocup30:0}%", "Dias de campo ÷ dias úteis disponíveis", "#d9822b", _ocup30)
-        @Head("Dias de campo previstos (30 d)", _diasCampo30.ToString("N0"), "Técnico-dias com atendimento ou deslocamento", "#004785", null)
-        @Head("Documentos em dia", $"{_docOk:0}%", $"{_docs.Valido + _docs.SemVenc} de {_docs.Total} válidos", _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
+        @Head("Ocupação no período", $"{_ocup:0}%", "Técnico-dias de campo ÷ técnico-dias úteis" + (_trainees > 0 ? $" · sem {_trainees} trainee(s)" : ""), "#0369a1", _ocup)
+        @Head("Dias de campo", _diasCampo.ToString("N0"), "Técnico-dias com atendimento ou deslocamento", "#004785", null)
+        @Head("Viagens no período", _nViagens.ToString("N0"), $"{_nRealizadas} realizada(s) · {_nViagens - _nRealizadas} em andamento ou prevista(s)", "#d9822b", null)
+        @Head("Documentos em dia (hoje)", $"{_docOk:0}%", $"{_docs.Valido + _docs.SemVenc} de {_docs.Total} válidos", _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
     </div>}
 
     <div class="gp-grid">
@@ -22,9 +33,9 @@
         </div>}
 
         @if (Ver("semanas")) {<div class="gp-card gp-largo">
-            <h3>Ocupação da equipe nas próximas 8 semanas <span class="hint">% de técnico-dias úteis</span></h3>
-            <div class="gp-barras" role="img" aria-label="Ocupação semanal">
-                @foreach (var s in _semanas)
+            <h3>Ocupação da equipe por @(_porMes ? "mês" : "semana") <span class="hint">% de técnico-dias úteis no período</span></h3>
+            <div class="gp-barras" role="img" aria-label="Ocupação no período">
+                @foreach (var s in _faixas)
                 {
                     <div class="gp-col" title="@s.rot: atendimento @(s.at.ToString("0"))%, deslocamento @(s.des.ToString("0"))%, previsto (rascunho) @(s.prov.ToString("0"))%">
                         <div class="gp-pilha">
@@ -41,9 +52,9 @@
         </div>}
 
         @if (Ver("meses")) {<div class="gp-card gp-largo">
-            <h3>Viagens e dias de campo por mês <span class="hint">próximos 6 meses</span></h3>
+            <h3>Viagens e dias de campo por @(_porMes ? "mês" : "semana") <span class="hint">no período</span></h3>
             <div class="gp-barras gp-duplas">
-                @foreach (var m in _meses)
+                @foreach (var m in _faixas)
                 {
                     <div class="gp-col" title="@m.rot: @m.viagens viagem(ns), @m.dias dia(s) de campo">
                         <div class="gp-par">
@@ -55,14 +66,12 @@
                     </div>
                 }
             </div>
-            <div class="gp-leg-h"><span><i style="background:#004785"></i>Viagens que começam no mês</span><span><i style="background:#7ec3a0"></i>Dias de campo (técnico-dias)</span></div>
+            <div class="gp-leg-h"><span><i style="background:#004785"></i>Viagens que começam</span><span><i style="background:#7ec3a0"></i>Dias de campo (técnico-dias)</span></div>
         </div>}
 
         @if (Ver("classificacao")) {<div class="gp-card gp-largo gp-classif">
-            <div class="gp-card-cab"><h3>Viagens por classificação <span class="hint">@(_anoClassif == 0 ? "todos os anos" : $"viagens que começam em {_anoClassif}") · @_classif.Sum(x => x.real + x.and + x.prev) no total</span></h3>
-                @if (!Auto) { <select class="field w-auto sm" value="@_anoClassif" @onchange="@(e => { _anoClassif = int.TryParse(e.Value?.ToString(), out var a) ? a : 0; CalcularClassif(); })" aria-label="Ano">
-                    <option value="0">Todos os anos</option>@foreach (var a in _anosClassif) { <option value="@a">@a</option> }</select> }</div>
-            @if (_classif.Sum(x => x.real + x.and + x.prev) == 0) { <p class="muted">Nenhuma viagem @(_anoClassif == 0 ? "" : $"em {_anoClassif}").</p> }
+            <h3>Viagens por classificação <span class="hint">viagens que começam no período · @_classif.Sum(x => x.real + x.and + x.prev) no total</span></h3>
+            @if (_classif.Sum(x => x.real + x.and + x.prev) == 0) { <p class="muted">Nenhuma viagem começa neste período.</p> }
             <div class="gp-cl">
                 @foreach (var c in _classif)
                 {
@@ -79,8 +88,8 @@
         </div>}
 
         @if (Ver("clientes")) {<div class="gp-card">
-            <h3>Clientes com mais dias de atendimento <span class="hint">próx. 90 dias</span></h3>
-            @if (_clientes.Count == 0) { <p class="muted">Nenhum atendimento previsto.</p> }
+            <h3>Clientes com mais dias de atendimento <span class="hint">no período</span></h3>
+            @if (_clientes.Count == 0) { <p class="muted">Nenhum atendimento no período.</p> }
             @foreach (var c in _clientes)
             {
                 <div class="gp-hb"><div class="gp-hb-r"><span>@c.nome</span><strong>@c.dias d</strong></div><div class="gp-hb-t"><span style="width:@Esc(c.dias, _clientes[0].dias)"></span></div></div>
@@ -88,7 +97,7 @@
         </div>}
 
         @if (Ver("docs")) {<div class="gp-card">
-            <h3>Saúde documental</h3>
+            <h3>Saúde documental <span class="hint">hoje</span></h3>
             <div class="gp-pilha-h" role="img" aria-label="Situação dos documentos">
                 @if (_docs.Total > 0)
                 {
@@ -105,8 +114,8 @@
         </div>}
 
         @if (Ver("transporte")) {<div class="gp-card">
-            <h3>Meio de transporte <span class="hint">trechos nos próx. 90 dias</span></h3>
-            @if (_modais.Sum(x => x.n) == 0) { <p class="muted">Sem trechos previstos.</p> }
+            <h3>Meio de transporte <span class="hint">trechos no período</span></h3>
+            @if (_modais.Sum(x => x.n) == 0) { <p class="muted">Sem trechos no período.</p> }
             else
             {
                 <div class="gp-donut-wrap">
@@ -123,50 +132,67 @@
     [Parameter, EditorRequired] public List<Estado> Estados { get; set; } = new();
     [Parameter, EditorRequired] public List<Evento> Eventos { get; set; } = new();
     [Parameter] public DateTime Instante { get; set; } = DateTime.UtcNow;
-    /// <summary>Modo apresentação automática: tela cheia, tipografia grande e cartões entrando um a um.</summary>
+    /// <summary>Modo apresentação automática: tela cheia, tipografia grande e cartões entrando um a um (período: próximos 30 dias).</summary>
     [Parameter] public bool Auto { get; set; }
     /// <summary>Quais blocos mostrar (null = todos). Chaves em AutoEtapas.Graficos.</summary>
     [Parameter] public HashSet<string>? Mostrar { get; set; }
     private bool Ver(string k) => Mostrar is null || Mostrar.Contains(k);
-    /// <summary>Quais viagens entram no gráfico de classificação (o técnico vê só as dele). Nulo = todas.</summary>
+    /// <summary>Quais viagens entram nas contagens. Nulo = todas.</summary>
     [Parameter] public Func<Viagem, bool>? VeViagem { get; set; }
-
-    private const string SemClassif = "Sem classificação";
-    private List<(string nome, int real, int and, int prev)> _classif = new(); private List<int> _anosClassif = new(); private int _anoClassif = -1, _maxClassif = 1;
-
-    /// <summary>Viagens (não canceladas) por classificação: todas as classificações conhecidas aparecem, mesmo com zero,
-    /// e uma nova digitada numa viagem entra sozinha no gráfico.</summary>
-    private void CalcularClassif()
-    {
-        var inicio = Eventos.Where(e => e.ViagemId != "").GroupBy(e => e.ViagemId).ToDictionary(g => g.Key, g => g.Min(e => e.Ini));
-        var vs = Snap.Viagens.Values.Where(v => v.Status != Vocab.ViagemCancelada && (VeViagem is null || VeViagem(v)))
-            .Select(v => (v, ano: Tempo.ParaLocal(inicio.TryGetValue(v.Id, out var i) ? i : v.CriadoEm, Snap.FusoPadrao).Year)).ToList();
-        _anosClassif = vs.Select(x => x.ano).Distinct().OrderByDescending(a => a).ToList();
-        if (_anoClassif == -1) _anoClassif = _anosClassif.Contains(_hoje.Year) ? _hoje.Year : 0;
-        var doAno = vs.Where(x => _anoClassif == 0 || x.ano == _anoClassif).Select(x => x.v).ToList();
-        var nomes = Svc.Classificacoes();
-        foreach (var c in doAno.Select(v => v.Classificacao.Trim()).Where(c => c != "" && !nomes.Contains(c, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase)) nomes.Add(c);
-        string Chave(Viagem v) => v.Classificacao.Trim() == "" ? SemClassif : nomes.First(n => string.Equals(n, v.Classificacao.Trim(), StringComparison.OrdinalIgnoreCase));
-        var grupos = doAno.GroupBy(Chave).ToDictionary(g => g.Key, g => g.ToList());
-        _classif = nomes.Append(SemClassif).Select(n =>
-        {
-            var l = grupos.TryGetValue(n, out var x) ? x : new List<Viagem>();
-            return (n, l.Count(v => v.Status == Vocab.ViagemConcluida), l.Count(v => v.Status == Vocab.ViagemAndamento),
-                l.Count(v => v.Status is not (Vocab.ViagemConcluida or Vocab.ViagemAndamento)));
-        }).Where(x => x.n != SemClassif || x.Item2 + x.Item3 + x.Item4 > 0).ToList();
-        _maxClassif = Math.Max(1, _classif.Max(x => x.real + x.and + x.prev));
-    }
 
     private static readonly CultureInfo Pt = new("pt-BR");
     private List<Estado> _estados = new(); private DateTime _hoje;
-    private double _ocupHoje, _ocup30, _docOk; private int _diasCampo30, _trainees;
-    private (int Total, int Valido, int SemVenc, int Proximo, int Vencido) _docs;
-    private List<(string rot, string cor, int n)> _situacao = new(), _modais = new();
-    private List<(string rot, double at, double des, double prov)> _semanas = new();
-    private List<(string rot, int viagens, int dias)> _meses = new(); private int _maxViag = 1, _maxDias = 1;
-    private List<(string nome, int dias)> _clientes = new();
+    private const string SemClassif = "Sem classificação";
 
-    protected override void OnParametersSet() => Calcular();
+    // ---- período
+    private static readonly (string, string)[] Atalhos = { ("mes", "Este mês"), ("mesant", "Mês passado"), ("prox30", "Próximos 30 dias"), ("ano", "Este ano"), ("anoant", "Ano passado") };
+    private DateTime _de, _ate; private string _atalho = "";
+    private string RotuloPeriodo() => _atalho switch
+    {
+        "mes" or "mesant" or "mesesc" => Maiuscula(_de.ToString("MMMM 'de' yyyy", Pt)),
+        "ano" or "anoant" => $"ano de {_de.Year}", "prox30" => "próximos 30 dias", _ => $"{(_ate - _de).Days + 1} dias",
+    };
+    private static string Maiuscula(string t) => t.Length == 0 ? t : char.ToUpper(t[0], Pt) + t[1..];
+    private void Atalho(string k)
+    {
+        var h = DocEngine.Hoje(Snap.FusoPadrao).Date; var m = new DateTime(h.Year, h.Month, 1);
+        (_de, _ate) = k switch
+        {
+            "mes" => (m, m.AddMonths(1).AddDays(-1)), "mesant" => (m.AddMonths(-1), m.AddDays(-1)), "prox30" => (h, h.AddDays(29)),
+            "ano" => (new DateTime(h.Year, 1, 1), new DateTime(h.Year, 12, 31)), "anoant" => (new DateTime(h.Year - 1, 1, 1), new DateTime(h.Year - 1, 12, 31)),
+            _ => (_de, _ate),
+        };
+        _atalho = k; Calcular();
+    }
+    private void EscolherMes(ChangeEventArgs e)
+    {
+        if (!DateTime.TryParseExact(e.Value?.ToString() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var m)) return;
+        _de = m; _ate = m.AddMonths(1).AddDays(-1); _atalho = "mesesc"; Calcular();
+    }
+    private void Datas(string? de, string? ate)
+    {
+        if (de is not null && DateTime.TryParse(de, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)) _de = d.Date;
+        if (ate is not null && DateTime.TryParse(ate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var a)) _ate = a.Date;
+        if (_ate < _de) (_de, _ate) = (_ate, _de);
+        if ((_ate - _de).TotalDays > 3 * 366) _ate = _de.AddYears(3);       // até 3 anos de uma vez
+        _atalho = "custom"; Calcular();
+    }
+
+    // ---- resultados
+    private List<(string rot, string cor, int n)> _situacao = new();
+    private List<(string rot, double at, double des, double prov, int viagens, int dias)> _faixas = new();
+    private bool _porMes; private int _maxViag = 1, _maxDias = 1;
+    private List<(string nome, int dias)> _clientes = new();
+    private (int Total, int Valido, int SemVenc, int Proximo, int Vencido) _docs;
+    private List<(string rot, string cor, int n)> _modais = new();
+    private double _ocup, _docOk; private int _diasCampo, _trainees, _nViagens, _nRealizadas;
+    private List<(string nome, int real, int and, int prev)> _classif = new(); private int _maxClassif = 1;
+
+    protected override void OnParametersSet()
+    {
+        if (_atalho == "") { Atalho(Auto ? "prox30" : "mes"); return; }
+        Calcular();
+    }
 
     private (DateTime ini, DateTime fim) Janela(DateTime dia) => (Tempo.ParaUtc(dia, Snap.FusoPadrao), Tempo.ParaUtc(dia.AddDays(1), Snap.FusoPadrao));
     private static bool DiaUtil(DateTime d) => d.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
@@ -174,73 +200,90 @@
     private void Calcular()
     {
         _estados = Estados; _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
-        CalcularClassif();
-        var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet();
-        // ocupação: técnicos trainee não entram (nem no numerador nem no denominador)
-        var idsOc = _estados.Where(e => !e.Tecnico.Trainee).Select(e => e.Tecnico.Id).ToHashSet(); var n = Math.Max(1, idsOc.Count);
-        _trainees = ids.Count - idsOc.Count;
-
+        var (u0, _) = Janela(_de); var (_, u1) = Janela(_ate);
         _situacao = Vocab.StatusOp.Select(s => (s.Label, s.Color, _estados.Count(e => e.Status == s.Key))).Where(x => x.Item3 > 0).ToList();
-        _ocupHoje = 100.0 * _estados.Count(e => !e.Tecnico.Trainee && e.Status is Vocab.OpAtendimento or Vocab.OpViagem) / n;
 
-        var ev = Eventos.Where(e => ids.Contains(e.TecnicoId) && e.Status != "cancelado" && !e.EhIndisp).ToList();
-        // técnico-dias por dia: (atendimento, deslocamento, provisório)
+        // ocupação: técnicos de campo ativos; trainees não entram (nem no numerador nem no denominador)
+        var campoTec = Snap.Tecnicos.Values.Where(t => t.Ativo && Vocab.SempreDisponivel(t.Perfil)).ToList();
+        var idsOc = campoTec.Where(t => !t.Trainee).Select(t => t.Id).ToHashSet(); var n = Math.Max(1, idsOc.Count);
+        _trainees = campoTec.Count(t => t.Trainee);
+
+        var visiveis = Snap.Viagens.Values.Where(v => VeViagem is null || VeViagem(v)).Select(v => v.Id).ToHashSet();
+        var ev = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && (e.ViagemId == "" || visiveis.Contains(e.ViagemId))).ToList();
         var evOc = ev.Where(e => idsOc.Contains(e.TecnicoId)).ToList();
-        (int at, int des, int prov) Dia(DateTime d, bool soOcupacao = true)
+        // técnico-dias de um dia: (atendimento, deslocamento, provisório)
+        (int at, int des, int prov) Dia(DateTime d, List<Evento> lista)
         {
             var (a, b) = Janela(d); int at = 0, des = 0, prov = 0;
-            foreach (var g in (soOcupacao ? evOc : ev).Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
+            foreach (var g in lista.Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
             {
                 var bl = g.Where(e => e.Bloqueia).ToList();
                 if (bl.Any(e => !e.EhViagem)) at++; else if (bl.Any()) des++; else if (g.Any(e => e.Provisorio)) prov++;
             }
             return (at, des, prov);
         }
-        int util = 0, campo = 0;
-        for (var i = 0; i < 30; i++) { var d = _hoje.AddDays(i); if (!DiaUtil(d)) continue; util += n; var (at, des, _) = Dia(d); campo += at + des; }
-        _diasCampo30 = campo; _ocup30 = util == 0 ? 0 : 100.0 * campo / util;
 
-        _semanas = new();
-        var seg = _hoje.AddDays(-(((int)_hoje.DayOfWeek + 6) % 7));       // segunda-feira desta semana
-        for (var w = 0; w < 8; w++)
+        // viagens que começam no período (não canceladas)
+        var inicio = Eventos.Where(e => e.ViagemId != "").GroupBy(e => e.ViagemId).ToDictionary(g => g.Key, g => g.Min(e => e.Ini));
+        var viagens = Snap.Viagens.Values.Where(v => v.Status != Vocab.ViagemCancelada && visiveis.Contains(v.Id))
+            .Select(v => (v, ini: inicio.TryGetValue(v.Id, out var i) ? i : v.CriadoEm)).Where(x => x.ini >= u0 && x.ini < u1).ToList();
+        _nViagens = viagens.Count; _nRealizadas = viagens.Count(x => x.v.Status == Vocab.ViagemConcluida);
+
+        // faixas: por semana até ~6 semanas; acima disso, por mês
+        _porMes = (_ate - _de).TotalDays > 45;
+        _faixas = new(); int utilTot = 0, campoTot = 0;
+        var ini0 = _porMes ? new DateTime(_de.Year, _de.Month, 1) : _de.AddDays(-(((int)_de.DayOfWeek + 6) % 7));
+        for (var f = ini0; f <= _ate; f = _porMes ? f.AddMonths(1) : f.AddDays(7))
         {
-            double at = 0, des = 0, prov = 0; var dias = 0;
-            for (var k = 0; k < 5; k++) { var d = seg.AddDays(7 * w + k); var r = Dia(d); at += r.at; des += r.des; prov += r.prov; dias++; }
-            var tot = (double)(dias * n);
-            _semanas.Add(($"{seg.AddDays(7 * w):dd/MM}", 100 * at / tot, 100 * des / tot, 100 * prov / tot));
+            var fFim = (_porMes ? f.AddMonths(1) : f.AddDays(7)).AddDays(-1);
+            var a = f < _de ? _de : f; var b = fFim > _ate ? _ate : fFim;
+            double at = 0, des = 0, prov = 0; int uteis = 0, diasCampo = 0;
+            for (var d = a; d <= b; d = d.AddDays(1))
+            {
+                if (!DiaUtil(d)) continue;
+                uteis++; var r = Dia(d, evOc); at += r.at; des += r.des; prov += r.prov;
+                var t = Dia(d, ev); diasCampo += t.at + t.des;
+            }
+            var tot = (double)Math.Max(1, uteis * n);
+            utilTot += uteis * n; campoTot += (int)(at + des);
+            var (ua, _) = Janela(a); var (_, ub) = Janela(b);
+            var nv = viagens.Count(x => x.ini >= ua && x.ini < ub);
+            var rot = _porMes ? f.ToString("MMM/yy", Pt) : $"{a:dd/MM}";
+            _faixas.Add((rot, 100 * at / tot, 100 * des / tot, 100 * prov / tot, nv, diasCampo));
         }
+        _diasCampo = campoTot; _ocup = utilTot == 0 ? 0 : 100.0 * campoTot / utilTot;
+        _maxViag = Math.Max(1, _faixas.Select(x => x.viagens).DefaultIfEmpty(0).Max()); _maxDias = Math.Max(1, _faixas.Select(x => x.dias).DefaultIfEmpty(0).Max());
 
-        // viagens e dias de campo por mês
-        _meses = new();
-        var m0 = new DateTime(_hoje.Year, _hoje.Month, 1);
-        var viagensIni = ev.Where(e => e.EhViagem && e.ViagemId != "").GroupBy(e => e.ViagemId).Select(g => g.Min(e => e.Ini)).ToList();
-        for (var m = 0; m < 6; m++)
-        {
-            var ini = m0.AddMonths(m); var fim = ini.AddMonths(1);
-            var (ua, _) = Janela(ini); var (ub, _) = Janela(fim);
-            var nv = viagensIni.Count(i => i >= ua && i < ub);
-            var dm = 0; for (var d = ini; d < fim; d = d.AddDays(1)) if (DiaUtil(d)) { var r = Dia(d, soOcupacao: false); dm += r.at + r.des; }
-            _meses.Add((ini.ToString("MMM/yy", Pt), nv, dm));
-        }
-        _maxViag = Math.Max(1, _meses.Max(x => x.viagens)); _maxDias = Math.Max(1, _meses.Max(x => x.dias));
-
-        // clientes com mais dias de atendimento (90 dias)
-        var lim = Janela(_hoje.AddDays(90)).ini; var h0 = Janela(_hoje).ini;
-        _clientes = ev.Where(e => e.Tipo == Vocab.EvAtendimento && e.ClienteId != "" && e.Fim > h0 && e.Ini < lim)
-            .GroupBy(e => e.ClienteId).Select(g => (Snap.Cliente(g.Key)?.Nome ?? "—", g.Sum(e => (int)Math.Ceiling((Math.Min(e.Fim.Ticks, lim.Ticks) - Math.Max(e.Ini.Ticks, h0.Ticks)) / (double)TimeSpan.TicksPerDay))))
+        // clientes com mais dias de atendimento no período
+        _clientes = ev.Where(e => e.Tipo == Vocab.EvAtendimento && e.ClienteId != "")
+            .GroupBy(e => e.ClienteId).Select(g => (Snap.Cliente(g.Key)?.Nome ?? "—", g.Sum(e => (int)Math.Ceiling((Math.Min(e.Fim.Ticks, u1.Ticks) - Math.Max(e.Ini.Ticks, u0.Ticks)) / (double)TimeSpan.TicksPerDay))))
             .OrderByDescending(x => x.Item2).Take(5).ToList();
 
-        // documentos
+        // documentos (situação de hoje)
+        var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet();
         var linhas = DocEngine.Vencimentos(Snap, _hoje).Where(l => ids.Contains(l.Doc.TecnicoId)).ToList();
         int C(string s) => linhas.Count(l => l.Status == s);
         _docs = (linhas.Count, C(Vocab.DocValido), C(Vocab.DocSemVenc), C(Vocab.DocProximo), C(Vocab.DocVencido));
         _docOk = _docs.Total == 0 ? 100 : 100.0 * (_docs.Valido + _docs.SemVenc) / _docs.Total;
 
-        // transporte
+        // transporte: trechos que começam no período
         var canc = Snap.Viagens.Values.Where(v => v.Status == Vocab.ViagemCancelada).Select(v => v.Id).ToHashSet();
-        var tr = Snap.Trechos.Where(t => !canc.Contains(t.ViagemId) && (AgendaEngine.Janela(t).ini ?? DateTime.MinValue) is var i && i >= h0 && i < lim).ToList();
+        var tr = Snap.Trechos.Where(t => !canc.Contains(t.ViagemId) && visiveis.Contains(t.ViagemId) && (AgendaEngine.Janela(t).ini ?? DateTime.MinValue) is var i && i >= u0 && i < u1).ToList();
         _modais = new() { ("Avião", "#0369a1", tr.Count(t => t.Modal == Vocab.ModalAviao)), ("Carro", "#d9822b", tr.Count(t => t.Modal == Vocab.ModalCarro)), ("Outro", "#6b7a90", tr.Count(t => t.Modal == Vocab.ModalOutro)) };
         _modais = _modais.Where(x => x.n > 0).ToList();
+
+        // viagens por classificação: todas as conhecidas aparecem (mesmo com zero); uma nova entra sozinha
+        var nomes = Svc.Classificacoes();
+        foreach (var c in viagens.Select(x => x.v.Classificacao.Trim()).Where(c => c != "" && !nomes.Contains(c, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase)) nomes.Add(c);
+        string Chave(Viagem v) => v.Classificacao.Trim() == "" ? SemClassif : nomes.First(x => string.Equals(x, v.Classificacao.Trim(), StringComparison.OrdinalIgnoreCase));
+        var grupos = viagens.Select(x => x.v).GroupBy(Chave).ToDictionary(g => g.Key, g => g.ToList());
+        _classif = nomes.Append(SemClassif).Select(nm =>
+        {
+            var l = grupos.TryGetValue(nm, out var x) ? x : new List<Viagem>();
+            return (nm, l.Count(v => v.Status == Vocab.ViagemConcluida), l.Count(v => v.Status == Vocab.ViagemAndamento),
+                l.Count(v => v.Status is not (Vocab.ViagemConcluida or Vocab.ViagemAndamento)));
+        }).Where(x => x.nm != SemClassif || x.Item2 + x.Item3 + x.Item4 > 0).ToList();
+        _maxClassif = Math.Max(1, _classif.Max(x => x.real + x.and + x.prev));
     }
 
     private static string Pct(double v) => Math.Clamp(v, 0, 100).ToString("0.#", CultureInfo.InvariantCulture) + "%";

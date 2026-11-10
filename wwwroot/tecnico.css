@@ -795,3 +795,16 @@ tr.muted td { color: var(--muted); }
 .gp-cl-b { height: 100%; display: flex; min-width: 6px; border-radius: 6px; overflow: hidden; } .gp-cl-b span { display: block; }
 .gp-cl-l strong { text-align: right; font-size: 15px; color: #1d2b3f; }
 body.apresentacao .gp-cl-l { font-size: 18px; grid-template-columns: minmax(160px, 240px) 1fr 60px; } body.apresentacao .gp-cl-t { height: 26px; } body.apresentacao .gp-cl-l strong { font-size: 22px; }
+
+/* período dos indicadores gerenciais */
+.gp-periodo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line, #dde3ea); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+.gp-per-f { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #5b6b80; }
+.gp-per-f input { height: 32px; border: 1px solid var(--border, #dde3ea); border-radius: 8px; padding: 0 8px; font: inherit; color: #1d2b3f; }
+.gp-imprimir { margin-left: auto; }
+@media print {
+  .sidebar, .topbar, .demo-banner, .gp-periodo .chip, .gp-per-f, .gp-imprimir { display: none !important; }
+  .content > :not(section.gp) { display: none !important; }
+  .gp-periodo { border: 0; padding: 0; }
+  .gp-card, .gp-head { break-inside: avoid; } body, .content, .main-col { background: #fff !important; }
+}
+

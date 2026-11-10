@@ -183,7 +183,8 @@ else
         <PainelGerencial Auto="true" Mostrar="@_autoGraficos" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
     </div>
 }
-<PainelGerencial VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
+@* indicadores gerenciais: todos os perfis, menos o Técnico *@
+@if (_ator.Papel != Roles.Tecnico) { <PainelGerencial VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" /> }
 
 @if (_grupo is not null)
 {
