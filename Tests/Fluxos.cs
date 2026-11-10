@@ -1594,6 +1594,37 @@ public class ClassificacaoETraineeTests
     }
 }
 
+public class VersaoAntigaTests
+{
+    [Fact]
+    public void Gravacao_de_versao_antiga_sem_a_coluna_nao_apaga_o_campo_novo()
+    {
+        using var a = new Amb(); var t = a.NovoTec(); var p = a.NovaPlanta();
+        var v = a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "P1", Classificacao = "AFM", Status = Vocab.ViagemRascunho, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(3, 17), TecnicoIds = t.Id } });
+        // outra máquina com a versão anterior do programa altera a mesma viagem: grava a linha SEM a coluna Classificacao
+        var linha = a.Db.Store.ReadAll("viagens").Single(r => r["Id"] == v.Id);
+        linha.Remove("Classificacao"); linha["Obs"] = "alterada pela versão antiga";
+        a.Db.Store.WriteBatch("viagens", new[] { linha.Select(kv => new KeyValuePair<string, string?>(kv.Key, kv.Value)).ToList() });
+        a.Db.Viagens.Recarregar();
+        var lida = a.Db.Viagens.Obter(v.Id)!;
+        Assert.Equal("alterada pela versão antiga", lida.Obs);      // a alteração da versão antiga vale
+        Assert.Equal("AFM", lida.Classificacao);                    // e o campo que ela não conhece continua lá
+        Assert.Equal(a.Db.Store.ReadAll("viagens").Single(r => r["Id"] == v.Id).Keys.Count, a.Db.Store.ReadAll("viagens").Single(r => r["Id"] == v.Id).Keys.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.DoesNotContain(a.Db.Store.ReadAll("viagens").Single(r => r["Id"] == v.Id).Keys, k => k.Contains(":") || k.Contains("filename"));
+        // limpar de propósito (versão nova) continua funcionando
+        lida.Classificacao = ""; a.Db.Viagens.Salvar(lida, "x"); a.Db.Viagens.Recarregar();
+        Assert.Equal("", a.Db.Viagens.Obter(v.Id)!.Classificacao);
+        // e a compactação não perde nada
+        a.Db.Viagens.Salvar(new Func<Viagem>(() => { var x = a.Db.Viagens.Obter(v.Id)!; x.Classificacao = "SV"; return x; })(), "x");
+        var l2 = a.Db.Store.ReadAll("viagens").Single(r => r["Id"] == v.Id); l2.Remove("Classificacao");
+        a.Db.Store.WriteBatch("viagens", new[] { l2.Select(kv => new KeyValuePair<string, string?>(kv.Key, kv.Value)).ToList() });
+        a.Db.Store.Compact("viagens");
+        a.Db.Viagens.Recarregar();
+        Assert.Equal("SV", a.Db.Viagens.Obter(v.Id)!.Classificacao);
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]

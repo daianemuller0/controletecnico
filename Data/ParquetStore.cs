@@ -220,13 +220,7 @@ public sealed class ParquetStore
         if (Directory.GetFiles(dir, "*.parquet").Length == 0) return result;
         using var conn = Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = $@"
-SELECT * EXCLUDE (_rn, _ts, _deleted)
-FROM (
-    SELECT *, row_number() OVER (PARTITION BY id ORDER BY _ts DESC) AS _rn
-    FROM read_parquet('{Duck(Path.Combine(dir, "*.parquet"))}', union_by_name=true)
-)
-WHERE _rn = 1 AND NOT _deleted;";
+        cmd.CommandText = $"SELECT * EXCLUDE (_ts, _deleted) FROM ({Consolidado(conn, $"'{Duck(Path.Combine(dir, "*.parquet"))}'")});";
         using var r = cmd.ExecuteReader();
         var names = Enumerable.Range(0, r.FieldCount).Select(r.GetName).ToArray();
         while (r.Read())
@@ -236,6 +230,51 @@ WHERE _rn = 1 AND NOT _deleted;";
             result.Add(d);
         }
         return result;
+    }
+
+    /// <summary>
+    /// SQL da versão mais recente de cada registro (com _ts e _deleted, sem os excluídos), a partir de <paramref name="fonte"/>
+    /// (argumento do read_parquet: um padrão ou uma lista de arquivos).
+    /// Quando algum arquivo NÃO tem uma coluna — gravado por uma versão anterior do programa, que não conhece um campo novo
+    /// (ex.: Classificacao da viagem) —, aquela gravação não apaga o campo: para cada coluna vale a gravação mais recente
+    /// entre os arquivos que têm a coluna. Assim, versões diferentes abertas ao mesmo tempo na mesma base não perdem dados.
+    /// </summary>
+    private static string Consolidado(DuckDBConnection conn, string fonte)
+    {
+        var simples = $@"SELECT * EXCLUDE (_rn) FROM (
+    SELECT *, row_number() OVER (PARTITION BY id ORDER BY _ts DESC) AS _rn
+    FROM read_parquet({fonte}, union_by_name=true)
+) WHERE _rn = 1 AND NOT _deleted";
+        var colunas = new List<string>(); var porColuna = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase); long arquivos;
+        using (var c = conn.CreateCommand())
+        {
+            c.CommandText = $"DESCRIBE SELECT * FROM read_parquet({fonte}, union_by_name=true)";
+            using var r = c.ExecuteReader(); while (r.Read()) colunas.Add(r.GetString(0));
+        }
+        using (var c = conn.CreateCommand())
+        {
+            c.CommandText = $"SELECT name, count(DISTINCT file_name) FROM parquet_schema({fonte}) GROUP BY name";
+            using var r = c.ExecuteReader(); while (r.Read()) porColuna[r.GetString(0)] = Convert.ToInt64(r.GetValue(1));
+        }
+        using (var c = conn.CreateCommand())
+        {
+            c.CommandText = $"SELECT count(DISTINCT file_name) FROM parquet_schema({fonte})";
+            arquivos = Convert.ToInt64(c.ExecuteScalar());
+        }
+        static bool Interna(string n) => n.Equals("id", StringComparison.OrdinalIgnoreCase) || n is "_ts" or "_deleted";
+        var colId = colunas.FirstOrDefault(n => n.Equals("id", StringComparison.OrdinalIgnoreCase)) ?? "id";
+        var faltam = colunas.Where(n => !Interna(n) && (porColuna.TryGetValue(n, out var q) ? q : 0) < arquivos).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (faltam.Count == 0) return simples;
+        string Q(string n) => "\"" + n.Replace("\"", "\"\"") + "\"";
+        string L(string n) => "'" + n.Replace("'", "''") + "'";
+        var sel = colunas.Where(n => !Interna(n)).Select(n => faltam.Contains(n)
+            ? $"arg_max_null({Q(n)}, _ts) FILTER (WHERE filename IN (SELECT file_name FROM parquet_schema({fonte}) WHERE name = {L(n)})) AS {Q(n)}"
+            : $"arg_max_null({Q(n)}, _ts) AS {Q(n)}");
+        return $@"SELECT * FROM (
+    SELECT {Q(colId)}, {string.Join(", ", sel)}, max(_ts) AS _ts, arg_max_null(_deleted, _ts) AS _deleted
+    FROM read_parquet({fonte}, union_by_name=true, filename=true)
+    GROUP BY {Q(colId)}
+) WHERE NOT _deleted";
     }
 
     public int FileCount(string entity) => new DirectoryInfo(EntityDir(entity)).GetFiles("*.parquet").Length;
@@ -267,13 +306,7 @@ WHERE _rn = 1 AND NOT _deleted;";
             {
                 var lista = string.Join(", ", nomes.Where(n => File.Exists(Path.Combine(leitura, n))).Select(n => $"'{Duck(Path.Combine(leitura, n))}'"));
                 if (lista.Length == 0) return capturados.Length;
-                cmd.CommandText = $@"
-COPY (
-    SELECT * EXCLUDE (_rn) FROM (
-        SELECT *, row_number() OVER (PARTITION BY id ORDER BY _ts DESC) AS _rn
-        FROM read_parquet([{lista}], union_by_name=true)
-    ) WHERE _rn = 1 AND NOT _deleted
-) TO '{Duck(tmpLocal)}' (FORMAT PARQUET, COMPRESSION ZSTD);";
+                cmd.CommandText = $"COPY ({Consolidado(conn, $"[{lista}]")}) TO '{Duck(tmpLocal)}' (FORMAT PARQUET, COMPRESSION ZSTD);";
                 cmd.ExecuteNonQuery();
             }
             var nome = $"{NextTick():D19}_{Environment.MachineName.ToLowerInvariant()}_{Guid.NewGuid():N}.parquet";
