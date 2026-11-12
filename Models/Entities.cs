@@ -40,7 +40,15 @@ public class Tecnico : Entity
     public string Perfil { get; set; } = "campo";
     /// <summary>Técnico trainee: não entra nos indicadores de ocupação (painel gerencial).</summary>
     public bool Trainee { get; set; }
+    /// <summary>Início na Howden e saída (vazia = continua trabalhando). Os indicadores de ocupação de um período
+    /// só contam o técnico nos dias em que ele estava na empresa.</summary>
+    public DateTime? DataInicio { get; set; }
+    public DateTime? DataSaida { get; set; }
     public bool Ativo { get; set; } = true;
+
+    /// <summary>Estava na empresa neste dia? Sem data de saída, vale o "Técnico ativo" (inativo sem data de saída não conta).</summary>
+    public bool NaEmpresaEm(DateTime dia) =>
+        (DataInicio is null || dia.Date >= DataInicio.Value.Date) && (DataSaida is { } s ? dia.Date <= s.Date : Ativo);
     public string Obs { get; set; } = "";
     public string FotoAnexoId { get; set; } = "";
     public string UsuarioLogin { get; set; } = "";

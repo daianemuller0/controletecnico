@@ -15,6 +15,10 @@ public sealed partial class Servicos
         if (!TimeSpan.TryParse(t.JornadaInicio, out var ji) || !TimeSpan.TryParse(t.JornadaFim, out var jf) || jf <= ji)
             erros.Add("Jornada inválida: o fim deve ser posterior ao início (formato HH:mm).");
         if (Snapshot.Ids(t.DiasUteis).Length == 0) erros.Add("Selecione ao menos um dia útil da jornada.");
+        t.DataInicio = t.DataInicio?.Date; t.DataSaida = t.DataSaida?.Date;
+        if (t.DataInicio is { } di && t.DataSaida is { } ds && ds < di) erros.Add("A data de saída não pode ser anterior à data de início.");
+        // saiu da empresa (data de saída já passou): fica inativo
+        if (t.DataSaida is { } saida && saida < DocEngine.Hoje(Db.FusoPadrao).Date) t.Ativo = false;
         if (!string.IsNullOrWhiteSpace(t.Matricula) &&
             Db.Tecnicos.Onde(x => x.Id != t.Id && DocEngine.Norm(x.Matricula) == DocEngine.Norm(t.Matricula)).Count > 0)
             erros.Add("Já existe um técnico com este identificador interno.");

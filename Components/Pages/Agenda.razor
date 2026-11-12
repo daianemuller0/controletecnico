@@ -530,6 +530,8 @@ else
         _ator = await Sessao.AtorAsync();
         _ref2 = DotNetObjectReference.Create(this);
         if (!string.IsNullOrEmpty(TecQuery)) _tecSel.Add(TecQuery);
+        // volta com os filtros que a pessoa tinha deixado (vale enquanto estiver no programa; zera ao sair)
+        else if (!Sessao.AutoAtivo && Sessao.Agenda is { } f) { AplicarFiltro(f); _jsLido = true; }
         Sessao.Mudou += Ao;
         await Recarregar();
         if (Sessao.AutoAtivo && Sessao.AutoFase == "agenda" && !_carregando) { _autoCts = new CancellationTokenSource(); _ = LoopAuto(_autoCts.Token); }
@@ -640,9 +642,45 @@ else
                     _livres[(t.Id, d.Dia)] = d.Situacao;
     }
 
+    // ---- filtros guardados: na sessão do programa e no navegador (sessionStorage: some ao fechar a aba ou sair)
+    private bool _jsLido; private string _ultimoFiltro = "";
+    private string ChaveFiltro => "ct.agenda." + _ator.Login;
+    private Sessao.FiltroAgenda FiltroAtual() => new()
+    {
+        View = _view, Ref = _ref, Dias = _dias, TecColunas = _tecColunas, TecSel = _tecSel.ToList(), TiposOcultos = _tiposOcultos.ToList(),
+        MostraProv = _mostraProv, MostraLivres = _mostraLivres, SoConflito = _soConflito,
+    };
+    private void AplicarFiltro(Sessao.FiltroAgenda f)
+    {
+        _view = f.View is "linha" or "mes" ? f.View : "linha"; if (f.Ref != default) _ref = f.Ref.Date; _dias = Math.Clamp(f.Dias, 1, MaxDias);
+        _tecColunas = f.TecColunas; _tecSel = f.TecSel.ToHashSet(); _tiposOcultos = f.TiposOcultos.ToHashSet();
+        _mostraProv = f.MostraProv; _mostraLivres = f.MostraLivres; _soConflito = f.SoConflito;
+    }
+    private async Task GuardarFiltro()
+    {
+        if (Sessao.AutoAtivo) return;
+        var f = FiltroAtual(); var j = System.Text.Json.JsonSerializer.Serialize(f);
+        if (j == _ultimoFiltro) return;
+        _ultimoFiltro = j; Sessao.Agenda = f;
+        try { await JS.InvokeVoidAsync("sessionStorage.setItem", ChaveFiltro, j); } catch { }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (_carregando || _erro is not null) return;
+        if (!_jsLido)
+        {
+            _jsLido = true;
+            if (string.IsNullOrEmpty(TecQuery) && !Sessao.AutoAtivo)
+                try
+                {
+                    var j = await JS.InvokeAsync<string?>("sessionStorage.getItem", ChaveFiltro);
+                    if (!string.IsNullOrEmpty(j) && System.Text.Json.JsonSerializer.Deserialize<Sessao.FiltroAgenda>(j) is { } f)
+                    { AplicarFiltro(f); _ultimoFiltro = j; Sessao.Agenda = f; Montar(); StateHasChanged(); return; }
+                }
+                catch { }
+        }
+        await GuardarFiltro();
         try
         {
             await JS.InvokeVoidAsync("app.dnd.iniciar", "agenda-dnd", _ref2);

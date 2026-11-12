@@ -1,23 +1,41 @@
 @using System.Globalization
 @inject Servicos Svc
+@inject Sessao Sessao
 @* Indicadores gerenciais da Visão operacional: tudo calculado da agenda e dos cadastros (nada é digitado à mão), para o PERÍODO
    escolhido (mês, ano ou De/Até) — serve para ver o que vem pela frente e também para relatórios de meses passados. *@
 
 <section class="gp @(Auto ? "gp-auto" : "")" aria-label="Indicadores gerenciais">
     @if (!Auto)
     {
-        <div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Período: <strong>@_de.ToString("dd/MM/yyyy") a @_ate.ToString("dd/MM/yyyy")</strong> · @RotuloPeriodo()</span></div>
+        <div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Período: <strong>@_de.ToString("dd/MM/yyyy") a @_ate.ToString("dd/MM/yyyy")</strong> · @RotuloPeriodo()@if (_tecFiltro.Count > 0) {<span> · Técnicos: <strong>@string.Join(", ", _tecFiltro.Select(id => Snap.Tecnico(id)?.Nome ?? "?").OrderBy(x => x))</strong></span>}</span></div>
         <div class="gp-periodo" role="group" aria-label="Período dos indicadores">
             @foreach (var (k, r) in Atalhos) { <button type="button" class="chip @(_atalho == k ? "active" : "")" @onclick="() => Atalho(k)">@r</button> }
             <label class="gp-per-f">Mês<input type="month" value="@(_atalho == "mesesc" ? _de.ToString("yyyy-MM") : "")" @onchange="EscolherMes" /></label>
             <label class="gp-per-f">De<input type="date" value="@_de.ToString("yyyy-MM-dd")" @onchange="@(e => Datas(e.Value?.ToString(), null))" /></label>
             <label class="gp-per-f">Até<input type="date" value="@_ate.ToString("yyyy-MM-dd")" @onchange="@(e => Datas(null, e.Value?.ToString()))" /></label>
+            <div class="gp-tec">
+                <button type="button" class="chip @(_tecFiltro.Count > 0 ? "active" : "")" @onclick="() => _popTec = !_popTec">@Icons.Svg("users")@(_tecFiltro.Count == 0 ? "Técnicos (todos)" : _tecFiltro.Count == 1 ? Snap.Tecnico(_tecFiltro.First())?.Nome : $"{_tecFiltro.Count} técnicos")</button>
+                @if (_popTec)
+                {
+                    <div class="gp-tec-pop" role="dialog" aria-label="Filtrar por técnico">
+                        <input class="field" placeholder="Buscar técnico…" @bind="_buscaTec" @bind:event="oninput" />
+                        <div class="gp-tec-lista">
+                            @foreach (var t in TecnicosFiltro().Where(t => _buscaTec == "" || DocEngine.Norm(t.Nome).Contains(DocEngine.Norm(_buscaTec))))
+                            {
+                                <label class="chk-inline"><input type="checkbox" checked="@_tecFiltro.Contains(t.Id)" @onchange="@(e => AlternarTec(t.Id, (bool)e.Value!))" />@t.Nome
+                                    @if (!t.Ativo) { <span class="muted sm">(inativo)</span> }@if (t.Trainee) { <span class="muted sm">(trainee)</span> }</label>
+                            }
+                        </div>
+                        <div class="gp-tec-acoes"><button type="button" class="btn-link" @onclick="LimparTec">Todos os técnicos</button><button type="button" class="btn-primary sm" @onclick="() => _popTec = false">Pronto</button></div>
+                    </div>
+                }
+            </div>
             <button type="button" class="btn-ghost sm gp-imprimir" onclick="window.print()">@Icons.Svg("download")Imprimir / PDF</button>
         </div>
     }
 
     @if (Ver("cartoes")) {<div class="gp-heads">
-        @Head("Ocupação no período", $"{_ocup:0}%", "Técnico-dias de campo ÷ técnico-dias úteis" + (_trainees > 0 ? $" · sem {_trainees} trainee(s)" : ""), "#0369a1", _ocup)
+        @Head("Ocupação no período", $"{_ocup:0}%", "Técnico-dias de campo ÷ técnico-dias úteis na empresa" + (_trainees > 0 ? $" · sem {_trainees} trainee(s)" : ""), "#0369a1", _ocup)
         @Head("Dias de campo", _diasCampo.ToString("N0"), "Técnico-dias com atendimento ou deslocamento", "#004785", null)
         @Head("Viagens no período", _nViagens.ToString("N0"), $"{_nRealizadas} realizada(s) · {_nViagens - _nRealizadas} em andamento ou prevista(s)", "#d9822b", null)
         @Head("Documentos em dia (hoje)", $"{_docOk:0}%", $"{_docs.Valido + _docs.SemVenc} de {_docs.Total} válidos", _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
@@ -147,6 +165,13 @@
     // ---- período
     private static readonly (string, string)[] Atalhos = { ("mes", "Este mês"), ("mesant", "Mês passado"), ("prox30", "Próximos 30 dias"), ("ano", "Este ano"), ("anoant", "Ano passado") };
     private DateTime _de, _ate; private string _atalho = "";
+    // filtro por técnico (vazio = todos)
+    private HashSet<string> _tecFiltro = new(); private bool _popTec; private string _buscaTec = "";
+    private IEnumerable<Tecnico> TecnicosFiltro() => Snap.Tecnicos.Values
+        .Where(t => t.Ativo || (t.DataSaida is { } s && s.Date >= _de) || _tecFiltro.Contains(t.Id)).OrderBy(t => t.Nome);
+    private void AlternarTec(string id, bool on) { if (on) _tecFiltro.Add(id); else _tecFiltro.Remove(id); Calcular(); }
+    private void LimparTec() { _tecFiltro.Clear(); _popTec = false; Calcular(); }
+    private bool Sel(string tecId) => _tecFiltro.Count == 0 || _tecFiltro.Contains(tecId);
     private string RotuloPeriodo() => _atalho switch
     {
         "mes" or "mesant" or "mesesc" => Maiuscula(_de.ToString("MMMM 'de' yyyy", Pt)),
@@ -190,7 +215,12 @@
 
     protected override void OnParametersSet()
     {
-        if (_atalho == "") { Atalho(Auto ? "prox30" : "mes"); return; }
+        if (_atalho == "")
+        {
+            // volta com o período e os técnicos que a pessoa tinha escolhido (vale enquanto estiver no programa)
+            if (!Auto && Sessao.Indicadores is { } f) { _de = f.De; _ate = f.Ate; _atalho = f.Atalho; _tecFiltro = f.Tecnicos.ToHashSet(); Calcular(); return; }
+            Atalho(Auto ? "prox30" : "mes"); return;
+        }
         Calcular();
     }
 
@@ -199,24 +229,29 @@
 
     private void Calcular()
     {
-        _estados = Estados; _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
+        if (!Auto) Sessao.Indicadores = new Sessao.FiltroIndicadores(_de, _ate, _atalho, _tecFiltro.ToList());
+        _estados = Estados.Where(e => Sel(e.Tecnico.Id)).ToList(); _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
         var (u0, _) = Janela(_de); var (_, u1) = Janela(_ate);
         _situacao = Vocab.StatusOp.Select(s => (s.Label, s.Color, _estados.Count(e => e.Status == s.Key))).Where(x => x.Item3 > 0).ToList();
 
-        // ocupação: técnicos de campo ativos; trainees não entram (nem no numerador nem no denominador)
-        var campoTec = Snap.Tecnicos.Values.Where(t => t.Ativo && Vocab.SempreDisponivel(t.Perfil)).ToList();
-        var idsOc = campoTec.Where(t => !t.Trainee).Select(t => t.Id).ToHashSet(); var n = Math.Max(1, idsOc.Count);
-        _trainees = campoTec.Count(t => t.Trainee);
+        // ocupação: técnicos de campo, só nos dias em que estavam na empresa (início/saída da ficha);
+        // trainees não entram (nem no numerador nem no denominador)
+        var campoTec = Snap.Tecnicos.Values.Where(t => Vocab.SempreDisponivel(t.Perfil) && Sel(t.Id)).ToList();
+        var ocup = campoTec.Where(t => !t.Trainee).ToDictionary(t => t.Id);
+        _trainees = campoTec.Count(t => t.Trainee && t.Ativo);
+        int NaEmpresa(DateTime d) => ocup.Values.Count(t => t.NaEmpresaEm(d));
 
-        var visiveis = Snap.Viagens.Values.Where(v => VeViagem is null || VeViagem(v)).Select(v => v.Id).ToHashSet();
-        var ev = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && (e.ViagemId == "" || visiveis.Contains(e.ViagemId))).ToList();
-        var evOc = ev.Where(e => idsOc.Contains(e.TecnicoId)).ToList();
+        var visiveis = Snap.Viagens.Values.Where(v => (VeViagem is null || VeViagem(v)) && (_tecFiltro.Count == 0 || Snapshot.Ids(v.TecnicoIds).Any(_tecFiltro.Contains)))
+            .Select(v => v.Id).ToHashSet();
+        var ev = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && Sel(e.TecnicoId) && (e.ViagemId == "" || visiveis.Contains(e.ViagemId))).ToList();
+        var evOc = ev.Where(e => ocup.ContainsKey(e.TecnicoId)).ToList();
         // técnico-dias de um dia: (atendimento, deslocamento, provisório)
-        (int at, int des, int prov) Dia(DateTime d, List<Evento> lista)
+        (int at, int des, int prov) Dia(DateTime d, List<Evento> lista, bool soNaEmpresa = false)
         {
             var (a, b) = Janela(d); int at = 0, des = 0, prov = 0;
             foreach (var g in lista.Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
             {
+                if (soNaEmpresa && !(ocup.TryGetValue(g.Key, out var tec) && tec.NaEmpresaEm(d))) continue;
                 var bl = g.Where(e => e.Bloqueia).ToList();
                 if (bl.Any(e => !e.EhViagem)) at++; else if (bl.Any()) des++; else if (g.Any(e => e.Provisorio)) prov++;
             }
@@ -237,15 +272,15 @@
         {
             var fFim = (_porMes ? f.AddMonths(1) : f.AddDays(7)).AddDays(-1);
             var a = f < _de ? _de : f; var b = fFim > _ate ? _ate : fFim;
-            double at = 0, des = 0, prov = 0; int uteis = 0, diasCampo = 0;
+            double at = 0, des = 0, prov = 0; int tecDias = 0, diasCampo = 0;
             for (var d = a; d <= b; d = d.AddDays(1))
             {
                 if (!DiaUtil(d)) continue;
-                uteis++; var r = Dia(d, evOc); at += r.at; des += r.des; prov += r.prov;
+                tecDias += NaEmpresa(d); var r = Dia(d, evOc, soNaEmpresa: true); at += r.at; des += r.des; prov += r.prov;
                 var t = Dia(d, ev); diasCampo += t.at + t.des;
             }
-            var tot = (double)Math.Max(1, uteis * n);
-            utilTot += uteis * n; campoTot += (int)(at + des);
+            var tot = (double)Math.Max(1, tecDias);
+            utilTot += tecDias; campoTot += (int)(at + des);
             var (ua, _) = Janela(a); var (_, ub) = Janela(b);
             var nv = viagens.Count(x => x.ini >= ua && x.ini < ub);
             var rot = _porMes ? f.ToString("MMM/yy", Pt) : $"{a:dd/MM}";
@@ -268,7 +303,7 @@
 
         // transporte: trechos que começam no período
         var canc = Snap.Viagens.Values.Where(v => v.Status == Vocab.ViagemCancelada).Select(v => v.Id).ToHashSet();
-        var tr = Snap.Trechos.Where(t => !canc.Contains(t.ViagemId) && visiveis.Contains(t.ViagemId) && (AgendaEngine.Janela(t).ini ?? DateTime.MinValue) is var i && i >= u0 && i < u1).ToList();
+        var tr = Snap.Trechos.Where(t => !canc.Contains(t.ViagemId) && visiveis.Contains(t.ViagemId) && (_tecFiltro.Count == 0 || Snapshot.Ids(t.TecnicoIds).Length == 0 || Snapshot.Ids(t.TecnicoIds).Any(_tecFiltro.Contains)) && (AgendaEngine.Janela(t).ini ?? DateTime.MinValue) is var i && i >= u0 && i < u1).ToList();
         _modais = new() { ("Avião", "#0369a1", tr.Count(t => t.Modal == Vocab.ModalAviao)), ("Carro", "#d9822b", tr.Count(t => t.Modal == Vocab.ModalCarro)), ("Outro", "#6b7a90", tr.Count(t => t.Modal == Vocab.ModalOutro)) };
         _modais = _modais.Where(x => x.n > 0).ToList();
 

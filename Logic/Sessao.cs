@@ -29,6 +29,25 @@ public sealed class Sessao
 
     public event Action? Mudou;
 
+    /// <summary>Período e técnicos escolhidos nos indicadores gerenciais (valem enquanto a pessoa estiver no programa).</summary>
+    public sealed record FiltroIndicadores(DateTime De, DateTime Ate, string Atalho, List<string> Tecnicos);
+    public FiltroIndicadores? Indicadores { get; set; }
+
+    /// <summary>Filtros da Agenda: continuam valendo ao ir para outra tela e voltar (zeram ao sair do programa).</summary>
+    public FiltroAgenda? Agenda { get; set; }
+    public sealed class FiltroAgenda
+    {
+        public string View { get; set; } = "linha";
+        public DateTime Ref { get; set; }
+        public int Dias { get; set; } = 14;
+        public bool TecColunas { get; set; } = true;
+        public List<string> TecSel { get; set; } = new();
+        public List<string> TiposOcultos { get; set; } = new();
+        public bool MostraProv { get; set; } = true;
+        public bool MostraLivres { get; set; } = true;
+        public bool SoConflito { get; set; }
+    }
+
     /// <summary>Filtros do Planner: continuam valendo ao abrir um projeto e voltar.</summary>
     public PlFiltro PlannerFiltro { get; set; } = new();
 

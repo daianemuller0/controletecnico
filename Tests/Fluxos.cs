@@ -1625,6 +1625,30 @@ public class VersaoAntigaTests
     }
 }
 
+public class PeriodoNaEmpresaTests
+{
+    [Fact]
+    public void Inicio_e_saida_definem_os_dias_em_que_o_tecnico_conta()
+    {
+        using var a = new Amb();
+        var t = a.NovoTec(); t = a.Db.Tecnicos.Obter(t.Id)!;
+        t.DataInicio = new DateTime(2026, 2, 10); t.DataSaida = new DateTime(2026, 1, 1);
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarTecnico(a.Gestao, t));         // saída antes do início
+        t.DataSaida = new DateTime(2026, 6, 30);
+        var s = a.Svc.SalvarTecnico(a.Gestao, t);
+        Assert.False(s.Ativo);                                                              // a saída já passou: fica inativo
+        Assert.False(s.NaEmpresaEm(new DateTime(2026, 1, 15)));                             // ainda não tinha entrado
+        Assert.True(s.NaEmpresaEm(new DateTime(2026, 2, 10)));
+        Assert.True(s.NaEmpresaEm(new DateTime(2026, 6, 30)));
+        Assert.False(s.NaEmpresaEm(new DateTime(2026, 7, 1)));                              // já tinha saído
+        // sem saída: vale o "ativo"; inativo sem data de saída não conta
+        var u = new Tecnico { Ativo = true, DataInicio = new DateTime(2025, 1, 1) };
+        Assert.True(u.NaEmpresaEm(new DateTime(2026, 11, 12)));
+        u.Ativo = false; Assert.False(u.NaEmpresaEm(new DateTime(2026, 11, 12)));
+        Assert.True(new Tecnico { Ativo = true }.NaEmpresaEm(new DateTime(2020, 1, 1)));   // sem início: sempre esteve
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]

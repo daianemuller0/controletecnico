@@ -24,7 +24,7 @@
                     @if (Svc.FotoDoUsuario(_login) is { Length: > 0 } foto) { <img src="/arquivos/@foto" alt="Foto de @context.User.Identity?.Name" /> } else { @Iniciais(context.User.Identity?.Name) }
                 </a>
                 <a class="icon-btn" href="/senha" title="Meu perfil: foto e senha">@Icons.Svg("lock")</a>
-                <form method="post" action="/auth/logout">
+                <form method="post" action="/auth/logout" onsubmit="try{sessionStorage.clear()}catch(e){}">
                     <button class="icon-btn" type="submit" title="Sair">@Icons.Svg("logout")</button>
                 </form>
             </Authorized>

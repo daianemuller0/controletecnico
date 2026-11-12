@@ -808,3 +808,10 @@ body.apresentacao .gp-cl-l { font-size: 18px; grid-template-columns: minmax(160p
   .gp-card, .gp-head { break-inside: avoid; } body, .content, .main-col { background: #fff !important; }
 }
 
+
+/* filtro por técnico nos indicadores */
+.gp-tec { position: relative; }
+.gp-tec .chip svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+.gp-tec-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: 300px; background: #fff; border: 1px solid #dde3ea; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 35, 60, .18); padding: 10px; display: grid; gap: 8px; }
+.gp-tec-lista { max-height: 280px; overflow: auto; display: grid; gap: 4px; }
+.gp-tec-acoes { display: flex; justify-content: space-between; align-items: center; }
