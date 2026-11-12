@@ -62,7 +62,7 @@
                     <div class="pop-acoes"><button class="btn-link" @onclick="@(() => { _tecSel.Clear(); Montar(); })">Todos</button></div>
                     @foreach (var t in TecnicosVisiveis)
                     {
-                        <label class="pop-item"><input type="checkbox" checked="@_tecSel.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome</label>
+                        <label class="pop-item"><input type="checkbox" checked="@_tecSel.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome@if (!t.Ativo) { <span class="muted sm">&nbsp;(inativo)</span> }</label>
                     }
                 </div>
             }
@@ -522,7 +522,9 @@ else
     private string NomeTec(string id) => _snap.Tecnico(id)?.Nome ?? id;
     private IEnumerable<Tecnico> TecnicosVisiveis => _snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome);
     // engenharia/terceiros/fábrica/esporádicos: só ganham linha quando têm compromisso (ou quando escolhidos no filtro)
-    private List<Tecnico> TecnicosLinha() => TecnicosVisiveis.Where(t => t.Ativo && (_tecSel.Count == 0 ? Vocab.SempreDisponivel(t.Perfil) || _eventos.Any(e => e.TecnicoId == t.Id && e.Fonte != "ind" && e.Status != "cancelado" && e.Cruza(_rs, _re)) : _tecSel.Contains(t.Id))).ToList();
+    // inativos (ex.: quem já saiu da empresa) continuam com linha quando escolhidos no filtro ou quando têm compromisso no período
+    private List<Tecnico> TecnicosLinha() => TecnicosVisiveis.Where(t => _tecSel.Count > 0 ? _tecSel.Contains(t.Id)
+        : (t.Ativo && Vocab.SempreDisponivel(t.Perfil)) || _eventos.Any(e => e.TecnicoId == t.Id && e.Fonte != "ind" && e.Status != "cancelado" && e.Cruza(_rs, _re))).ToList();
     private bool PodeArrastar(Evento e) => _ator.Pode(Perm.EditarAgenda);
 
     protected override async Task OnInitializedAsync()
@@ -639,7 +641,7 @@ else
         if (_view == "linha" && _mostraLivres)
             foreach (var t in TecnicosLinha())
                 foreach (var d in AgendaEngine.Dias(_snap, _eventos, t, _rsLocal, _reLocal.AddDays(-1)))
-                    _livres[(t.Id, d.Dia)] = d.Situacao;
+                    if (t.NaEmpresaEm(d.Dia)) _livres[(t.Id, d.Dia)] = d.Situacao;      // antes de entrar / depois de sair: sem "dia livre"
     }
 
     // ---- filtros guardados: na sessão do programa e no navegador (sessionStorage: some ao fechar a aba ou sair)
