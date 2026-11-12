@@ -16,6 +16,11 @@ try { $c = git -C $PSScriptRoot rev-parse --short HEAD 2>$null; if ($c) { $versa
 $tmp = Join-Path $env:TEMP 'ControleTecnico-publicar'
 if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 
+Write-Host "Preparando os pacotes para Windows 64 bits ..."
+# o "dotnet run"/"dotnet test" deixam o projeto preparado so para rodar no computador (sem win-x64): refaz sempre
+dotnet restore "$PSScriptRoot\ControleTecnico.csproj" -r win-x64 --nologo
+if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar os pacotes (dotnet restore). Confira a internet/VPN.' }
+
 Write-Host "Compilando a versao $versao (Windows 64 bits, arquivo unico) ..."
 dotnet publish "$PSScriptRoot\ControleTecnico.csproj" -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
