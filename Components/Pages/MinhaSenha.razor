@@ -2,30 +2,30 @@
 @attribute [Authorize]
 @inject Servicos Svc
 @inject Sessao Sessao
-<PageTitle>Meu perfil · Controle Técnico</PageTitle>
-<div class="page-head compacto"><div><h1>Meu perfil</h1><p class="subtitle">Sua foto aparece no topo da tela; a senha é pessoal.</p></div></div>
+<PageTitle>@L["Meu perfil"] · Controle Técnico</PageTitle>
+<div class="page-head compacto"><div><h1>@L["Meu perfil"]</h1><p class="subtitle">@L["Sua foto aparece no topo da tela; a senha é pessoal."]</p></div></div>
 <div class="g12 top">
     <div class="c6"><div class="panel">
-        <div class="panel-head"><div class="panel-title">@Icons.Svg("user")Minha foto</div></div>
+        <div class="panel-head"><div class="panel-title">@Icons.Svg("user")@L["Minha foto"]</div></div>
         <div class="perfil-foto">
-            <div class="perfil-img">@if (_foto != "") { <img src="/arquivos/@_foto" alt="Minha foto" /> } else { <span>@Sigla()</span> }</div>
+            <div class="perfil-img">@if (_foto != "") { <img src="/arquivos/@_foto" alt="@L["Minha foto"]" /> } else { <span>@Sigla()</span> }</div>
             <div class="perfil-acoes">
-                <label class="btn-primary file-btn">@Icons.Svg("upload")@(_foto == "" ? "Enviar foto" : "Trocar foto")<InputFile OnChange="Enviar" accept=".jpg,.jpeg,.png" /></label>
-                @if (_temPropria) { <button class="btn-danger-ghost" @onclick="Remover">@Icons.Svg("trash")Remover</button> }
-                <div class="muted sm">JPG ou PNG, até 15 MB. De preferência quadrada, com o rosto centralizado.</div>
+                <label class="btn-primary file-btn">@Icons.Svg("upload")@(_foto == "" ? L["Enviar foto"] : L["Trocar foto"])<InputFile OnChange="Enviar" accept=".jpg,.jpeg,.png" /></label>
+                @if (_temPropria) { <button class="btn-danger-ghost" @onclick="Remover">@Icons.Svg("trash")@L["Remover"]</button> }
+                <div class="muted sm">@L["JPG ou PNG, até 15 MB. De preferência quadrada, com o rosto centralizado."]</div>
             </div>
         </div>
-        @if (_errosFoto is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosFoto) { <div>@e</div> }</div></div> }
+        @if (_errosFoto is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosFoto) { <div>@L[e]</div> }</div></div> }
     </div></div>
     <div class="c6"><div class="panel">
-        <div class="panel-head"><div class="panel-title">@Icons.Svg("lock")Alterar minha senha</div></div>
-        @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
-        @if (_ok) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Senha alterada.</div></div> }
+        <div class="panel-head"><div class="panel-title">@Icons.Svg("lock")@L["Alterar minha senha"]</div></div>
+        @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@L[e]</div> }</div></div> }
+        @if (_ok) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>@L["Senha alterada."]</div></div> }
         <div class="form-grid">
-            <label class="fld full">Senha atual<input type="password" @bind="_atual" autocomplete="current-password" /></label>
-            <label class="fld full">Nova senha (mín. 8 caracteres)<input type="password" @bind="_nova" autocomplete="new-password" /></label>
+            <label class="fld full">@L["Senha atual"]<input type="password" @bind="_atual" autocomplete="current-password" /></label>
+            <label class="fld full">@L["Nova senha (mín. 8 caracteres)"]<input type="password" @bind="_nova" autocomplete="new-password" /></label>
         </div>
-        <div class="modal-actions"><button class="btn-primary" @onclick="Salvar">@Icons.Svg("check")Alterar</button></div>
+        <div class="modal-actions"><button class="btn-primary" @onclick="Salvar">@Icons.Svg("check")@L["Alterar"]</button></div>
     </div></div>
 </div>
 @code {
@@ -36,10 +36,10 @@
     private async Task Enviar(InputFileChangeEventArgs e)
     {
         _errosFoto = null;
-        try { await using var s = e.File.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.DefinirFotoUsuarioAsync(_ator, _ator.Login, e.File.Name, s); Carregar(); Sessao.Avisar("Foto atualizada."); }
+        try { await using var s = e.File.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.DefinirFotoUsuarioAsync(_ator, _ator.Login, e.File.Name, s); Carregar(); Sessao.Avisar(L["Foto atualizada."]); }
         catch (Exception ex) { _errosFoto = Ui.Erros(ex); }
     }
-    private void Remover() { try { Svc.RemoverFotoUsuario(_ator, _ator.Login); Carregar(); Sessao.Avisar("Foto removida."); } catch (Exception ex) { _errosFoto = Ui.Erros(ex); } }
+    private void Remover() { try { Svc.RemoverFotoUsuario(_ator, _ator.Login); Carregar(); Sessao.Avisar(L["Foto removida."]); } catch (Exception ex) { _errosFoto = Ui.Erros(ex); } }
     private async Task Salvar()
     {
         _erros = null; _ok = false;

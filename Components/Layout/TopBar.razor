@@ -7,29 +7,29 @@
 <header class="topbar no-print">
     <div>
         <div class="topbar-title">@Icons.Svg("wrench", "nav-ico")@Svc.NomeSistema</div>
-        <div class="topbar-sub">Viagens, agenda, disponibilidade e documentação dos técnicos</div>
+        <div class="topbar-sub">@L["Viagens, agenda, disponibilidade e documentação dos técnicos"]</div>
     </div>
     <div class="topbar-right">
         <button type="button" class="btn-ghost sm @(Sessao.Apresentacao ? "on" : "")" @onclick="Alternar"
-                title="Amplia mapa, indicadores e agenda e oculta contatos, códigos de reserva e conteúdo de documentos">
+                title="@L["Amplia mapa, indicadores e agenda e oculta contatos, códigos de reserva e conteúdo de documentos"]">
             @Icons.Svg(Sessao.Apresentacao ? "eye-off" : "monitor")
-            @(Sessao.Apresentacao ? "Sair da apresentação" : "Modo apresentação")
+            @(Sessao.Apresentacao ? L["Sair da apresentação"] : L["Modo apresentação"])
         </button>
         <AuthorizeView>
             <Authorized>
-                <div class="idioma-sel" role="group" aria-label="Idioma">
+                <div class="idioma-sel" role="group" aria-label="@L["Idioma"]">
                     @foreach (var (cod, nome) in Idiomas.Lista) { <a class="@(L.Idioma == cod ? "on" : "")" href="@($"/idioma/{cod}?volta={Uri.EscapeDataString("/" + Nav.ToBaseRelativePath(Nav.Uri))}")" title="@nome" data-enhance-nav="false">@cod.ToUpperInvariant()</a> }
                 </div>
                 <div class="user">
                     <div class="user-name">@context.User.Identity?.Name</div>
-                    <div class="user-role">@Roles.Label(Roles.Normalize(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value))</div>
+                    <div class="user-role">@L[Roles.Label(Roles.Normalize(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value))]</div>
                 </div>
-                <a class="avatar avatar-link" href="/senha" title="Meu perfil: foto e senha">
-                    @if (Svc.FotoDoUsuario(_login) is { Length: > 0 } foto) { <img src="/arquivos/@foto" alt="Foto de @context.User.Identity?.Name" /> } else { @Iniciais(context.User.Identity?.Name) }
+                <a class="avatar avatar-link" href="/senha" title="@L["Meu perfil: foto e senha"]">
+                    @if (Svc.FotoDoUsuario(_login) is { Length: > 0 } foto) { <img src="/arquivos/@foto" alt="@L.F("Foto de {0}", context.User.Identity?.Name)" /> } else { @Iniciais(context.User.Identity?.Name) }
                 </a>
-                <a class="icon-btn" href="/senha" title="Meu perfil: foto e senha">@Icons.Svg("lock")</a>
+                <a class="icon-btn" href="/senha" title="@L["Meu perfil: foto e senha"]">@Icons.Svg("lock")</a>
                 <form method="post" action="/auth/logout" onsubmit="try{sessionStorage.clear()}catch(e){}">
-                    <button class="icon-btn" type="submit" title="Sair">@Icons.Svg("logout")</button>
+                    <button class="icon-btn" type="submit" title="@L["Sair"]">@Icons.Svg("logout")</button>
                 </form>
             </Authorized>
         </AuthorizeView>
