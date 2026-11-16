@@ -519,7 +519,7 @@ else
     private DateTime Loc(DateTime utc) => Tempo.ParaLocal(utc, _snap.FusoPadrao);
     private DateTime U(DateTime local) => Tempo.ParaUtc(local, _snap.FusoPadrao);
     private static string Pct(double f) => (f * 100).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-    private string NomeTec(string id) => _snap.Tecnico(id)?.Nome ?? id;
+    private string NomeTec(string id) => _snap.NomeTecnico(id) is { Length: > 0 } n ? n : id;
     private IEnumerable<Tecnico> TecnicosVisiveis => _snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome);
     // engenharia/terceiros/fábrica/esporádicos: só ganham linha quando têm compromisso (ou quando escolhidos no filtro)
     // inativos (ex.: quem já saiu da empresa) continuam com linha quando escolhidos no filtro ou quando têm compromisso no período

@@ -556,6 +556,7 @@ public sealed partial class Servicos
     // ---------------------------------------------------- atendimento avulso
     public Atendimento SalvarAtendimentoAvulso(Ator ator, Atendimento a)
     {
+        foreach (var tid in Snapshot.Ids(a.TecnicoIds)) ExigirTecnicoBu(ator, tid);
         ator.Exigir(Perm.EditarAgenda);
         var erros = new List<string>();
         var snap = Foto();
@@ -596,6 +597,7 @@ public sealed partial class Servicos
     // ---------------------------------------------------- indisponibilidades
     public Indisponibilidade SalvarIndisponibilidade(Ator ator, Indisponibilidade i)
     {
+        ExigirTecnicoBu(ator, i.TecnicoId); if (!string.IsNullOrEmpty(i.Id)) ExigirTecnicoBu(ator, Db.Indisponibilidades.Obter(i.Id)?.TecnicoId);
         ator.Exigir(Perm.EditarAgenda);
         var erros = new List<string>();
         if (!Db.Tecnicos.Existe(i.TecnicoId)) erros.Add("Selecione o técnico.");
@@ -611,6 +613,7 @@ public sealed partial class Servicos
 
     public void ExcluirIndisponibilidade(Ator ator, string id)
     {
+        ExigirTecnicoBu(ator, Db.Indisponibilidades.Obter(id)?.TecnicoId);
         ator.Exigir(Perm.EditarAgenda);
         var i = Db.Indisponibilidades.Obter(id) ?? throw new ValidacaoException("Registro não encontrado.");
         Db.Indisponibilidades.Apagar(id);
@@ -727,6 +730,7 @@ public sealed partial class Servicos
     // ------------------------------------------------------ confirmar local
     public ConfirmacaoLocal ConfirmarLocal(Ator ator, string tecnicoId, string plantaId, string texto, double? lat, double? lon, string obs)
     {
+        ExigirTecnicoBu(ator, tecnicoId);
         ator.Exigir(Perm.ConfirmarLocal, tecnicoId);
         var tec = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
         // locais especiais: a posição vem SEMPRE do cadastro atual (endereço da Howden / casa do técnico)

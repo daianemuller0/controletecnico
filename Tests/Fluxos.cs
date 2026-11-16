@@ -1695,6 +1695,33 @@ public class IdiomaTests
     }
 }
 
+public class BuTecnicoTests
+{
+    [Fact]
+    public void Tecnico_de_outra_BU_some_das_listas_e_nao_pode_ser_alterado()
+    {
+        using var a = new Amb(); var p = a.NovaPlanta();
+        var br = a.NovoTec("Técnico Brasil");
+        var cl = a.Svc.SalvarTecnico(a.Gestao, new Tecnico { Nome = "Técnico Chile", BU = "HCHL", Cidade = "Santiago" });
+        Assert.Equal("HSA", a.Db.Tecnicos.Obter(br.Id)!.BU);                  // sem BU: HSA
+        var chile = new Ator { Login = "cl", Nome = "Chile", Papel = Roles.Gestao, Bus = new[] { "HCHL" } };
+        var snap = a.Svc.Foto(chile);
+        Assert.Equal(new[] { cl.Id }, snap.Tecnicos.Keys.ToArray());
+        // viagem da BU Chile com técnico do Brasil emprestado: o nome aparece, a posição dele não
+        var v = a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "P1", BU = "HCHL", Status = Vocab.ViagemRascunho, TecnicoIds = br.Id + "," + cl.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(3, 17), TecnicoIds = br.Id + "," + cl.Id } });
+        snap = a.Svc.Foto(chile);
+        Assert.Equal("Técnico Brasil", snap.NomeTecnico(br.Id)); Assert.Null(snap.Tecnico(br.Id));
+        // não altera técnico de outra BU, nem cria técnico numa BU que não acessa
+        var brCopia = a.Db.Tecnicos.Obter(br.Id)!; brCopia.Obs = "x";
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarTecnico(chile, brCopia));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarTecnico(chile, new Tecnico { Nome = "Novo", BU = "HSA" }));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarIndisponibilidade(chile, new Indisponibilidade { TecnicoId = br.Id, Tipo = Vocab.IndFolga, Ini = Amb.Fut(9, 0), Fim = Amb.Fut(10, 0) }));
+        Assert.Equal("HCHL", a.Svc.SalvarTecnico(chile, new Tecnico { Nome = "Novo Chile", Cidade = "Santiago" }).BU);     // a única BU dela
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarTecnico(a.Gestao, new Tecnico { Nome = "X", BU = "ZZ" }));
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]

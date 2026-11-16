@@ -508,7 +508,7 @@ else
                 var grupos = new List<object>(); var rotas = new List<object>();
                 if (_planta is { TemCoord: true } p)
                 {
-                    var nomes = _tecs.Select(t => _snap.Tecnico(t)?.Nome).Where(n => n != null).Select(n => new { nome = n!, cor = "#0369a1" }).ToList();
+                    var nomes = _tecs.Select(t => (string?)_snap.NomeTecnico(t)).Where(n => !string.IsNullOrEmpty(n)).Select(n => new { nome = n!, cor = "#0369a1" }).ToList();
                     grupos.Add(new { chave = p.Id, lat = p.Lat!.Value, lon = p.Lon!.Value, titulo = _snap.NomePlanta(p.Id), cor = "#0369a1", tracejado = p.GeoNivel is "cidade" or "estado" or "pais",
                         viagem = false, iniciais = "📍", rotulo = p.GeoNivel is "cidade" or "estado" or "pais" ? L.F("Posição aproximada ({0})", L[p.GeoNivel == "pais" ? "país" : p.GeoNivel]) : L["Local do serviço"], tecnicos = nomes.Count == 0 ? new[] { new { nome = L["Técnico(s) a definir"], cor = "#8793a6" } }.ToList() : nomes });
                     var (la, lo) = OrigemCoord();

@@ -78,7 +78,7 @@ public sealed class ImportadorTecnicos
         {
             if (l.Rejeitada) { r.Rejeitadas.Add((l.Numero, l.V["nome"], "", string.Join(" ", l.Erros))); continue; }
             if (l.Acao is AcaoImport.Ignorar or AcaoImport.Atualizar) { r.Ignoradas++; continue; }
-            novos.Add(new Tecnico { Id = Repo<Tecnico>.NovoId(), Nome = l.V["nome"], Pais = "Brasil", FusoHorario = _db.FusoPadrao, Ativo = true });
+            novos.Add(new Tecnico { Id = Repo<Tecnico>.NovoId(), Nome = l.V["nome"], Pais = "Brasil", FusoHorario = _db.FusoPadrao, Ativo = true, BU = ator.Bus.Count == 1 ? ator.Bus.First() : Vocab.BuPadrao });
             if (l.Existente) r.Avisos.Add((l.Numero, "Criado como homônimo de um técnico já cadastrado."));
             r.Importadas++;
         }

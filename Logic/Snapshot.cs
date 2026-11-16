@@ -7,19 +7,22 @@ namespace ControleTecnico.Logic;
 /// Carregada uma vez por atualização de tela, não a cada renderização.</summary>
 public sealed class Snapshot
 {
-    public Dictionary<string, Tecnico> Tecnicos { get; init; } = new();
+    public Dictionary<string, Tecnico> Tecnicos { get; private set; } = new();
+    /// <summary>Todos os técnicos, só para mostrar o NOME num compromisso de uma viagem da BU da pessoa
+    /// quando o técnico é de outra BU (ele não aparece em listas, mapa nem agenda).</summary>
+    private Dictionary<string, Tecnico>? _todosTecnicos;
     public Dictionary<string, Viagem> Viagens { get; private set; } = new();
     public List<Trecho> Trechos { get; private set; } = new();
     public List<Atendimento> Atendimentos { get; private set; } = new();
-    public List<Indisponibilidade> Indisp { get; init; } = new();
+    public List<Indisponibilidade> Indisp { get; private set; } = new();
     public Dictionary<string, Planta> Plantas { get; init; } = new();
     public Dictionary<string, Cliente> Clientes { get; init; } = new();
     public Dictionary<string, Servico> Servicos { get; init; } = new();
     public Dictionary<string, Especialidade> Especialidades { get; init; } = new();
-    public List<ConfirmacaoLocal> Confirmacoes { get; init; } = new();
+    public List<ConfirmacaoLocal> Confirmacoes { get; private set; } = new();
     /// <summary>Feriados cadastrados pela equipe (os nacionais são calculados): ver Feriados.</summary>
     public string FeriadosCfg { get; init; } = "";
-    public List<Documento> Documentos { get; init; } = new();
+    public List<Documento> Documentos { get; private set; } = new();
     public List<Requisito> Requisitos { get; init; } = new();
     public string FusoPadrao { get; init; } = "America/Sao_Paulo";
     public int[] DiasAlerta { get; init; } = { 30, 60, 90 };
@@ -96,8 +99,13 @@ public sealed class Snapshot
     /// técnicos, plantas e indisponibilidades continuam visíveis: são recursos compartilhados entre as BUs.</summary>
     public Snapshot ParaAtor(Ator a)
     {
-        if (a.VeTodasBus) return this;
+        if (a.VeTodasBus) return this;   // (técnicos e viagens de todas as BUs)
         var c = (Snapshot)MemberwiseClone();
+        c._todosTecnicos = Tecnicos;
+        c.Tecnicos = Tecnicos.Values.Where(a.VeTecnicoBu).ToDictionary(t => t.Id);
+        c.Indisp = Indisp.Where(i => c.Tecnicos.ContainsKey(i.TecnicoId)).ToList();
+        c.Confirmacoes = Confirmacoes.Where(x => c.Tecnicos.ContainsKey(x.TecnicoId)).ToList();
+        c.Documentos = Documentos.Where(d => c.Tecnicos.ContainsKey(d.TecnicoId)).ToList();
         c.Viagens = Viagens.Values.Where(a.VeViagemBu).ToDictionary(v => v.Id);
         c.Trechos = Trechos.Where(t => c.Viagens.ContainsKey(t.ViagemId)).ToList();
         c.Atendimentos = Atendimentos.Where(x => string.IsNullOrEmpty(x.ViagemId) || c.Viagens.ContainsKey(x.ViagemId)).ToList();
@@ -111,6 +119,8 @@ public sealed class Snapshot
     public Cliente? Cliente(string? id) => !string.IsNullOrEmpty(id) && Clientes.TryGetValue(id, out var p) ? p : null;
     public Servico? Servico(string? id) => !string.IsNullOrEmpty(id) && Servicos.TryGetValue(id, out var p) ? p : null;
     public Tecnico? Tecnico(string? id) => !string.IsNullOrEmpty(id) && Tecnicos.TryGetValue(id, out var p) ? p : null;
+    /// <summary>Nome do técnico mesmo que seja de outra BU (para compromissos de viagens da BU da pessoa).</summary>
+    public string NomeTecnico(string? id) => Tecnico(id)?.Nome ?? (!string.IsNullOrEmpty(id) && _todosTecnicos is not null && _todosTecnicos.TryGetValue(id, out var t) ? t.Nome : "");
     public Viagem? Viagem(string? id) => !string.IsNullOrEmpty(id) && Viagens.TryGetValue(id, out var p) ? p : null;
 
     public string NomePlanta(string? id)

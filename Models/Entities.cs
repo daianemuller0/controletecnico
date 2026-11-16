@@ -38,6 +38,8 @@ public class Tecnico : Entity
     /// <summary>campo (padrão: sempre na disponibilidade) | esporadico | engenharia | terceiro | fabrica.
     /// Os demais só aparecem na visão quando estão em viagem ou atendimento; cadastro e histórico continuam.</summary>
     public string Perfil { get; set; } = "campo";
+    /// <summary>BU do técnico (HSA, HCHL, HPU). Quem não acessa a BU não vê o técnico (mapa, agenda, listas, ficha). Vazia = HSA.</summary>
+    public string BU { get; set; } = "";
     /// <summary>Técnico trainee: não entra nos indicadores de ocupação (painel gerencial).</summary>
     public bool Trainee { get; set; }
     /// <summary>Início na Howden e saída (vazia = continua trabalhando). Os indicadores de ocupação de um período

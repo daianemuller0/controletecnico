@@ -27,6 +27,7 @@ public sealed class Ator
     public bool VeTodasBus => Bus.Count == 0;
     public bool VeBu(string? bu) => VeTodasBus || Bus.Contains(string.IsNullOrWhiteSpace(bu) ? Vocab.BuPadrao : bu);
     public bool VeViagemBu(Viagem? v) => v is not null && VeBu(Vocab.BuDe(v));
+    public bool VeTecnicoBu(Tecnico? t) => t is not null && VeBu(Vocab.BuDe(t));
     public static IReadOnlyCollection<string> LerBus(string? csv) =>
         (csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(Vocab.BuValida).Distinct().ToArray();
 

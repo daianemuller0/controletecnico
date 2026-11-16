@@ -6,9 +6,22 @@ namespace ControleTecnico.Logic;
 public sealed partial class Servicos
 {
     // ---------------------------------------------------------------- técnicos
+    /// <summary>Técnico de uma BU que a pessoa não acessa: não altera nada dele.</summary>
+    private void ExigirTecnicoBu(Ator ator, string? tecnicoId)
+    {
+        if (ator.VeTodasBus || string.IsNullOrEmpty(tecnicoId)) return;
+        if (Db.Tecnicos.Obter(tecnicoId) is { } t && !ator.VeTecnicoBu(t))
+            throw new UnauthorizedAccessException($"Este técnico é da BU {Vocab.BuDe(t)}, que você não acessa.");
+    }
+
     public Tecnico SalvarTecnico(Ator ator, Tecnico t)
     {
         ator.Exigir(Perm.EditarTecnicos);
+        if (!string.IsNullOrEmpty(t.Id)) ExigirTecnicoBu(ator, t.Id);
+        t.BU = (t.BU ?? "").Trim().ToUpperInvariant();
+        if (t.BU == "") t.BU = !string.IsNullOrEmpty(t.Id) && Db.Tecnicos.Obter(t.Id) is { } antes ? Vocab.BuDe(antes) : ator.Bus.Count == 1 ? ator.Bus.First() : Vocab.BuPadrao;
+        if (!Vocab.BuValida(t.BU)) throw new ValidacaoException("Selecione a BU do técnico (HSA, HCHL ou HPU).");
+        if (!ator.VeBu(t.BU)) throw new UnauthorizedAccessException($"Você não tem acesso à BU {t.BU}.");
         var erros = new List<string>();
         if (string.IsNullOrWhiteSpace(t.Nome)) erros.Add("Informe o nome do técnico.");
         if (!Tempo.FusoValido(t.FusoHorario)) erros.Add("Fuso horário inválido.");
@@ -177,6 +190,7 @@ public sealed partial class Servicos
 
     public async Task<Anexo> DefinirFotoAsync(Ator ator, string tecnicoId, string nome, Stream conteudo)
     {
+        ExigirTecnicoBu(ator, tecnicoId);
         ator.Exigir(Perm.EditarTecnicos);
         var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
         var ext = Path.GetExtension(nome).ToLowerInvariant();
@@ -368,6 +382,7 @@ public sealed partial class Servicos
 
     public Documento SalvarDocumento(Ator ator, Documento d)
     {
+        ExigirTecnicoBu(ator, d.TecnicoId);
         ator.Exigir(Perm.EditarDocs, d.TecnicoId);
         if (!Db.Tecnicos.Existe(d.TecnicoId)) throw new ValidacaoException("Técnico não encontrado.");
         ValidarDoc(d);
@@ -392,6 +407,7 @@ public sealed partial class Servicos
     /// <summary>Renova: cria uma nova versão e mantém a anterior no histórico, com seus anexos.</summary>
     public Documento Renovar(Ator ator, string documentoAtualId, Documento novaVersao)
     {
+        ExigirTecnicoBu(ator, Db.Documentos.Obter(documentoAtualId)?.TecnicoId);
         var atual = Db.Documentos.Obter(documentoAtualId) ?? throw new ValidacaoException("Documento não encontrado.");
         ator.Exigir(Perm.EditarDocs, atual.TecnicoId);
         if (!atual.Atual) throw new ValidacaoException("Só a versão atual pode ser renovada.");
@@ -410,6 +426,7 @@ public sealed partial class Servicos
 
     public void ExcluirDocumento(Ator ator, string id)
     {
+        ExigirTecnicoBu(ator, Db.Documentos.Obter(id)?.TecnicoId);
         var d = Db.Documentos.Obter(id) ?? throw new ValidacaoException("Documento não encontrado.");
         ator.Exigir(Perm.EditarDocs, d.TecnicoId);
         if (!ator.Pode(Perm.Administrar) && !ator.Pode(Perm.EditarRequisitos))
@@ -480,6 +497,7 @@ public sealed partial class Servicos
         {
             case "documento":
                 var d = Db.Documentos.Obter(a.DonoId);
+                if (d is not null && !ator.VeTecnicoBu(Db.Tecnicos.Obter(d.TecnicoId))) return false;
                 return d is not null && ator.Pode(Perm.VerDocsConteudo, d.TecnicoId);
             case "viagem":
                 var v = Db.Viagens.Obter(a.DonoId);
@@ -492,7 +510,7 @@ public sealed partial class Servicos
                 if (ator.Pode(Perm.VerAnexosViagem)) return true;
                 return ator.Papel == Roles.Tecnico && Snapshot.Ids(vfb.TecnicoIds).Contains(ator.TecnicoId);
             case "tecnico":
-                return ator.VeTecnico(a.DonoId);
+                return ator.VeTecnico(a.DonoId) && ator.VeTecnicoBu(Db.Tecnicos.Obter(a.DonoId));
             case "plprojeto":
                 return PodeVerPlanner(ator, a.DonoId);
             case "marca":
@@ -714,6 +732,7 @@ public sealed partial class Servicos
     /// <summary>Marca onde o técnico fica quando não está em viagem: em casa (endereço do cadastro) ou na Howden.</summary>
     public Tecnico DefinirLocalBase(Ator ator, string tecnicoId, string localBase)
     {
+        ExigirTecnicoBu(ator, tecnicoId);
         ator.Exigir(Perm.ConfirmarLocal, tecnicoId);
         if (localBase is not (Vocab.BaseCasa or Vocab.BaseHowden)) throw new ValidacaoException("Local inválido.");
         var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
@@ -727,6 +746,7 @@ public sealed partial class Servicos
     /// <summary>Localiza a casa do técnico em cascata (endereço → cidade → estado → país) e grava as coordenadas.</summary>
     public async Task<GeoResultado> LocalizarCasaAsync(Ator ator, string tecnicoId, Geocoder geo, bool limparSeFalhar = false)
     {
+        ExigirTecnicoBu(ator, tecnicoId);
         ator.Exigir(Perm.EditarTecnicos);
         var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");
         if (string.IsNullOrWhiteSpace(t.Cidade) && string.IsNullOrWhiteSpace(t.Estado) && string.IsNullOrWhiteSpace(t.Pais))
@@ -769,6 +789,7 @@ public sealed partial class Servicos
     /// <summary>Posição da casa marcada à mão no mapa (quando o endereço não é encontrado com precisão).</summary>
     public Tecnico DefinirCasaManual(Ator ator, string tecnicoId, double lat, double lon, string origem = "manual")
     {
+        ExigirTecnicoBu(ator, tecnicoId);
         ator.Exigir(Perm.EditarTecnicos);
         if (!Geo.CoordValida(lat, lon)) throw new ValidacaoException("Coordenadas inválidas.");
         var t = Db.Tecnicos.Obter(tecnicoId) ?? throw new ValidacaoException("Técnico não encontrado.");

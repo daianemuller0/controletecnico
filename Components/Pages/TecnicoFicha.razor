@@ -23,7 +23,7 @@ else
         <div class="ficha-topo panel">
             <Avatar Nome="@_t.Nome" FotoId="@_t.FotoAnexoId" Cor="@it.Color" Tam="lg" />
             <div class="ficha-ident">
-                <h1>@_t.Nome @if (!_t.Ativo) { <span class="tag neg">@L["inativo"]</span> }</h1>
+                <h1>@_t.Nome <span class="bu-tag">@Vocab.BuDe(_t)</span> @if (!_t.Ativo) { <span class="tag neg">@L["inativo"]</span> }</h1>
                 <div class="muted">@_t.Matricula @(string.IsNullOrEmpty(_t.Matricula) ? "" : "·") @_t.Cidade@(string.IsNullOrEmpty(_t.Estado) ? "" : "/" + _t.Estado), @_t.Pais</div>
                 <div class="ficha-chips">@if (_t.DataInicio is { } dIni) { <span class="tag" title="@L["Início na Howden"]">@L.F("desde {0}", dIni.ToString("dd/MM/yyyy"))@(_t.DataSaida is { } dS ? " · " + L.F("saiu em {0}", dS.ToString("dd/MM/yyyy")) : "")</span> }@if (_t.Trainee) { <span class="tag trainee-tag" title="@L["Não entra na ocupação dos indicadores gerenciais"]">@L["Trainee"]</span> }@if (!Vocab.SempreDisponivel(_t.Perfil) && _est is not null && !Vocab.NaVisao(_t.Perfil, _est.Status)) { <span class="tag perfil-tag" title="@L["Só aparece na disponibilidade quando estiver em viagem ou atendimento"]">@L[Vocab.PerfilRotulo(_t.Perfil)] · @L["fora da disponibilidade"]</span> } else if (!_t.Ativo) { <span class="tag neg">@(_t.DataSaida is { } sd ? L.F("fora da empresa desde {0}", sd.AddDays(1).ToString("dd/MM/yyyy")) : L["inativo"])</span> } else { <StatusBadge Item="@Trad(it)" />@if (!Vocab.SempreDisponivel(_t.Perfil)) { <span class="tag perfil-tag">@L[Vocab.PerfilRotulo(_t.Perfil)]</span> } }
                     @foreach (var e in _t.EspecialidadeIds.Split(',', StringSplitOptions.RemoveEmptyEntries)) { if (_snap.Especialidades.TryGetValue(e, out var esp)) { <span class="tag">@esp.Nome</span> } }</div>
@@ -51,6 +51,7 @@ else
                 <div class="form-grid g3">
                     <label class="fld">@L["Nome"] *<input @bind="_f.Nome" /></label>
                     <label class="fld">@L["Identificador interno"]<input @bind="_f.Matricula" /></label>
+                    <label class="fld">@L["BU do técnico"] <span class="hint">@L["quem não acessa esta BU não vê o técnico"]</span><select value="@Vocab.BuDe(_f)" @onchange="@(e => _f.BU = e.Value?.ToString() ?? "")">@foreach (var b in Vocab.Bus.Where(b => _ator.VeBu(b.Cod) || b.Cod == Vocab.BuDe(_f))) { <option value="@b.Cod">@L[b.Nome]</option> }</select></label>
                     <label class="fld chk"><input type="checkbox" @bind="_f.Ativo" />@L["Técnico ativo"]</label>
                     <label class="fld">@L["Início na Howden"] <span class="hint">@L["data em que começou a trabalhar"]</span><input type="date" @bind="_f.DataInicio" /></label>
                     <label class="fld">@L["Data de saída"] <span class="hint">@(_f.DataSaida is null ? L["vazia = continua trabalhando"] : L["a partir do dia seguinte não conta mais nos indicadores"])</span><input type="date" @bind="_f.DataSaida" /></label>
@@ -270,7 +271,7 @@ else
         _novo = Id == "novo";
         if (_novo)
         {
-            _ok = _ator.Pode(Perm.EditarTecnicos); _pode = _ok; _t = new Tecnico(); _f = new Tecnico(); _diasSel = new() { 1, 2, 3, 4, 5 }; _aba = "geral"; _verContato = true; return;
+            _ok = _ator.Pode(Perm.EditarTecnicos); _pode = _ok; _t = new Tecnico(); _f = new Tecnico { BU = _ator.Bus.Count == 1 ? _ator.Bus.First() : Vocab.BuPadrao }; _diasSel = new() { 1, 2, 3, 4, 5 }; _aba = "geral"; _verContato = true; return;
         }
         if (!_snap.Tecnicos.TryGetValue(Id, out var t) || !_ator.VeTecnico(Id)) { _ok = false; return; }
         _ok = true; _t = t; _f = t.Copia<Tecnico>();

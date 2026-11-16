@@ -101,6 +101,8 @@ public static class Vocab
     /// <summary>BU da viagem (viagem antiga sem BU = HSA).</summary>
     public static string BuDe(Viagem? v) => string.IsNullOrWhiteSpace(v?.BU) ? BuPadrao : v!.BU;
     public static bool BuValida(string? bu) => Bus.Any(b => b.Cod == bu);
+    /// <summary>BU do técnico (técnico antigo sem BU = HSA).</summary>
+    public static string BuDe(Tecnico? t) => string.IsNullOrWhiteSpace(t?.BU) ? BuPadrao : t!.BU;
 
     /// <summary>Classificação da viagem: as da equipe e as digitadas pelos usuários (guardadas na configuração).</summary>
     public static readonly string[] ClassificacoesPadrao = { "NB", "AFM", "SV", "Visita comercial", "Visita técnica" };

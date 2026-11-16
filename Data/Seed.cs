@@ -112,6 +112,7 @@ public static class Seed
         var tLu = T("tec_lu", "Luciana Prado", "T-008", "Salvador", "BA", -12.9777, -38.5016, "esp_inst,esp_ele", "srv_com,srv_prev", "+55 71 95555-0008", "America/Bahia");
         var tAnd = T("tec_and", "André Martins", "T-009", "Curitiba", "PR", -25.4284, -49.2733, "esp_lub,esp_mec", "srv_prev", "+55 41 95555-0009");
         var tBru = T("tec_bru", "Bruno Teixeira", "T-010", "Sorocaba", "SP", -23.5015, -47.4526, "esp_vib", "srv_bal", "+55 15 95555-0010");
+        tBru.BU = "HCHL"; tAnd.BU = "HCHL";      // técnicos da BU Chile (a usuária "chile" só vê estes)
         tFer.JornadaInicio = "07:30"; tFer.JornadaFim = "16:30";
         // quem não é técnico de campo: só aparece na disponibilidade quando estiver em viagem ou atendimento
         var tEng = T("tec_eng", "Eduardo Nogueira", "E-001", "São Paulo", "SP", -23.5505, -46.6333, "esp_vib", "srv_com", "+55 11 95555-0101"); tEng.Perfil = "engenharia";

@@ -94,7 +94,7 @@ else
                 <tbody>
                 @foreach (var v in _kViagensPrev.Select(id => _snap.Viagem(id)).Where(v => v is not null).OrderBy(v => _prevIni[v!.Id]))
                 {
-                    var nomes = Ui.Ids(v!.TecnicoIds).Select(t => _snap.Tecnicos.TryGetValue(t, out var tc) ? tc.Nome : "?").ToList();
+                    var nomes = Ui.Ids(v!.TecnicoIds).Select(t => _snap.NomeTecnico(t) is { Length: > 0 } nmT ? nmT : "?").ToList();
                     <tr><td>@if (string.IsNullOrWhiteSpace(v.Projeto)) { <span class="proj-tag vazio">@L["sem projeto"]</span> } else { <span class="proj-tag">@v.Projeto</span> }</td><td><a href="/viagens/@v.Id">@v.Codigo</a></td><td>@(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)</td><td>@Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)</td>
                         <td>@(nomes.Count == 0 ? L["sem técnico"] : string.Join(", ", nomes))</td><td>@L[Vocab.StatusViagem.FirstOrDefault(x => x.Key == v.Status)?.Label ?? v.Status]</td></tr>
                 }
@@ -586,7 +586,7 @@ else
         if (chave == "viagens")
             return _kViagensPrev.Select(id => _snap.Viagem(id)).Where(v => v is not null).OrderBy(v => _prevIni[v!.Id])
                 .Select(v => ($"{AgendaEngine.ComProjeto(v!.Projeto, v.Codigo)} · {(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)}",
-                    $"{string.Join(", ", Ui.Ids(v.TecnicoIds).Select(t => _snap.Tecnicos.TryGetValue(t, out var tc) ? tc.Nome : "?"))} · {Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)}", cor)).ToList();
+                    $"{string.Join(", ", Ui.Ids(v.TecnicoIds).Select(t => _snap.NomeTecnico(t) is { Length: > 0 } nmT ? nmT : "?"))} · {Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)}", cor)).ToList();
         var hoje = DocEngine.Hoje(_snap.FusoPadrao);
         return _visiveis.Select(e =>
         {
