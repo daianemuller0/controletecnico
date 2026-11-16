@@ -1690,6 +1690,7 @@ public class IdiomaTests
         Assert.Equal("3 de 17 ítems completados", Idiomas.Traduzir("3 de 17 itens concluídos", "es"));
         Assert.Equal("Estado: Planificada", Idiomas.Traduzir("Status: Planejada", "es"));     // o valor também é traduzido
         Assert.Equal("Texto sem tradução", Idiomas.Traduzir("Texto sem tradução", "es"));
+        Assert.Equal("Conflicto: Estado: Planificada", Idiomas.Traduzir("Conflito: Status: Planejada", "es"));   // frase dentro de frase
         Assert.True(Idiomas.Quantidade("es") > 0);
     }
 }

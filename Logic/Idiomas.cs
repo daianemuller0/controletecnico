@@ -70,7 +70,7 @@ public static class Idiomas
         return r;
     }
 
-    private static string TraduzirSemCache(string texto, Dic d)
+    private static string TraduzirSemCache(string texto, Dic d, int nivel = 0)
     {
         // preserva espaços nas pontas (textos colados em outros elementos)
         var miolo = texto.Trim();
@@ -85,7 +85,9 @@ public static class Idiomas
             {
                 var g = m.Groups["p" + x.Groups[1].Value];
                 if (!g.Success) return x.Value;
-                return d.Exatos.TryGetValue(g.Value.Trim(), out var v) ? v : g.Value;
+                if (d.Exatos.TryGetValue(g.Value.Trim(), out var v)) return v;
+                // valor que é ele mesmo uma frase montada (mensagem dentro de mensagem): tenta os modelos, até 3 níveis
+                return nivel < 3 ? TraduzirSemCache(g.Value, d, nivel + 1) : g.Value;
             });
             return ini + saida + fim;
         }
