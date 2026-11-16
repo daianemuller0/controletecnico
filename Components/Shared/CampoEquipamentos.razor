@@ -3,16 +3,16 @@
     <div class="eqp-chips">
         @foreach (var e in _itens)
         {
-            <span class="chip eqp-chip">@Icons.Svg("wrench")@e<button type="button" class="chip-x" @onclick="() => Remover(e)" aria-label="Remover @e" disabled="@Disabled">×</button></span>
+            <span class="chip eqp-chip">@Icons.Svg("wrench")@e<button type="button" class="chip-x" @onclick="() => Remover(e)" aria-label="@L.F("Remover {0}", e)" disabled="@Disabled">×</button></span>
         }
-        @if (_itens.Count == 0) { <span class="muted sm">Nenhum equipamento informado.</span> }
+        @if (_itens.Count == 0) { <span class="muted sm">@L["Nenhum equipamento informado."]</span> }
     </div>
     @if (!Disabled)
     {
         <div class="eqp-add">
-            <input list="@_id" @bind="_novo" @bind:event="oninput" @onkeydown="Tecla" placeholder="Ex.: Ventilador VA-101, Compressor C-2…" autocomplete="off" aria-label="Novo equipamento" />
+            <input list="@_id" @bind="_novo" @bind:event="oninput" @onkeydown="Tecla" placeholder="@L["Ex.: Ventilador VA-101, Compressor C-2…"]" autocomplete="off" aria-label="@L["Novo equipamento"]" />
             <datalist id="@_id">@foreach (var o in Sugestoes.Where(o => !_itens.Contains(o, StringComparer.OrdinalIgnoreCase)).Take(300)) {<option value="@o"></option>}</datalist>
-            <button type="button" class="btn-ghost sm" @onclick="Adicionar" disabled="@string.IsNullOrWhiteSpace(_novo)">@Icons.Svg("plus")Adicionar</button>
+            <button type="button" class="btn-ghost sm" @onclick="Adicionar" disabled="@string.IsNullOrWhiteSpace(_novo)">@Icons.Svg("plus")@L["Adicionar"]</button>
         </div>
     }
 </div>

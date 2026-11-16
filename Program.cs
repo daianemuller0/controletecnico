@@ -140,6 +140,8 @@ builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.Circu
 builder.Services.AddHostedService<EncerrarAoFecharService>();
 builder.Services.AddSingleton<LoginGuard>();
 builder.Services.AddScoped<Sessao>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Tr>();
 
 var app = builder.Build();
 
@@ -225,13 +227,31 @@ app.MapPost("/auth/login", async (HttpContext http, Db db, Servicos svc, LoginGu
     var claims = new List<Claim>
     {
         new(ClaimTypes.NameIdentifier, u.Id), new(ClaimTypes.Name, u.Nome), new(ClaimTypes.Role, Roles.Normalize(u.Papel)),
-        new("tecnico", u.TecnicoId ?? ""),
+        new("tecnico", u.TecnicoId ?? ""), new("bus", u.Bus ?? ""),
+        new("idioma", u.Idioma is "es" or "pt" ? u.Idioma : (http.Request.Cookies["ct-idioma"] is "es" ? "es" : "pt")),
     };
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
         new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
     svc.Auditar(new Ator { Login = u.Id, Nome = u.Nome, Papel = u.Papel }, "login.ok", "usuario", u.Id, "Login realizado");
     return Results.Redirect("/");
 }).DisableAntiforgery();
+
+// ---- idioma: antes do login (cookie) e da pessoa logada (grava no usuário e renova o login com o novo idioma)
+app.MapGet("/idioma-login/{cod}", (string cod, HttpContext http) =>
+{
+    http.Response.Cookies.Append("ct-idioma", cod == "es" ? "es" : "pt", new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), HttpOnly = false, SameSite = SameSiteMode.Lax });
+    return Results.Redirect("/login");
+}).AllowAnonymous();
+app.MapGet("/idioma/{cod}", async (string cod, string? volta, HttpContext http, Db db) =>
+{
+    cod = cod == "es" ? "es" : "pt";
+    http.Response.Cookies.Append("ct-idioma", cod, new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), HttpOnly = false, SameSite = SameSiteMode.Lax });
+    var login = http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (login is not null && db.Usuarios.Obter(login) is { } u) { u.Idioma = cod; db.Usuarios.Salvar(u, login); }
+    var claims = http.User.Claims.Where(c => c.Type != "idioma").Append(new Claim("idioma", cod)).ToList();
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+    return Results.Redirect(volta is { Length: > 0 } v && v.StartsWith('/') && !v.StartsWith("//") ? v : "/");
+}).RequireAuthorization();
 
 app.MapPost("/auth/logout", async (HttpContext http) =>
 {

@@ -815,3 +815,14 @@ body.apresentacao .gp-cl-l { font-size: 18px; grid-template-columns: minmax(160p
 .gp-tec-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: 300px; background: #fff; border: 1px solid #dde3ea; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 35, 60, .18); padding: 10px; display: grid; gap: 8px; }
 .gp-tec-lista { max-height: 280px; overflow: auto; display: grid; gap: 4px; }
 .gp-tec-acoes { display: flex; justify-content: space-between; align-items: center; }
+
+/* BU de origem */
+.bu-tag { display: inline-flex; align-items: center; font-weight: 800; color: #0b5e55; background: #e3f4f1; border: 1px solid #b6e0d8; border-radius: 6px; padding: 1px 7px; font-size: 11.5px; letter-spacing: .03em; white-space: nowrap; margin-left: 4px; vertical-align: middle; }
+.gp-bu { display: inline-flex; gap: 4px; padding-left: 6px; border-left: 1px solid #dde3ea; margin-left: 2px; }
+
+/* seletor de idioma */
+.idioma-sel { display: inline-flex; border: 1px solid var(--border, #dde3ea); border-radius: 8px; overflow: hidden; }
+.idioma-sel a { padding: 4px 8px; font-size: 11.5px; font-weight: 800; color: #5b6b80; text-decoration: none; letter-spacing: .04em; }
+.idioma-sel a.on { background: #004785; color: #fff; }
+.login-idioma { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; font-size: 12.5px; }
+.login-idioma a { color: #5b6b80; text-decoration: none; font-weight: 700; } .login-idioma a.on { color: #004785; text-decoration: underline; }

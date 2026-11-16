@@ -3,111 +3,111 @@
 @inject Servicos Svc
 
 <div class="drawer-backdrop" @onclick="Fechar"></div>
-<aside class="drawer painel-tec" role="dialog" aria-label="Detalhes de @E.Tecnico.Nome">
+<aside class="drawer painel-tec" role="dialog" aria-label="@L.F("Detalhes de {0}", E.Tecnico.Nome)">
     <div class="painel-topo">
         <Avatar Nome="@E.Tecnico.Nome" FotoId="@E.Tecnico.FotoAnexoId" Cor="@Ui.Op(E.Status).Color" Tam="lg" />
         <div class="painel-id">
             <h2>@E.Tecnico.Nome</h2>
             <StatusBadge Item="@Ui.Op(E.Status)" />
-            @if (E.Provisorio is not null) { <span class="tag prov" title="Alocação em rascunho: não bloqueia a agenda">Alocação provisória</span> }
+            @if (E.Provisorio is not null) { <span class="tag prov" title="@L["Alocação em rascunho: não bloqueia a agenda"]">@L["Alocação provisória"]</span> }
         </div>
-        <button class="icon-btn" @onclick="Fechar" aria-label="Fechar painel">@Icons.Svg("x")</button>
+        <button class="icon-btn" @onclick="Fechar" aria-label="@L["Fechar painel"]">@Icons.Svg("x")</button>
     </div>
 
     <div class="momento-chip @ClasseMomento">@TextoMomento</div>
 
     <dl class="ficha-dl">
-        <dt>Especialidades</dt>
+        <dt>@L["Especialidades"]</dt>
         <dd>@Especs()</dd>
-        <dt>Mora em</dt>
+        <dt>@L["Mora em"]</dt>
         <dd>@E.Tecnico.Cidade@(string.IsNullOrEmpty(E.Tecnico.Estado) ? "" : "/" + E.Tecnico.Estado) · @E.Tecnico.Pais</dd>
     </dl>
 
-    <h3 class="sec">@Icons.Svg("pin")Localização</h3>
+    <h3 class="sec">@Icons.Svg("pin")@L["Localização"]</h3>
     <div class="loc-bloco loc-prev">
-        <div class="loc-tit"><span class="tag">Prevista · pela agenda</span></div>
+        <div class="loc-tit"><span class="tag">@L["Prevista · pela agenda"]</span></div>
         @if (E.LocalFonte == "nenhum")
         {
-            <div class="muted">Sem localização definida: não há compromissos suficientes para derivá-la.</div>
+            <div class="muted">@L["Sem localização definida: não há compromissos suficientes para derivá-la."]</div>
         }
         else
         {
-            <div class="loc-txt">@E.LocalTexto</div>
-            <div class="muted sm">@(E.LocalFonte switch {
+            <div class="loc-txt">@L[E.LocalTexto]</div>
+            <div class="muted sm">@(L[E.LocalFonte switch {
                 "atendimento" => "Em atendimento na planta (pela agenda).",
                 "viagem" => "Em deslocamento: a posição ao longo do trajeto não é rastreada.",
                 "howden" => Snap.HowdenLat is null ? "Na empresa — o endereço da Howden ainda não tem coordenadas (Administração → Configurações)." : "Na empresa, fora de viagem: disponível.",
                 "casa" => E.Lat is null ? "Em casa — o endereço residencial ainda não foi localizado no mapa (ficha do técnico)." : "Em casa, no endereço do cadastro: disponível.",
-                _ => "Último ponto conhecido pela agenda." })</div>
-            @if (E.LocalFonte == "howden" && Snap.HowdenLat is null && Ator.Pode(Perm.Administrar)) { <a class="btn-ghost sm mt8" href="/admin?aba=cfg">@Icons.Svg("pin")Definir a posição exata da Howden</a> }
-            @if (E.LocalFonte == "casa" && E.Tecnico.CasaLat is null && Ator.Pode(Perm.EditarTecnicos)) { <a class="btn-ghost sm mt8" href="/tecnicos/@E.Tecnico.Id">@Icons.Svg("pin")Definir a casa na ficha</a> }
-            @if (E.Precisao == "aproximada" && E.LocalFonte != "viagem") { <div class="sm warn mt8">≈ Posição aproximada (só a cidade foi encontrada).</div> }
+                _ => "Último ponto conhecido pela agenda." }])</div>
+            @if (E.LocalFonte == "howden" && Snap.HowdenLat is null && Ator.Pode(Perm.Administrar)) { <a class="btn-ghost sm mt8" href="/admin?aba=cfg">@Icons.Svg("pin")@L["Definir a posição exata da Howden"]</a> }
+            @if (E.LocalFonte == "casa" && E.Tecnico.CasaLat is null && Ator.Pode(Perm.EditarTecnicos)) { <a class="btn-ghost sm mt8" href="/tecnicos/@E.Tecnico.Id">@Icons.Svg("pin")@L["Definir a casa na ficha"]</a> }
+            @if (E.Precisao == "aproximada" && E.LocalFonte != "viagem") { <div class="sm warn mt8">≈ @L["Posição aproximada (só a cidade foi encontrada)."]</div> }
         }
     </div>
     <div class="loc-bloco base-bloco">
-        <div class="loc-tit"><span class="tag">Fora de viagem, fica…</span></div>
-        <div class="segmented sm base-seg" role="group" aria-label="Onde fica quando não está em viagem">
-            <button class="@(E.Tecnico.LocalBase != Vocab.BaseHowden ? "active" : "")" disabled="@(!PodeConfirmar)" @onclick="() => Base(Vocab.BaseCasa)">@Icons.Svg("user")Em casa</button>
-            <button class="@(E.Tecnico.LocalBase == Vocab.BaseHowden ? "active" : "")" disabled="@(!PodeConfirmar)" @onclick="() => Base(Vocab.BaseHowden)">@Icons.Svg("customers")Na @Snap.HowdenNome</button>
+        <div class="loc-tit"><span class="tag">@L["Fora de viagem, fica…"]</span></div>
+        <div class="segmented sm base-seg" role="group" aria-label="@L["Onde fica quando não está em viagem"]">
+            <button class="@(E.Tecnico.LocalBase != Vocab.BaseHowden ? "active" : "")" disabled="@(!PodeConfirmar)" @onclick="() => Base(Vocab.BaseCasa)">@Icons.Svg("user")@L["Em casa"]</button>
+            <button class="@(E.Tecnico.LocalBase == Vocab.BaseHowden ? "active" : "")" disabled="@(!PodeConfirmar)" @onclick="() => Base(Vocab.BaseHowden)">@Icons.Svg("customers")@L["Na"] @Snap.HowdenNome</button>
         </div>
-        @if (E.Tecnico.LocalBaseDesde is { } desde) { <div class="muted sm mt8">Marcado em @Ui.Hora(desde, null, Snap, true) por @E.Tecnico.LocalBasePor.</div> }
-        @if (E.Status is Vocab.OpViagem or Vocab.OpAtendimento) { <div class="muted sm mt8">Vale quando terminar a viagem/atendimento atual.</div> }
+        @if (E.Tecnico.LocalBaseDesde is { } desde) { <div class="muted sm mt8">@L.F("Marcado em {0} por {1}.", Ui.Hora(desde, null, Snap, true), E.Tecnico.LocalBasePor)</div> }
+        @if (E.Status is Vocab.OpViagem or Vocab.OpAtendimento) { <div class="muted sm mt8">@L["Vale quando terminar a viagem/atendimento atual."]</div> }
     </div>
     <div class="loc-bloco loc-conf">
-        <div class="loc-tit"><span class="tag ok">Confirmada · informada</span></div>
+        <div class="loc-tit"><span class="tag ok">@L["Confirmada · informada"]</span></div>
         @if (E.Confirmacao is { } c)
         {
-            <div class="loc-txt">@c.Texto</div>
+            <div class="loc-txt">@L[c.Texto]</div>
             <div class="muted sm">
-                Confirmada em @Ui.Hora(c.Quando, null, Snap, true) por @c.Por (@(c.Origem == "tecnico" ? "técnico" : "gestão")).
-                @if (E.ConfirmacaoVigente) { <strong class="pos"> Vigente.</strong> }
-                else { <span> Sem validade para o momento atual (antiga ou anterior ao último compromisso).</span> }
+                @L.F("Confirmada em {0} por {1} ({2}).", Ui.Hora(c.Quando, null, Snap, true), c.Por, c.Origem == "tecnico" ? L["técnico"] : L["gestão"])
+                @if (E.ConfirmacaoVigente) { <strong class="pos"> @L["Vigente."]</strong> }
+                else { <span> @L["Sem validade para o momento atual (antiga ou anterior ao último compromisso)."]</span> }
             </div>
         }
-        else { <div class="muted">Nenhuma confirmação registrada.</div> }
+        else { <div class="muted">@L["Nenhuma confirmação registrada."]</div> }
         @if (PodeConfirmar)
         {
-            <button class="btn-ghost sm mt8" @onclick="OnConfirmar">@Icons.Svg("check")Confirmar localização</button>
+            <button class="btn-ghost sm mt8" @onclick="OnConfirmar">@Icons.Svg("check")@L["Confirmar localização"]</button>
         }
     </div>
 
-    <h3 class="sec">@Icons.Svg("wrench")Atendimento</h3>
+    <h3 class="sec">@Icons.Svg("wrench")@L["Atendimento"]</h3>
     @if (E.Status == Vocab.OpAtendimento && E.Atual is { } at)
     {
         <dl class="ficha-dl">
-            <dt>Cliente / planta</dt><dd>@Snap.NomePlanta(at.PlantaId)</dd>
-            <dt>Serviço</dt><dd>@at.Titulo</dd>
-            <dt>Início</dt><dd>@Ui.Hora(at.Ini, at.Fuso, Snap, true)</dd>
-            <dt>Término previsto</dt><dd>@Ui.Hora(at.Fim, at.Fuso, Snap, true)</dd>
+            <dt>@L["Cliente / planta"]</dt><dd>@Snap.NomePlanta(at.PlantaId)</dd>
+            <dt>@L["Serviço"]</dt><dd>@L[at.Titulo]</dd>
+            <dt>@L["Início"]</dt><dd>@Ui.Hora(at.Ini, at.Fuso, Snap, true)</dd>
+            <dt>@L["Término previsto"]</dt><dd>@Ui.Hora(at.Fim, at.Fuso, Snap, true)</dd>
             @if (!string.IsNullOrEmpty(at.ViagemId)) { <dt>Viagem</dt><dd><a href="/viagens/@at.ViagemId">@Snap.Viagem(at.ViagemId)?.Codigo</a></dd> }
         </dl>
     }
     else if (E.Atual is { } outro)
     {
         <dl class="ficha-dl">
-            <dt>Agora</dt><dd>@outro.Titulo</dd>
-            <dt>Período</dt><dd>@Ui.Periodo(outro.Ini, outro.Fim, outro.Fuso, Snap)</dd>
+            <dt>@L["Agora"]</dt><dd>@L[outro.Titulo]</dd>
+            <dt>@L["Período"]</dt><dd>@Ui.Periodo(outro.Ini, outro.Fim, outro.Fuso, Snap)</dd>
             @if (!string.IsNullOrEmpty(outro.ViagemId)) { <dt>Viagem</dt><dd><a href="/viagens/@outro.ViagemId">@Snap.Viagem(outro.ViagemId)?.Codigo</a></dd> }
         </dl>
     }
-    else { <div class="muted">Sem atendimento em execução.</div> }
+    else { <div class="muted">@L["Sem atendimento em execução."]</div> }
 
     <dl class="ficha-dl">
-        <dt>Próximo compromisso</dt>
-        <dd>@if (E.Proximo is { } prox) { <span>@prox.Titulo · @Ui.Periodo(prox.Ini, prox.Fim, prox.Fuso, Snap)</span> } else { <span class="muted">Nenhum agendado</span> }</dd>
-        <dt>Próximo período disponível</dt>
-        <dd>@if (Livre is { } l) { <span>@(l.fim is null ? $"a partir de {l.ini:dd/MM/yyyy}" : $"{l.ini:dd/MM/yyyy} a {l.fim:dd/MM/yyyy}")</span> } else { <span class="muted">Sem janela livre no horizonte</span> }</dd>
-        @if (E.Status == Vocab.OpDisponivel && !E.AgendaMantida) { <dt>Observação</dt><dd class="muted">@E.Motivo</dd> }
+        <dt>@L["Próximo compromisso"]</dt>
+        <dd>@if (E.Proximo is { } prox) { <span>@L[prox.Titulo] · @Ui.Periodo(prox.Ini, prox.Fim, prox.Fuso, Snap)</span> } else { <span class="muted">@L["Nenhum agendado"]</span> }</dd>
+        <dt>@L["Próximo período disponível"]</dt>
+        <dd>@if (Livre is { } l) { <span>@(l.fim is null ? L.F("a partir de {0}", l.ini.ToString("dd/MM/yyyy")) : $"{l.ini:dd/MM/yyyy} a {l.fim:dd/MM/yyyy}")</span> } else { <span class="muted">@L["Sem janela livre no horizonte"]</span> }</dd>
+        @if (E.Status == Vocab.OpDisponivel && !E.AgendaMantida) { <dt>@L["Observação"]</dt><dd class="muted">@L[E.Motivo]</dd> }
     </dl>
 
-    <h3 class="sec">@Icons.Svg("shield")Documentos e treinamentos</h3>
+    <h3 class="sec">@Icons.Svg("shield")@L["Documentos e treinamentos"]</h3>
     @if (!Sessao.Apresentacao || true)
     {
-        @if (Alertas.Count == 0 && Pend.Count == 0) { <div class="muted">Nenhum alerta de validade.</div> }
+        @if (Alertas.Count == 0 && Pend.Count == 0) { <div class="muted">@L["Nenhum alerta de validade."]</div> }
         @foreach (var a in Alertas)
         {
             <div class="alerta-doc @Ui.StDoc(a.Status).Css"><StatusBadge Item="@Ui.StDoc(a.Status)" />
-                <span>@a.Doc.Nome — @(a.Dias < 0 ? $"vencido há {-a.Dias} dia(s)" : $"vence em {a.Dias} dia(s) ({Tempo.Dia(a.Doc.Vencimento)})")</span></div>
+                <span>@a.Doc.Nome — @(a.Dias < 0 ? L.F("vencido há {0} dia(s)", -a.Dias) : L.F("vence em {0} dia(s) ({1})", a.Dias, Tempo.Dia(a.Doc.Vencimento)))</span></div>
         }
         @foreach (var pt in Pend)
         {
@@ -115,19 +115,19 @@
         }
     }
 
-    <h3 class="sec">@Icons.Svg("calendar")Resumo da agenda</h3>
-    @if (Proximos.Count == 0) { <div class="muted">Sem compromissos futuros.</div> }
+    <h3 class="sec">@Icons.Svg("calendar")@L["Resumo da agenda"]</h3>
+    @if (Proximos.Count == 0) { <div class="muted">@L["Sem compromissos futuros."]</div> }
     <ul class="mini-agenda">
         @foreach (var ev in Proximos)
         {
             <li><span class="dot" style="background:@Ui.TipoEv(ev.Tipo).Color"></span>
-                <div><div class="mini-t">@ev.Titulo @if (ev.Provisorio) { <span class="tag prov">provisório</span> }</div>
+                <div><div class="mini-t">@L[ev.Titulo] @if (ev.Provisorio) { <span class="tag prov">@L["provisório"]</span> }</div>
                     <div class="muted sm">@Ui.Periodo(ev.Ini, ev.Fim, ev.Fuso, Snap)</div></div></li>
         }
     </ul>
 
     <div class="painel-rodape">
-        <a class="btn-primary" href="/tecnicos/@E.Tecnico.Id">Abrir ficha completa @Icons.Svg("arrow-right")</a>
+        <a class="btn-primary" href="/tecnicos/@E.Tecnico.Id">@L["Abrir ficha completa"] @Icons.Svg("arrow-right")</a>
     </div>
 </aside>
 
@@ -144,8 +144,8 @@
 
     private async Task Base(string b)
     {
-        try { Svc.DefinirLocalBase(Ator, E.Tecnico.Id, b); Sessao.Avisar(b == Vocab.BaseHowden ? $"{E.Tecnico.Nome}: na {Snap.HowdenNome}." : $"{E.Tecnico.Nome}: em casa."); await OnMudou.InvokeAsync(); }
-        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+        try { Svc.DefinirLocalBase(Ator, E.Tecnico.Id, b); Sessao.Avisar(b == Vocab.BaseHowden ? L.F("{0}: na {1}.", E.Tecnico.Nome, Snap.HowdenNome) : L.F("{0}: em casa.", E.Tecnico.Nome)); await OnMudou.InvokeAsync(); }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex).Select(x => L[x])), true); }
     }
 
     private Task Fechar() => OnFechar.InvokeAsync();
@@ -173,7 +173,7 @@
                 var reqs = DocEngine.RequisitosDe(Snap, new[] { serv }, new[] { a.PlantaId });
                 var ap = DocEngine.Avaliar(Snap, E.Tecnico, reqs, a.IniPrev, a.FimPrev, hoje, Snap.Planta(a.PlantaId)?.FusoHorario);
                 foreach (var p in ap.Pendencias)
-                    res.Add($"{Snap.NomePlanta(a.PlantaId)} ({a.IniPrev:dd/MM}): {p.Motivo}{(p.Bloqueia ? " Bloqueia a confirmação." : " Apenas alerta.")}");
+                    res.Add($"{Snap.NomePlanta(a.PlantaId)} ({a.IniPrev:dd/MM}): {L[p.Motivo]} {(p.Bloqueia ? L["Bloqueia a confirmação."] : L["Apenas alerta."])}");
             }
             return res.Distinct().ToList();
         }
@@ -184,6 +184,6 @@
     private bool Futuro => Instante > DateTime.UtcNow.AddMinutes(5);
     private bool Passado => Instante < DateTime.UtcNow.AddMinutes(-5);
     private string ClasseMomento => Futuro ? "m-fut" : Passado ? "m-pas" : "m-now";
-    private string TextoMomento => Futuro ? $"Previsão para {Ui.Hora(Instante, null, Snap, true)} (futuro)"
-        : Passado ? $"Período passado: {Ui.Hora(Instante, null, Snap, true)}" : "Momento atual";
+    private string TextoMomento => Futuro ? L.F("Previsão para {0} (futuro)", Ui.Hora(Instante, null, Snap, true))
+        : Passado ? L.F("Período passado: {0}", Ui.Hora(Instante, null, Snap, true)) : L["Momento atual"];
 }

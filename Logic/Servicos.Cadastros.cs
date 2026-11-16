@@ -433,6 +433,7 @@ public sealed partial class Servicos
             case "viagem":
                 ator.Exigir(Perm.EditarViagens);
                 if (!Db.Viagens.Existe(donoId)) throw new ValidacaoException("Viagem não encontrada.");
+                if (!ator.VeViagemBu(Db.Viagens.Obter(donoId))) throw new UnauthorizedAccessException("Esta viagem é de uma BU que você não acessa.");
                 break;
             case "feedback":        // feedback do serviço: técnico escalado ou quem edita viagens; só no feedback de quem escreveu (ou admin)
                 var fb = Db.FeedbacksViagem.Obter(donoId) ?? throw new ValidacaoException("Feedback não encontrado.");
@@ -459,7 +460,7 @@ public sealed partial class Servicos
             ator.Exigir(Perm.EditarDocs, d?.TecnicoId);
             if (d is not null && !d.Atual) throw new ValidacaoException("Anexos de versões anteriores são histórico e não podem ser removidos.");
         }
-        else if (a.DonoTipo == "viagem") ator.Exigir(Perm.EditarViagens);
+        else if (a.DonoTipo == "viagem") { ator.Exigir(Perm.EditarViagens); if (!ator.VeViagemBu(Db.Viagens.Obter(a.DonoId))) throw new UnauthorizedAccessException("Esta viagem é de uma BU que você não acessa."); }
         else if (a.DonoTipo == "feedback")
         {
             var fb = Db.FeedbacksViagem.Obter(a.DonoId); var vfb = fb is null ? null : Db.Viagens.Obter(fb.ViagemId);
@@ -481,12 +482,13 @@ public sealed partial class Servicos
                 var d = Db.Documentos.Obter(a.DonoId);
                 return d is not null && ator.Pode(Perm.VerDocsConteudo, d.TecnicoId);
             case "viagem":
-                if (ator.Pode(Perm.VerAnexosViagem)) return true;
                 var v = Db.Viagens.Obter(a.DonoId);
+                if (!ator.VeViagemBu(v)) return false;
+                if (ator.Pode(Perm.VerAnexosViagem)) return true;
                 return v is not null && ator.Papel == Roles.Tecnico && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId);
             case "feedback":
                 var fb = Db.FeedbacksViagem.Obter(a.DonoId); var vfb = fb is null ? null : Db.Viagens.Obter(fb.ViagemId);
-                if (vfb is null) return false;
+                if (vfb is null || !ator.VeViagemBu(vfb)) return false;
                 if (ator.Pode(Perm.VerAnexosViagem)) return true;
                 return ator.Papel == Roles.Tecnico && Snapshot.Ids(vfb.TecnicoIds).Contains(ator.TecnicoId);
             case "tecnico":
@@ -517,6 +519,8 @@ public sealed partial class Servicos
         if (existente is { Papel: Roles.Admin } && (u.Papel != Roles.Admin || !u.Ativo) &&
             Db.Usuarios.Onde(x => x.Papel == Roles.Admin && x.Ativo && x.Id != u.Id).Count == 0)
             erros.Add("Deve existir ao menos um administrador ativo.");
+        u.Bus = string.Join(",", Ator.LerBus(u.Bus));
+        u.Idioma = u.Idioma is "es" ? "es" : "pt";
         if (erros.Count > 0) throw new ValidacaoException(erros);
         if (existente is not null) { u.Hash = existente.Hash; u.Salt = existente.Salt; }
         if (!string.IsNullOrEmpty(novaSenha)) (u.Hash, u.Salt) = HashSenha(novaSenha);

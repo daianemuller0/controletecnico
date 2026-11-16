@@ -5,17 +5,17 @@
 @if (Sessao.AutoAtivo)
 {
     <div class="auto-ctl">
-        <button class="btn-ghost sm" @onclick="@(() => { Sessao.AutoPausa = !Sessao.AutoPausa; })">@Icons.Svg(Sessao.AutoPausa ? "play" : "clock")@(Sessao.AutoPausa ? "Continuar" : "Pausar")</button>
-        <span class="auto-vel" role="group" aria-label="Velocidade">
-            @foreach (var v in new[] { ("lenta", "Lenta"), ("normal", "Normal"), ("rapida", "Rápida") }) { <button class="@(Sessao.AutoVel == v.Item1 ? "on" : "")" @onclick="@(() => { Sessao.AutoVel = v.Item1; })">@v.Item2</button> }
+        <button class="btn-ghost sm" @onclick="@(() => { Sessao.AutoPausa = !Sessao.AutoPausa; })">@Icons.Svg(Sessao.AutoPausa ? "play" : "clock")@(Sessao.AutoPausa ? L["Continuar"] : L["Pausar"])</button>
+        <span class="auto-vel" role="group" aria-label="@L["Velocidade"]">
+            @foreach (var v in new[] { ("lenta", "Lenta"), ("normal", "Normal"), ("rapida", "Rápida") }) { <button class="@(Sessao.AutoVel == v.Item1 ? "on" : "")" @onclick="@(() => { Sessao.AutoVel = v.Item1; })">@L[v.Item2]</button> }
         </span>
-        <button class="btn-ghost sm" @onclick="Sessao.PararAuto">@Icons.Svg("x")Parar (Esc)</button>
+        <button class="btn-ghost sm" @onclick="Sessao.PararAuto">@Icons.Svg("x")@L["Parar (Esc)"]</button>
     </div>
     <div class="auto-passos">
         @for (var i = 0; i < Sessao.AutoPlano.Count; i++)
         {
             var e = Sessao.AutoPlano[i];
-            <span class="@(i == Sessao.AutoEtapa ? "on" : i < Sessao.AutoEtapa ? "ok" : "")" title="@e.Titulo"><i style="background:@e.Cor"></i>@e.Curto</span>
+            <span class="@(i == Sessao.AutoEtapa ? "on" : i < Sessao.AutoEtapa ? "ok" : "")" title="@L[e.Titulo]"><i style="background:@e.Cor"></i>@L[e.Curto]</span>
         }
     </div>
 }

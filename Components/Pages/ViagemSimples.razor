@@ -9,43 +9,43 @@
 @inject IJSRuntime JS
 @inject IConfiguration Cfg
 
-<PageTitle>@(_novo ? "Nova viagem" : _v.Codigo) · Controle Técnico</PageTitle>
-<div class="breadcrumbs"><a href="/viagens">Controladoria e viagens</a><span class="sep">/</span><span class="strong" style="color:var(--text-2)">@(_novo ? "Nova viagem" : _v.Codigo)</span></div>
+<PageTitle>@(_novo ? L["Nova viagem"] : _v.Codigo) · Controle Técnico</PageTitle>
+<div class="breadcrumbs"><a href="/viagens">@L["Controladoria e viagens"]</a><span class="sep">/</span><span class="strong" style="color:var(--text-2)">@(_novo ? L["Nova viagem"] : _v.Codigo)</span></div>
 
 @if (!_ok)
 {
-    <div class="state-box state-err">@Icons.Svg("lock")<div><strong>Viagem não encontrada ou sem permissão.</strong></div><a class="btn-ghost" href="/viagens">Voltar</a></div>
+    <div class="state-box state-err">@Icons.Svg("lock")<div><strong>@L["Viagem não encontrada ou sem permissão."]</strong></div><a class="btn-ghost" href="/viagens">@L["Voltar"]</a></div>
 }
 else
 {
 <div class="page-head compacto">
     <div>
-        <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") @if (!string.IsNullOrWhiteSpace(_v.Projeto)) { <span class="proj-tag">Proj. @_v.Projeto</span> } @if (!string.IsNullOrWhiteSpace(_v.Classificacao)) { <span class="classif-tag">@_v.Classificacao</span> } <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
-        @if (!_pode && _participa) { <p class="subtitle">Você pode marcar a lista de verificação e registrar o histórico e o feedback do serviço; o restante da viagem é somente consulta.</p> }
+        <h1>@(_novo ? L["Nova viagem"] : $"{L["Viagem"]} {_v.Codigo}") @if (!string.IsNullOrWhiteSpace(_v.Projeto)) { <span class="proj-tag">@L["Proj."] @_v.Projeto</span> } @if (!_novo || !string.IsNullOrEmpty(_v.BU)) { <span class="bu-tag">@Vocab.BuDe(_v)</span> } @if (!string.IsNullOrWhiteSpace(_v.Classificacao)) { <span class="classif-tag">@_v.Classificacao</span> } <StatusBadge Item="@StV(_v.Status)" /></h1>
+        @if (!_pode && _participa) { <p class="subtitle">@L["Você pode marcar a lista de verificação e registrar o histórico e o feedback do serviço; o restante da viagem é somente consulta."]</p> }
     </div>
     @if (_pode)
     {
         <div class="momento-ctl">
-            <button class="btn-ghost" @onclick="@(() => Salvar(null))">@Icons.Svg("check")Salvar</button>
-            @if (_v.Status is Vocab.ViagemRascunho) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemPlanejada))">Salvar como planejada</button> }
-            @if (_v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConfirmada))" disabled="@(!_res.PodeConfirmar)" title="@(_res.PodeConfirmar ? "" : "Há pendências que impedem a confirmação")">@Icons.Svg("check")Confirmar</button> }
-            <button class="btn-ghost os-btn" @onclick="AbrirEmail" title="@(_v.OsGeradoEm is { } og ? $"Último: {Ui.Hora(og, null, _snap)} por {_v.OsGeradoPor}" : "Montar o e-mail para os técnicos com os documentos")">@Icons.Svg("mail")<span>E-mail da OS</span>@if (_v.OsGeradoEm is not null) { <span class="tag ok">enviado</span> }</button>
-            @if (_v.Status == Vocab.ViagemConfirmada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemAndamento))">@Icons.Svg("play")Iniciar</button> }
-            @if (_v.Status == Vocab.ViagemAndamento) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConcluida))">@Icons.Svg("flag")Concluir</button> }
-            @if (!_novo && _v.Status != Vocab.ViagemCancelada && _v.Status != Vocab.ViagemConcluida) { <button class="btn-danger-ghost" @onclick="@(() => _cancelando = true)">@Icons.Svg("x")Cancelar viagem</button> }
-            @if (!_novo && _v.Status == Vocab.ViagemCancelada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemRascunho))">Reabrir</button> }
+            <button class="btn-ghost" @onclick="@(() => Salvar(null))">@Icons.Svg("check")@L["Salvar"]</button>
+            @if (_v.Status is Vocab.ViagemRascunho) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemPlanejada))">@L["Salvar como planejada"]</button> }
+            @if (_v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConfirmada))" disabled="@(!_res.PodeConfirmar)" title="@(_res.PodeConfirmar ? "" : L["Há pendências que impedem a confirmação"])">@Icons.Svg("check")@L["Confirmar"]</button> }
+            <button class="btn-ghost os-btn" @onclick="AbrirEmail" title="@(_v.OsGeradoEm is { } og ? L.F("Último: {0} por {1}", Ui.Hora(og, null, _snap), _v.OsGeradoPor) : L["Montar o e-mail para os técnicos com os documentos"])">@Icons.Svg("mail")<span>@L["E-mail da OS"]</span>@if (_v.OsGeradoEm is not null) { <span class="tag ok">@L["enviado"]</span> }</button>
+            @if (_v.Status == Vocab.ViagemConfirmada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemAndamento))">@Icons.Svg("play")@L["Iniciar"]</button> }
+            @if (_v.Status == Vocab.ViagemAndamento) { <button class="btn-primary" @onclick="@(() => Salvar(Vocab.ViagemConcluida))">@Icons.Svg("flag")@L["Concluir"]</button> }
+            @if (!_novo && _v.Status != Vocab.ViagemCancelada && _v.Status != Vocab.ViagemConcluida) { <button class="btn-danger-ghost" @onclick="@(() => _cancelando = true)">@Icons.Svg("x")@L["Cancelar viagem"]</button> }
+            @if (!_novo && _v.Status == Vocab.ViagemCancelada) { <button class="btn-ghost" @onclick="@(() => Salvar(Vocab.ViagemRascunho))">@L["Reabrir"]</button> }
         </div>
     }
 </div>
-@if (_v.Status == Vocab.ViagemCancelada) { <div class="alert-box alert-erro">@Icons.Svg("x")<div><strong>Cancelada:</strong> saiu da agenda e do mapa e não bloqueia a disponibilidade.</div></div> }
-@if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro" role="alert">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+@if (_v.Status == Vocab.ViagemCancelada) { <div class="alert-box alert-erro">@Icons.Svg("x")<div><strong>@L["Cancelada:"]</strong> @L["saiu da agenda e do mapa e não bloqueia a disponibilidade."]</div></div> }
+@if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro" role="alert">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@L[e]</div> }</div></div> }
 
 @if (true)
 {
     <div class="tabs vg-abas" role="tablist">
-        <button role="tab" class="tab @(_abaV == "viagem" ? "active" : "")" @onclick="@(() => _abaV = "viagem")">@Icons.Svg("plane")Viagem</button>
-        <button role="tab" class="tab @(_abaV == "historico" ? "active" : "")" @onclick="@(() => _abaV = "historico")">@Icons.Svg("history")Histórico da viagem <span class="tab-n">@_nNotas</span></button>
-        <button role="tab" class="tab @(_abaV == "feedback" ? "active" : "")" @onclick="@(() => _abaV = "feedback")">@Icons.Svg("review")Feedback do serviço <span class="tab-n">@_nFb</span></button>
+        <button role="tab" class="tab @(_abaV == "viagem" ? "active" : "")" @onclick="@(() => _abaV = "viagem")">@Icons.Svg("plane")@L["Viagem"]</button>
+        <button role="tab" class="tab @(_abaV == "historico" ? "active" : "")" @onclick="@(() => _abaV = "historico")">@Icons.Svg("history")@L["Histórico da viagem"] <span class="tab-n">@_nNotas</span></button>
+        <button role="tab" class="tab @(_abaV == "feedback" ? "active" : "")" @onclick="@(() => _abaV = "feedback")">@Icons.Svg("review")@L["Feedback do serviço"] <span class="tab-n">@_nFb</span></button>
     </div>
 }
 <div class="vs-grid" style="@(_abaV != "viagem" ? "display:none" : "")">
@@ -53,24 +53,25 @@ else
 
     <div class="panel">
         <div class="form-grid">
-            <label class="fld">Nº do projeto *<CampoLista Value="@_v.Projeto" ValueChanged="@((string x) => { _v.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
-            <label class="fld">Classificação <span class="hint">escolha ou digite outra</span><CampoLista Value="@_v.Classificacao" ValueChanged="@((string x) => { _v.Classificacao = x; })" Opcoes="@Svc.Classificacoes()" Placeholder="NB, AFM, SV, Visita comercial…" /></label>
-            <div class="fld full"><span>Equipamentos <span class="hint">um ou mais</span></span><CampoEquipamentos Value="@_v.Equipamentos" ValueChanged="@((string x) => { _v.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" Disabled="@(!_pode)" /></div>
-            <label class="fld">Responsável da viagem <span class="hint">equipe de controle</span>
+            <label class="fld">@L["BU de origem"] *<select value="@_v.BU" @onchange="@(e => _v.BU = e.Value?.ToString() ?? "")"><option value="">@L["— selecione —"]</option>@foreach (var b in Vocab.Bus.Where(b => _ator.VeBu(b.Cod) || b.Cod == _v.BU)) { <option value="@b.Cod">@L[b.Nome]</option> }</select></label>
+            <label class="fld">@L["Nº do projeto"] *<CampoLista Value="@_v.Projeto" ValueChanged="@((string x) => { _v.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="@L["Ex.: 4500123456"]" /></label>
+            <label class="fld">@L["Classificação"] <span class="hint">@L["escolha ou digite outra"]</span><CampoLista Value="@_v.Classificacao" ValueChanged="@((string x) => { _v.Classificacao = x; })" Opcoes="@Svc.Classificacoes()" Placeholder="@L["NB, AFM, SV, Visita comercial…"]" /></label>
+            <div class="fld full"><span>@L["Equipamentos"] <span class="hint">@L["um ou mais"]</span></span><CampoEquipamentos Value="@_v.Equipamentos" ValueChanged="@((string x) => { _v.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" Disabled="@(!_pode)" /></div>
+            <label class="fld">@L["Responsável da viagem"] <span class="hint">@L["equipe de controle"]</span>
                 <select value="@_v.ResponsavelLogin" @onchange="AoResponsavel">
-                    <option value="">— sem responsável —</option>
+                    <option value="">@L["— sem responsável —"]</option>
                     @foreach (var u in _equipe) { <option value="@u.Id">@(string.IsNullOrWhiteSpace(u.Nome) ? u.Id : u.Nome)</option> }
                     @if (!string.IsNullOrEmpty(_v.ResponsavelLogin) && !_equipe.Any(u => u.Id == _v.ResponsavelLogin)) { <option value="@_v.ResponsavelLogin">@_v.Responsavel</option> }
                 </select>
-                @if (_equipe.Count == 0) { <span class="hint">Marque as usuárias da equipe de controle em Administração → Usuários.</span> }</label>
-            <div class="fld">Cliente (contratante) <span class="hint">opcional · quem comprou, quando não é o cliente final</span>
-                <SeletorPlanta Value="@_v.ContratantePlantaId" ValueChanged="@((string? id) => { _v.ContratantePlantaId = id ?? string.Empty; })" Vazio="— mesmo do cliente final —" Placeholder="— mesmo do cliente final —" /></div>
-            <div class="fld">Cliente final (planta) * <span class="hint">onde o técnico vai</span><SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" Placeholder="Buscar planta por nome, cidade, estado, país…" /></div>
-            <label class="fld">Serviço
-                <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /></label>
-            <div class="fld full"><span>Técnicos</span>
+                @if (_equipe.Count == 0) { <span class="hint">@L["Marque as usuárias da equipe de controle em Administração → Usuários."]</span> }</label>
+            <div class="fld">@L["Cliente (contratante)"] <span class="hint">@L["opcional · quem comprou, quando não é o cliente final"]</span>
+                <SeletorPlanta Value="@_v.ContratantePlantaId" ValueChanged="@((string? id) => { _v.ContratantePlantaId = id ?? string.Empty; })" Vazio="@L["— mesmo do cliente final —"]" Placeholder="@L["— mesmo do cliente final —"]" /></div>
+            <div class="fld">@L["Cliente final (planta)"] * <span class="hint">@L["onde o técnico vai"]</span><SeletorPlanta Value="@_v.PlantaId" ValueChanged="AoPlantaValor" Placeholder="@L["Buscar planta por nome, cidade, estado, país…"]" /></div>
+            <label class="fld">@L["Serviço"]
+                <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_v.ServicoId" ValueChanged="@(async (string v) => { _v.ServicoId = v; Validar(); })" Placeholder="@L["— selecione —"]" Criar="CriarServ" RotuloCriar="@L["serviço"]" /></label>
+            <div class="fld full"><span>@L["Técnicos"]</span>
                 <div class="chips-tec">@foreach (var t in _snap.Tecnicos.Values.Where(t => t.Ativo || _tecs.Contains(t.Id)).OrderBy(t => Vocab.SempreDisponivel(t.Perfil) ? 0 : 1).ThenBy(t => t.Nome)) {
-                    <label class="chk-inline"><input type="checkbox" checked="@_tecs.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(t.Perfil)</span> }</label> }</div></div>
+                    <label class="chk-inline"><input type="checkbox" checked="@_tecs.Contains(t.Id)" @onchange="e => AlternarTec(t.Id, (bool)e.Value!)" />@t.Nome@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@L[Vocab.PerfilRotulo(t.Perfil)]</span> }</label> }</div></div>
         </div>
     </div>
 
@@ -84,9 +85,9 @@ else
         @if (_pode)
         {
             <div class="translado-add">
-                <button type="button" class="btn-ghost sm" @onclick="AdicionarTranslado">@Icons.Svg("plus")Adicionar translado (opcional)</button>
-                <button type="button" class="btn-ghost sm" @onclick="AdicionarServico">@Icons.Svg("plus")Adicionar serviço (opcional)</button>
-                <span class="muted sm">Translado: o técnico volta para casa no meio da viagem e depois retorna (o serviço é pausado nesse intervalo). Serviço: outro período de serviço na mesma planta, com o mesmo serviço ou outro.</span>
+                <button type="button" class="btn-ghost sm" @onclick="AdicionarTranslado">@Icons.Svg("plus")@L["Adicionar translado (opcional)"]</button>
+                <button type="button" class="btn-ghost sm" @onclick="AdicionarServico">@Icons.Svg("plus")@L["Adicionar serviço (opcional)"]</button>
+                <span class="muted sm">@L["Translado: o técnico volta para casa no meio da viagem e depois retorna (o serviço é pausado nesse intervalo). Serviço: outro período de serviço na mesma planta, com o mesmo serviço ou outro."]</span>
             </div>
         }
         @Bloco("volta", "Deslocamento de volta", "plane", "#c26a14", _volta, _fusoPlanta, _fusoOrigem, Dias(_volta.Ini, _volta.Fim), true)
@@ -95,12 +96,12 @@ else
     <DocumentosViagem ViagemId="@(_novo ? "" : Id)" Pendentes="_docsPend" Ator="@_ator" Pode="@_pode" VerAnexos="@_verAnexos" />
 
     <details class="mais" open="@_maisAberto">
-        <summary @onclick="@(() => _maisAberto = !_maisAberto)" @onclick:preventDefault>Mais opções @Icons.Svg("chevron-right")</summary>
+        <summary @onclick="@(() => _maisAberto = !_maisAberto)" @onclick:preventDefault>@L["Mais opções"] @Icons.Svg("chevron-right")</summary>
         <div class="form-grid mt8">
-            <label class="fld">Status<select @bind="_v.Status" @bind:after="Validar">@foreach (var s in Vocab.StatusViagem) {<option value="@s.Key">@s.Label</option>}</select></label>
-            <label class="fld">Horas de serviço previstas <span class="hint">opcional</span><input type="number" step="0.5" min="0" @bind="_horasPrev" /></label>
-            <label class="fld">Horas de serviço realizadas <span class="hint">opcional</span><input type="number" step="0.5" min="0" @bind="_horasReal" /></label>
-            <label class="fld full">Observações<textarea @bind="_v.Obs"></textarea></label>
+            <label class="fld">@L["Status"]<select @bind="_v.Status" @bind:after="Validar">@foreach (var s in Vocab.StatusViagem) {<option value="@s.Key">@L[s.Label]</option>}</select></label>
+            <label class="fld">@L["Horas de serviço previstas"] <span class="hint">@L["opcional"]</span><input type="number" step="0.5" min="0" @bind="_horasPrev" /></label>
+            <label class="fld">@L["Horas de serviço realizadas"] <span class="hint">@L["opcional"]</span><input type="number" step="0.5" min="0" @bind="_horasReal" /></label>
+            <label class="fld full">@L["Observações"]<textarea @bind="_v.Obs"></textarea></label>
         </div>
     </details>
 </fieldset>
@@ -108,47 +109,47 @@ else
 <aside class="vs-lado">
     @if (true) { <ChecklistViagem ViagemId="@(_novo ? "" : Id)" Itens="@Checklist.Ler(_v.Checklist)" Pode="@_participa" Sessao_Fuso="@_snap.FusoPadrao" OnMudou="AoChecklist" /> }
     <div class="panel mt16">
-        <div class="panel-head"><div class="panel-title">Onde vai estar</div>@if (_planta is not null) { <GeoBadge P="_planta" /> }</div>
+        <div class="panel-head"><div class="panel-title">@L["Onde vai estar"]</div>@if (_planta is not null) { <GeoBadge P="_planta" /> }</div>
         <div class="vs-mapa-wrap">
-            <div id="mapa-viagem" class="mapa vs-mapa" role="application" aria-label="Mapa do local do serviço"></div>
-            @if (_planta is null) { <div class="vs-mapa-aviso">Selecione a planta para ver no mapa onde o técnico vai estar.</div> }
-            else if (!_planta.TemCoord) { <div class="vs-mapa-aviso">@Icons.Svg("pin")<span>Esta planta ainda não tem localização no mapa.</span>
-                @if (string.IsNullOrWhiteSpace(_planta.Cidade)) { <button class="btn-primary sm" @onclick="() => _pedirCidade = _planta.Id">Informar cidade</button> }
-                else if (_localizando) { <span class="sm">Localizando pelo endereço…</span> }
-                else if (Geo.Configurado) { <button class="btn-primary sm" @onclick="LocalizarAgora">Tentar localizar de novo</button> @if (!string.IsNullOrEmpty(_planta.GeoFonte)) { <span class="sm">@_planta.GeoFonte</span> } }
-                else { <span class="sm">@Geo.Pendencia</span> }</div> }
+            <div id="mapa-viagem" class="mapa vs-mapa" role="application" aria-label="@L["Mapa do local do serviço"]"></div>
+            @if (_planta is null) { <div class="vs-mapa-aviso">@L["Selecione a planta para ver no mapa onde o técnico vai estar."]</div> }
+            else if (!_planta.TemCoord) { <div class="vs-mapa-aviso">@Icons.Svg("pin")<span>@L["Esta planta ainda não tem localização no mapa."]</span>
+                @if (string.IsNullOrWhiteSpace(_planta.Cidade)) { <button class="btn-primary sm" @onclick="() => _pedirCidade = _planta.Id">@L["Informar cidade"]</button> }
+                else if (_localizando) { <span class="sm">@L["Localizando pelo endereço…"]</span> }
+                else if (Geo.Configurado) { <button class="btn-primary sm" @onclick="LocalizarAgora">@L["Tentar localizar de novo"]</button> @if (!string.IsNullOrEmpty(_planta.GeoFonte)) { <span class="sm">@_planta.GeoFonte</span> } }
+                else { <span class="sm">@L[Geo.Pendencia]</span> }</div> }
         </div>
         @if (_planta is not null)
         {
             <div class="vs-local"><strong>@_snap.NomePlanta(_planta.Id)</strong>
                 <div class="muted sm">@string.Join(", ", new[] { _planta.Rua, _planta.Cidade, _planta.Estado, _planta.Pais }.Where(x => !string.IsNullOrWhiteSpace(x)))</div>
-                @if (_planta.TemCoord && !string.IsNullOrEmpty(_planta.GeoNivel) && _planta.GeoNivel != "endereco") { <div class="sm warn">Posição aproximada ao nível de @(_planta.GeoNivel == "pais" ? "país" : _planta.GeoNivel): o endereço exato não foi encontrado.</div> }</div>
+                @if (_planta.TemCoord && !string.IsNullOrEmpty(_planta.GeoNivel) && _planta.GeoNivel != "endereco") { <div class="sm warn">@L.F("Posição aproximada ao nível de {0}: o endereço exato não foi encontrado.", L[_planta.GeoNivel == "pais" ? "país" : _planta.GeoNivel])</div> }</div>
         }
     </div>
 
     <div class="panel mt16">
-        <div class="panel-head"><div class="panel-title">Diárias</div></div>
+        <div class="panel-head"><div class="panel-title">@L["Diárias"]</div></div>
         <table class="tempos">
-            <tr><th>Deslocamento de ida</th><td>@Diar(Dias(_ida.Ini, _ida.Fim))</td></tr>
-            <tr><th>Serviço</th><td>@Diar(Dias(_serv.Ini, _serv.Fim))</td></tr>
+            <tr><th>@L["Deslocamento de ida"]</th><td>@Diar(Dias(_ida.Ini, _ida.Fim))</td></tr>
+            <tr><th>@L["Serviço"]</th><td>@Diar(Dias(_serv.Ini, _serv.Fim))</td></tr>
             @foreach (var x in _extras) { <tr><th>@TituloExtra(x)</th><td>@Diar(Dias(x.Ini, x.Fim))</td></tr> }
-            <tr><th>Deslocamento de volta</th><td>@Diar(Dias(_volta.Ini, _volta.Fim))</td></tr>
-            <tr class="tot"><th>Total da viagem</th><td>@Diar(TotalDias())</td></tr>
+            <tr><th>@L["Deslocamento de volta"]</th><td>@Diar(Dias(_volta.Ini, _volta.Fim))</td></tr>
+            <tr class="tot"><th>@L["Total da viagem"]</th><td>@Diar(TotalDias())</td></tr>
         </table>
-        <p class="muted sm">Diária = cada dia do calendário em que o técnico está naquela etapa (primeiro e último dia contam).</p>
+        <p class="muted sm">@L["Diária = cada dia do calendário em que o técnico está naquela etapa (primeiro e último dia contam)."]</p>
     </div>
 
     <div class="panel mt16">
-        <div class="panel-head"><div class="panel-title">Verificação</div></div>
-        @if (!Tocou) { <p class="muted sm">Escolha a planta, os técnicos e as datas: a verificação de conflitos e de documentos aparece aqui.</p> }
+        <div class="panel-head"><div class="panel-title">@L["Verificação"]</div></div>
+        @if (!Tocou) { <p class="muted sm">@L["Escolha a planta, os técnicos e as datas: a verificação de conflitos e de documentos aparece aqui."]</p> }
         else {
-        @if (_res.Erros.Count == 0 && _res.Conflitos.Count == 0 && _res.Avisos.Count == 0 && _res.Aptidoes.All(a => a.Apto) && _tecs.Count > 0 && _planta is not null) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Tudo certo: sem conflitos e sem pendências documentais.</div></div> }
-        @foreach (var e in _res.Erros) { <div class="alert-box alert-erro">@Icons.Svg("x")<div>@e</div></div> }
-        @foreach (var pid in _res.PlantasSemCidade) { <button class="btn-ghost sm mb8" @onclick="() => _pedirCidade = pid">@Icons.Svg("pin")Informar a cidade de @_snap.Planta(pid)?.Nome</button> }
-        @foreach (var c in _res.Conflitos) { <div class="alert-box @(c.Erro ? "alert-erro" : "alert-aviso")">@Icons.Svg("alert")<div><strong>@(_snap.Tecnico(c.TecnicoId)?.Nome):</strong> @c.Motivo</div></div> }
+        @if (_res.Erros.Count == 0 && _res.Conflitos.Count == 0 && _res.Avisos.Count == 0 && _res.Aptidoes.All(a => a.Apto) && _tecs.Count > 0 && _planta is not null) { <div class="alert-box alert-ok">@Icons.Svg("check")<div>@L["Tudo certo: sem conflitos e sem pendências documentais."]</div></div> }
+        @foreach (var e in _res.Erros) { <div class="alert-box alert-erro">@Icons.Svg("x")<div>@L[e]</div></div> }
+        @foreach (var pid in _res.PlantasSemCidade) { <button class="btn-ghost sm mb8" @onclick="() => _pedirCidade = pid">@Icons.Svg("pin")@L.F("Informar a cidade de {0}", _snap.Planta(pid)?.Nome)</button> }
+        @foreach (var c in _res.Conflitos) { <div class="alert-box @(c.Erro ? "alert-erro" : "alert-aviso")">@Icons.Svg("alert")<div><strong>@(_snap.Tecnico(c.TecnicoId)?.Nome):</strong> @L[c.Motivo]</div></div> }
         @foreach (var ap in _res.Aptidoes.Where(a => !a.Apto))
-        { foreach (var p in ap.Pendencias) { <div class="alert-box @(p.Bloqueia ? "alert-erro" : "alert-aviso")">@Icons.Svg("shield")<div><strong>@ap.Tecnico.Nome</strong> — @p.Motivo <span class="sm">@(p.Bloqueia ? "Bloqueia a confirmação." : "Apenas alerta.")</span></div></div> } }
-        @foreach (var w in _res.Avisos) { <div class="alert-box alert-aviso">@Icons.Svg("info")<div>@w</div></div> }
+        { foreach (var p in ap.Pendencias) { <div class="alert-box @(p.Bloqueia ? "alert-erro" : "alert-aviso")">@Icons.Svg("shield")<div><strong>@ap.Tecnico.Nome</strong> — @L[p.Motivo] <span class="sm">@(p.Bloqueia ? L["Bloqueia a confirmação."] : L["Apenas alerta."])</span></div></div> } }
+        @foreach (var w in _res.Avisos) { <div class="alert-box alert-aviso">@Icons.Svg("info")<div>@L[w]</div></div> }
         }
     </div>
 </aside>
@@ -160,10 +161,10 @@ else
 @if (_pedirCidade is not null) { <CidadePlanta PlantaId="@_pedirCidade" Ator="@_ator" OnSalvo="CidadeSalva" OnFechar="@(() => _pedirCidade = null)" /> }
 @if (_cancelando)
 {
-    <Dialogo Titulo="Cancelar viagem" OnFechar="@(() => _cancelando = false)">
-        <p>A viagem sai da agenda e do mapa e a disponibilidade dos técnicos é liberada. O registro e o histórico são mantidos.</p>
-        <label class="fld">Motivo <input @bind="_motivo" /></label>
-        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _cancelando = false)">Voltar</button><button class="btn-danger" @onclick="Cancelar">@Icons.Svg("x")Cancelar viagem</button></div>
+    <Dialogo Titulo="@L["Cancelar viagem"]" OnFechar="@(() => _cancelando = false)">
+        <p>@L["A viagem sai da agenda e do mapa e a disponibilidade dos técnicos é liberada. O registro e o histórico são mantidos."]</p>
+        <label class="fld">@L["Motivo"] <input @bind="_motivo" /></label>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _cancelando = false)">@L["Voltar"]</button><button class="btn-danger" @onclick="Cancelar">@Icons.Svg("x")@L["Cancelar viagem"]</button></div>
     </Dialogo>
 }
 }
@@ -178,8 +179,8 @@ else
     /// <summary>Partes do serviço além da primeira (o serviço é dividido nas pausas em casa).</summary>
     private List<Atendimento> _servPartes = new();
 
-    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
-    private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(c.Id); }
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(s.Id); }
+    private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(c.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verAnexos, _maisAberto, _cancelando, _localizando;
     private Viagem _v = new(); private HashSet<string> _tecs = new(); private Faixa _ida = new(), _serv = new(), _volta = new();
     private double? _horasPrev, _horasReal; private ResultadoViagem _res = new(); private List<string>? _erros; private Planta? _planta;
@@ -195,11 +196,11 @@ else
     {
         var falhas = new List<string>();
         foreach (var d in _docsPend)
-            try { await Svc.AnexarAsync(_ator, "viagem", viagemId, d.Nome, new MemoryStream(d.Dados), d.Categoria); } catch (Exception ex) { falhas.Add($"{d.Nome}: {string.Join(" ", Ui.Erros(ex))}"); }
+            try { await Svc.AnexarAsync(_ator, "viagem", viagemId, d.Nome, new MemoryStream(d.Dados), d.Categoria); } catch (Exception ex) { falhas.Add($"{d.Nome}: {string.Join(" ", Ui.Erros(ex).Select(x => L[x]))}"); }
         foreach (var n in _notasPend.OrderBy(n => n.Quando))
-            try { n.ViagemId = viagemId; n.Id = ""; Svc.SalvarNota(_ator, n); } catch (Exception ex) { falhas.Add(string.Join(" ", Ui.Erros(ex))); }
+            try { n.ViagemId = viagemId; n.Id = ""; Svc.SalvarNota(_ator, n); } catch (Exception ex) { falhas.Add(string.Join(" ", Ui.Erros(ex).Select(x => L[x]))); }
         _docsPend.Clear(); _notasPend.Clear();
-        if (falhas.Count > 0) Sessao.Avisar("Viagem salva, mas: " + string.Join(" | ", falhas), true);
+        if (falhas.Count > 0) Sessao.Avisar(L["Viagem salva, mas:"] + " " + string.Join(" | ", falhas), true);
     }
     private bool _emailAberto;
     private Task AbrirEmail() { if (_novo) return Salvar(null, abrirEmail: true); _email = true; return Task.CompletedTask; }
@@ -209,12 +210,12 @@ else
     private List<Usuario> _equipe = new();
 
     private void AoChecklist(List<Checklist.Item> l) { _v.Checklist = Checklist.Gravar(l); }
-    private void AoEmail() { var v = Svc.Foto().Viagem(Id); if (v is not null) { _v.Checklist = v.Checklist; _v.OsGeradoEm = v.OsGeradoEm; _v.OsGeradoPor = v.OsGeradoPor; } }
+    private void AoEmail() { var v = Svc.Foto(_ator).Viagem(Id); if (v is not null) { _v.Checklist = v.Checklist; _v.OsGeradoEm = v.OsGeradoEm; _v.OsGeradoPor = v.OsGeradoPor; } }
     private void AoResponsavel(ChangeEventArgs e)
     {
         var login = e.Value?.ToString() ?? "";
         if (_novo) { _v.ResponsavelLogin = login; _v.Responsavel = _equipe.FirstOrDefault(u => u.Id == login)?.Nome ?? ""; return; }
-        try { var v = Svc.DefinirResponsavel(_ator, Id, login); _v.ResponsavelLogin = v.ResponsavelLogin; _v.Responsavel = v.Responsavel; Sessao.Avisar(string.IsNullOrEmpty(v.Responsavel) ? "Viagem sem responsável." : $"Responsável: {v.Responsavel}."); }
+        try { var v = Svc.DefinirResponsavel(_ator, Id, login); _v.ResponsavelLogin = v.ResponsavelLogin; _v.Responsavel = v.Responsavel; Sessao.Avisar(string.IsNullOrEmpty(v.Responsavel) ? L["Viagem sem responsável."] : L.F("Responsável: {0}.", v.Responsavel)); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
 
@@ -228,12 +229,12 @@ else
 
     private void Carregar()
     {
-        _snap = Svc.Foto(); _erros = null; _novo = Id == "novo"; _pode = _ator.Pode(Perm.EditarViagens);
+        _snap = Svc.Foto(_ator); _erros = null; _novo = Id == "novo"; _pode = _ator.Pode(Perm.EditarViagens);
         _verAnexos = (_ator.Pode(Perm.VerAnexosViagem) || _ator.Papel == Roles.Tecnico) && !Sessao.Apresentacao;
         _ida = new Faixa { Modal = Vocab.ModalAviao }; _serv = new Faixa(); _volta = new Faixa { Modal = Vocab.ModalAviao }; _horasPrev = _horasReal = null;
         _extras = new(); _servPartes = new();
         _equipe = Svc.EquipeControle();
-        if (_novo) { _ok = _pode; _participa = _pode; _nFb = 0; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()) }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); }
+        if (_novo) { _ok = _pode; _participa = _pode; _nFb = 0; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()), BU = _ator.Bus.Count == 1 ? _ator.Bus.First() : "" }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); }
         else
         {
             var v = _snap.Viagem(Id);
@@ -406,16 +407,17 @@ else
         return todos.Count < 2 ? null : (int)(todos.Max() - todos.Min()).TotalDays + 1;
     }
     private bool Tocou => !_novo || !string.IsNullOrEmpty(_v.PlantaId) || _tecs.Count > 0 || new[] { _ida, _serv, _volta }.Concat(_extras).Any(f => f.Ini != "" || f.Fim != "");
-    private static string Diar(int? d) => d is null ? "—" : d == 1 ? "1 diária" : $"{d} diárias";
+    private string Diar(int? d) => d is null ? "—" : d == 1 ? L["1 diária"] : L.F("{0} diárias", d);
+    private Item StV(string s) { var i = Ui.StViagem(s); return i with { Label = L[i.Label] }; }
 
     private RenderFragment Bloco(string chave, string titulo, string icone, string cor, Faixa f, string fusoIni, string fusoFim, int? dias, bool transporte) => __builder =>
     {
         <div class="diaria" style="--c:@cor">
-            <div class="diaria-cab"><span class="ev-selo sm" style="background:@cor">@Icons.Svg(icone)</span><strong>@titulo</strong><span class="grow"></span><span class="badge diar-n">@Diar(dias)</span></div>
+            <div class="diaria-cab"><span class="ev-selo sm" style="background:@cor">@Icons.Svg(icone)</span><strong>@L[titulo]</strong><span class="grow"></span><span class="badge diar-n">@Diar(dias)</span></div>
             <div class="form-grid">
-                <label class="fld">@(transporte ? "Saída" : "Início") <span class="hint">@Tempo.Offset(fusoIni, DateTime.UtcNow)</span><input type="datetime-local" value="@f.Ini" @onchange="e => { f.Ini = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
-                <label class="fld">@(transporte ? "Chegada" : "Fim") <span class="hint">@Tempo.Offset(fusoFim, DateTime.UtcNow)</span><input type="datetime-local" value="@f.Fim" @onchange="e => { f.Fim = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
-                @if (transporte) { <label class="fld">Transporte<select value="@f.Modal" @onchange="e => f.Modal = e.Value?.ToString() ?? Vocab.ModalCarro"><option value="aviao">Avião</option><option value="carro">Carro</option><option value="outro">Outro</option></select></label> }
+                <label class="fld">@(transporte ? L["Saída"] : L["Início"]) <span class="hint">@Tempo.Offset(fusoIni, DateTime.UtcNow)</span><input type="datetime-local" value="@f.Ini" @onchange="e => { f.Ini = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                <label class="fld">@(transporte ? L["Chegada"] : L["Fim"]) <span class="hint">@Tempo.Offset(fusoFim, DateTime.UtcNow)</span><input type="datetime-local" value="@f.Fim" @onchange="e => { f.Fim = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                @if (transporte) { <label class="fld">@L["Transporte"]<select value="@f.Modal" @onchange="e => f.Modal = e.Value?.ToString() ?? Vocab.ModalCarro"><option value="aviao">@L["Avião"]</option><option value="carro">@L["Carro"]</option><option value="outro">@L["Outro"]</option></select></label> }
             </div>
         </div>
     };
@@ -428,8 +430,8 @@ else
     }
     private void RemoverTranslado(Faixa x) { _extras.Remove(x); Validar(); }
     private void AdicionarServico() => _extras.Add(new Faixa { EhServico = true });
-    private string TituloExtra(Faixa x) => x.EhServico ? $"Serviço adicional {_extras.Where(e => e.EhServico).ToList().IndexOf(x) + 1}"
-        : x.Sentido == "casa" ? "Translado: volta para casa" : "Translado: retorno à planta";
+    private string TituloExtra(Faixa x) => x.EhServico ? L.F("Serviço adicional {0}", _extras.Where(e => e.EhServico).ToList().IndexOf(x) + 1)
+        : x.Sentido == "casa" ? L["Translado: volta para casa"] : L["Translado: retorno à planta"];
 
     private RenderFragment BlocoExtra(Faixa x) => x.EhServico ? BlocoServico(x) : BlocoTranslado(x);
 
@@ -437,14 +439,14 @@ else
     {
         var cor = "#0e7490";
         <div class="diaria translado" style="--c:@cor">
-            <div class="diaria-cab"><span class="ev-selo sm" style="background:@cor">@Icons.Svg("customers")</span><strong>@TituloExtra(x)</strong><span class="tag">opcional</span>
+            <div class="diaria-cab"><span class="ev-selo sm" style="background:@cor">@Icons.Svg("customers")</span><strong>@TituloExtra(x)</strong><span class="tag">@L["opcional"]</span>
                 <span class="grow"></span><span class="badge diar-n">@Diar(Dias(x.Ini, x.Fim))</span>
-                @if (_pode) { <button type="button" class="icon-btn perigo xs" title="Remover este serviço" aria-label="Remover serviço" @onclick="() => RemoverTranslado(x)">@Icons.Svg("trash")</button> }</div>
+                @if (_pode) { <button type="button" class="icon-btn perigo xs" title="@L["Remover este serviço"]" aria-label="@L["Remover serviço"]" @onclick="() => RemoverTranslado(x)">@Icons.Svg("trash")</button> }</div>
             <div class="form-grid">
-                <label class="fld">Serviço <span class="hint">vazio = o mesmo da viagem</span>
-                    <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@x.ServicoId" ValueChanged="@(async (string v) => { x.ServicoId = v ?? string.Empty; Validar(); })" Placeholder="— o mesmo da viagem —" Criar="CriarServ" RotuloCriar="serviço" /></label>
-                <label class="fld">Início <span class="hint">@Tempo.Offset(_fusoPlanta, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Ini" @onchange="e => { x.Ini = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
-                <label class="fld">Fim <span class="hint">@Tempo.Offset(_fusoPlanta, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Fim" @onchange="e => { x.Fim = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                <label class="fld">@L["Serviço"] <span class="hint">@L["vazio = o mesmo da viagem"]</span>
+                    <SeletorLista Itens="@(_snap.Servicos.Values.Where(s => s.Ativo).OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@x.ServicoId" ValueChanged="@(async (string v) => { x.ServicoId = v ?? string.Empty; Validar(); })" Placeholder="@L["— o mesmo da viagem —"]" Criar="CriarServ" RotuloCriar="@L["serviço"]" /></label>
+                <label class="fld">@L["Início"] <span class="hint">@Tempo.Offset(_fusoPlanta, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Ini" @onchange="e => { x.Ini = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                <label class="fld">@L["Fim"] <span class="hint">@Tempo.Offset(_fusoPlanta, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Fim" @onchange="e => { x.Fim = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
             </div>
         </div>
     };
@@ -453,14 +455,14 @@ else
     {
         var paraCasa = x.Sentido == "casa"; var cor = paraCasa ? "#8a6d3b" : "#b7791f";
         <div class="diaria translado" style="--c:@cor">
-            <div class="diaria-cab"><span class="ev-selo sm" style="background:@cor">@Icons.Svg(paraCasa ? "user" : "plane")</span><strong>@TituloExtra(x)</strong><span class="tag">opcional</span>
+            <div class="diaria-cab"><span class="ev-selo sm" style="background:@cor">@Icons.Svg(paraCasa ? "user" : "plane")</span><strong>@TituloExtra(x)</strong><span class="tag">@L["opcional"]</span>
                 <span class="grow"></span><span class="badge diar-n">@Diar(Dias(x.Ini, x.Fim))</span>
-                @if (_pode) { <button type="button" class="icon-btn perigo xs" title="Remover este translado" aria-label="Remover translado" @onclick="() => RemoverTranslado(x)">@Icons.Svg("trash")</button> }</div>
+                @if (_pode) { <button type="button" class="icon-btn perigo xs" title="@L["Remover este translado"]" aria-label="@L["Remover translado"]" @onclick="() => RemoverTranslado(x)">@Icons.Svg("trash")</button> }</div>
             <div class="form-grid">
-                <label class="fld">Sentido<select value="@x.Sentido" @onchange="@(e => { x.Sentido = e.Value?.ToString() ?? "casa"; Validar(); })"><option value="casa">Da planta para casa</option><option value="planta">De casa para a planta</option></select></label>
-                <label class="fld">Saída <span class="hint">@Tempo.Offset(paraCasa ? _fusoPlanta : _fusoOrigem, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Ini" @onchange="e => { x.Ini = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
-                <label class="fld">Chegada <span class="hint">@Tempo.Offset(paraCasa ? _fusoOrigem : _fusoPlanta, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Fim" @onchange="e => { x.Fim = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
-                <label class="fld">Transporte<select value="@x.Modal" @onchange="e => x.Modal = e.Value?.ToString() ?? Vocab.ModalCarro"><option value="aviao">Avião</option><option value="carro">Carro</option><option value="outro">Outro</option></select></label>
+                <label class="fld">@L["Sentido"]<select value="@x.Sentido" @onchange="@(e => { x.Sentido = e.Value?.ToString() ?? "casa"; Validar(); })"><option value="casa">@L["Da planta para casa"]</option><option value="planta">@L["De casa para a planta"]</option></select></label>
+                <label class="fld">@L["Saída"] <span class="hint">@Tempo.Offset(paraCasa ? _fusoPlanta : _fusoOrigem, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Ini" @onchange="e => { x.Ini = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                <label class="fld">@L["Chegada"] <span class="hint">@Tempo.Offset(paraCasa ? _fusoOrigem : _fusoPlanta, DateTime.UtcNow)</span><input type="datetime-local" value="@x.Fim" @onchange="e => { x.Fim = e.Value?.ToString() ?? string.Empty; Validar(); }" /></label>
+                <label class="fld">@L["Transporte"]<select value="@x.Modal" @onchange="e => x.Modal = e.Value?.ToString() ?? Vocab.ModalCarro"><option value="aviao">@L["Avião"]</option><option value="carro">@L["Carro"]</option><option value="outro">@L["Outro"]</option></select></label>
             </div>
         </div>
     };
@@ -477,13 +479,13 @@ else
         else if (!_planta.TemCoord && _planta.GeoStatus != "manual" && Geo.Configurado && _ator.Pode(Perm.EditarClientes)) await LocalizarAgora();
     }
     private void AlternarTec(string id, bool on) { if (on) _tecs.Add(id); else _tecs.Remove(id); AtualizarPlanta(); Validar(); _redesenhar = true; }
-    private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(); AtualizarPlanta(); Validar(); _redesenhar = true; Sessao.Avisar("Cidade gravada no cadastro da planta."); }
+    private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(_ator); AtualizarPlanta(); Validar(); _redesenhar = true; Sessao.Avisar(L["Cidade gravada no cadastro da planta."]); }
 
     private async Task LocalizarAgora()
     {
         if (_planta is null) return;
         _localizando = true; StateHasChanged();
-        try { await Svc.SalvarPlantaAsync(_ator, Db.Plantas.Obter(_planta.Id)!, Geo, forcarGeocodificar: true); _snap = Svc.Foto(); AtualizarPlanta(); _redesenhar = true; Validar(); }
+        try { await Svc.SalvarPlantaAsync(_ator, Db.Plantas.Obter(_planta.Id)!, Geo, forcarGeocodificar: true); _snap = Svc.Foto(_ator); AtualizarPlanta(); _redesenhar = true; Validar(); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
         _localizando = false; StateHasChanged();
     }
@@ -508,9 +510,9 @@ else
                 {
                     var nomes = _tecs.Select(t => _snap.Tecnico(t)?.Nome).Where(n => n != null).Select(n => new { nome = n!, cor = "#0369a1" }).ToList();
                     grupos.Add(new { chave = p.Id, lat = p.Lat!.Value, lon = p.Lon!.Value, titulo = _snap.NomePlanta(p.Id), cor = "#0369a1", tracejado = p.GeoNivel is "cidade" or "estado" or "pais",
-                        viagem = false, iniciais = "📍", rotulo = p.GeoNivel is "cidade" or "estado" or "pais" ? $"Posição aproximada ({p.GeoNivel})" : "Local do serviço", tecnicos = nomes.Count == 0 ? new[] { new { nome = "Técnico(s) a definir", cor = "#8793a6" } }.ToList() : nomes });
+                        viagem = false, iniciais = "📍", rotulo = p.GeoNivel is "cidade" or "estado" or "pais" ? L.F("Posição aproximada ({0})", L[p.GeoNivel == "pais" ? "país" : p.GeoNivel]) : L["Local do serviço"], tecnicos = nomes.Count == 0 ? new[] { new { nome = L["Técnico(s) a definir"], cor = "#8793a6" } }.ToList() : nomes });
                     var (la, lo) = OrigemCoord();
-                    if (la.HasValue) rotas.Add(new { de = new[] { la.Value, lo!.Value }, para = new[] { p.Lat!.Value, p.Lon!.Value }, cor = "#d9822b", titulo = $"{OrigemTexto()} → {_snap.NomePlanta(p.Id)} (deslocamento)" });
+                    if (la.HasValue) rotas.Add(new { de = new[] { la.Value, lo!.Value }, para = new[] { p.Lat!.Value, p.Lon!.Value }, cor = "#d9822b", titulo = L.F("{0} → {1} (deslocamento)", OrigemTexto(), _snap.NomePlanta(p.Id)) });
                 }
                 await JS.InvokeVoidAsync("app.mapa.desenhar", "mapa-viagem", new { grupos, rotas, ajustar = true });
             }
@@ -525,11 +527,12 @@ else
         _erros = null;
         try
         {
+            if (string.IsNullOrWhiteSpace(_v.BU)) throw new ValidacaoException("Selecione a BU de origem da viagem (HSA, HCHL ou HPU).");
             Ui.ExigirProjeto(_v.Projeto); _v.Projeto = _v.Projeto.Trim();
             if (status is not null) _v.Status = status;
             var (v, tr, at) = Montar();
             var salvo = Svc.SalvarViagem(_ator, v, tr, at);
-            Sessao.Avisar(status == Vocab.ViagemConfirmada ? "Viagem confirmada." : "Viagem salva.");
+            Sessao.Avisar(status == Vocab.ViagemConfirmada ? L["Viagem confirmada."] : L["Viagem salva."]);
             if (_novo) { await GravarPendentes(salvo.Id); Nav.NavigateTo($"/viagens/{salvo.Id}" + (abrirEmail ? "?email=true" : "")); }
             else { Id = salvo.Id; Carregar(); }
         }
@@ -538,7 +541,7 @@ else
 
     private void Cancelar()
     {
-        try { Svc.AlterarStatusViagem(_ator, Id, Vocab.ViagemCancelada, _motivo); _cancelando = false; Carregar(); Sessao.Avisar("Viagem cancelada; agenda e mapa atualizados."); }
+        try { Svc.AlterarStatusViagem(_ator, Id, Vocab.ViagemCancelada, _motivo); _cancelando = false; Carregar(); Sessao.Avisar(L["Viagem cancelada; agenda e mapa atualizados."]); }
         catch (Exception ex) { _cancelando = false; _erros = Ui.Erros(ex); }
     }
 
