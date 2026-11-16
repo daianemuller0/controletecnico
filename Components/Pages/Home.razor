@@ -180,11 +180,11 @@ else
 {
     <div class="auto-ger" style="--c:@_autoCor">
         <div class="auto-ger-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub · @_estados.Count técnicos ativos</div></div></div>
-        <PainelGerencial Auto="true" Mostrar="@_autoGraficos" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
+        <PainelGerencial Auto="true" Mostrar="@_autoGraficos" Bus="@BusDoAtor()" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
     </div>
 }
 @* indicadores gerenciais: todos os perfis, menos o Técnico *@
-@if (_ator.Papel != Roles.Tecnico) { <PainelGerencial VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" /> }
+@if (_ator.Papel != Roles.Tecnico) { <PainelGerencial Bus="@BusDoAtor()" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" /> }
 
 @if (_grupo is not null)
 {
@@ -307,7 +307,7 @@ else
         _carregando = _estados.Count == 0; _erro = null;
         try
         {
-            _snap = Svc.Foto();
+            _snap = Svc.Foto(_ator);
             _eventos = AgendaEngine.Eventos(_snap);
             _conflitos = AgendaEngine.Conflitos(_snap, _eventos);
             if (_agora) _instante = DateTime.UtcNow;
@@ -320,6 +320,7 @@ else
         _carregando = false; _redesenhar = true;
     }
 
+    private List<string> BusDoAtor() => Vocab.Bus.Select(b => b.Cod).Where(_ator.VeBu).ToList();
     private bool VeViagem(Viagem v) => _ator.VeTodaEquipe || Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId);
 
     private void Calcular()

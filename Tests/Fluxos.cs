@@ -1649,6 +1649,36 @@ public class PeriodoNaEmpresaTests
     }
 }
 
+public class BuTests
+{
+    [Fact]
+    public void Viagem_tem_BU_e_usuario_so_enxerga_e_grava_as_BUs_dele()
+    {
+        using var a = new Amb(); var t = a.NovoTec(); var p = a.NovaPlanta();
+        Viagem Nova(Ator quem, string bu) => a.Svc.SalvarViagem(quem, new Viagem { Projeto = "P" + bu, BU = bu, Status = Vocab.ViagemRascunho, TecnicoIds = t.Id, PlantaId = p.Id }, new(),
+            new() { new Atendimento { PlantaId = p.Id, IniPrev = Amb.Fut(3), FimPrev = Amb.Fut(3, 17), TecnicoIds = t.Id } });
+        var br = Nova(a.Gestao, "HSA"); var cl = Nova(a.Gestao, "HCHL"); var pe = Nova(a.Gestao, "HPU");
+        Assert.Throws<ValidacaoException>(() => Nova(a.Gestao, "XYZ"));
+        var antiga = a.Svc.SalvarViagem(a.Gestao, new Viagem { Projeto = "P0", Status = Vocab.ViagemRascunho, TecnicoIds = t.Id, PlantaId = p.Id }, new(), new());
+        Assert.Equal("HSA", antiga.BU);                                              // sem BU: HSA
+
+        var chile = new Ator { Login = "cl", Nome = "Chile", Papel = Roles.Controladoria, Bus = new[] { "HCHL" } };
+        var snap = a.Svc.Foto(chile);
+        Assert.Equal(new[] { cl.Id }, snap.Viagens.Keys.ToArray());
+        Assert.All(snap.Atendimentos.Where(x => x.ViagemId != ""), x => Assert.Equal(cl.Id, x.ViagemId));
+        Assert.Equal(4, a.Svc.Foto(a.Gestao).Viagens.Count);                        // sem BU no login = todas
+        // não grava viagem de outra BU nem cria nela
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.AlterarStatusViagem(chile, br.Id, Vocab.ViagemPlanejada));
+        Assert.Throws<UnauthorizedAccessException>(() => Nova(chile, "HPU"));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarNota(chile, new NotaViagem { ViagemId = br.Id, Texto = "não pode" }));
+        Assert.Equal("HCHL", a.Svc.SalvarViagem(chile, new Viagem { Projeto = "PX", Status = Vocab.ViagemRascunho, TecnicoIds = t.Id, PlantaId = p.Id }, new(), new()).BU);   // a única BU dele
+        a.Svc.AlterarStatusViagem(chile, cl.Id, Vocab.ViagemPlanejada);
+        // usuário guarda BUs e idioma
+        var u = a.Svc.SalvarUsuario(a.Admin, new Usuario { Id = "camila", Nome = "Camila", Papel = Roles.Controladoria, Bus = "HCHL,XYZ,HPU", Idioma = "es" }, "senha-forte-1");
+        Assert.Equal("HCHL,HPU", u.Bus); Assert.Equal("es", u.Idioma);
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]

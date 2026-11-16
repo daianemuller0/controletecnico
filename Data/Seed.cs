@@ -24,6 +24,9 @@ public static class Seed
         foreach (var l in new[] { "ana", "rayssa" }) { var u = db.Usuarios.Obter(l)!; u.EquipeControle = true; db.Usuarios.Salvar(u, "seed"); }
         U("consulta", "Visitante (consulta)", Roles.Consulta);
         U("carlos", "Carlos Mendes", Roles.Tecnico, "tec_carlos");
+        // usuária do Chile: só a BU HCHL, sistema em espanhol
+        U("chile", "Camila Rojas (Chile)", Roles.Controladoria);
+        { var u = db.Usuarios.Obter("chile")!; u.Bus = "HCHL"; u.Idioma = "es"; u.EquipeControle = true; db.Usuarios.Salvar(u, "seed"); }
     }
 
     private static Usuario Make(string login, string nome, string papel, string senha, string tec)
@@ -217,7 +220,7 @@ public static class Seed
         };
         Viagem V(string id, string cod, string status, string cli, string planta, string serv, string tecs, string origem, string destino, string resp = "Paulo Controladoria", string obs = "") => new()
         {
-            Id = id, Codigo = cod, Projeto = "45000" + cod[^4..], Classificacao = Vocab.ClassificacoesPadrao[int.Parse(cod[^2..]) % Vocab.ClassificacoesPadrao.Length], Equipamentos = "Ventilador VA-" + cod[^2..] + "\nMotor M-" + cod[^2..], Status = status, ClienteId = cli, PlantaId = planta, ServicoId = serv, TecnicoIds = tecs,
+            Id = id, Codigo = cod, Projeto = "45000" + cod[^4..], Classificacao = Vocab.ClassificacoesPadrao[int.Parse(cod[^2..]) % Vocab.ClassificacoesPadrao.Length], BU = int.Parse(cod[^2..]) % 3 == 0 ? "HCHL" : int.Parse(cod[^2..]) % 5 == 0 ? "HPU" : "HSA", Equipamentos = "Ventilador VA-" + cod[^2..] + "\nMotor M-" + cod[^2..], Status = status, ClienteId = cli, PlantaId = planta, ServicoId = serv, TecnicoIds = tecs,
             Origem = origem, Destino = destino, Responsavel = resp, Obs = obs,
         };
 

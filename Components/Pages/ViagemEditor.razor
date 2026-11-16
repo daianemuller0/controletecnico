@@ -19,7 +19,7 @@ else
 {
 <div class="page-head compacto">
     <div>
-        <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") @if (!string.IsNullOrWhiteSpace(_v.Projeto)) { <span class="proj-tag">Proj. @_v.Projeto</span> } @if (!string.IsNullOrWhiteSpace(_v.Classificacao)) { <span class="classif-tag">@_v.Classificacao</span> } <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
+        <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") @if (!string.IsNullOrWhiteSpace(_v.Projeto)) { <span class="proj-tag">Proj. @_v.Projeto</span> } @if (!_novo || !string.IsNullOrEmpty(_v.BU)) { <span class="bu-tag">@Vocab.BuDe(_v)</span> } @if (!string.IsNullOrWhiteSpace(_v.Classificacao)) { <span class="classif-tag">@_v.Classificacao</span> } <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
         <p class="subtitle">@(_pode ? "Planejamento da viagem: trechos, atendimentos e tempos. Ao salvar, agenda, mapa e ficha dos técnicos são atualizados." : _participa ? "Você pode marcar a lista de verificação e registrar o histórico e o feedback do serviço; o restante da viagem é somente consulta." : "Somente consulta.")</p>
     </div>
     @if (_pode)
@@ -56,6 +56,7 @@ else
 <div class="panel">
     <div class="panel-head"><div class="panel-title">Dados da viagem</div></div>
     <div class="form-grid g3">
+        <label class="fld">BU de origem *<select value="@_v.BU" @onchange="@(e => _v.BU = e.Value?.ToString() ?? "")"><option value="">— selecione —</option>@foreach (var b in Vocab.Bus.Where(b => _ator.VeBu(b.Cod) || b.Cod == _v.BU)) { <option value="@b.Cod">@b.Nome</option> }</select></label>
         <label class="fld">Nº do projeto *<CampoLista Value="@_v.Projeto" ValueChanged="@((string x) => { _v.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
         <label class="fld">Classificação <span class="hint">escolha ou digite outra</span><CampoLista Value="@_v.Classificacao" ValueChanged="@((string x) => { _v.Classificacao = x; })" Opcoes="@Svc.Classificacoes()" Placeholder="NB, AFM, SV, Visita comercial…" /></label>
         <div class="fld full"><span>Equipamentos <span class="hint">um ou mais</span></span><CampoEquipamentos Value="@_v.Equipamentos" ValueChanged="@((string x) => { _v.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" Disabled="@(!_pode)" /></div>
@@ -222,7 +223,7 @@ else
 
 @if (_abaV == "historico") { <HistoricoViagem ViagemId="@(_novo ? "" : Id)" Pendentes="_notasPend" Ator="@_ator" Pode="@_participa" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nNotas = n)" /> }
 @if (_abaV == "feedback") { <FeedbackServico ViagemId="@(_novo ? "" : Id)" Ator="@_ator" Pode="@_participa" VerAnexos="@_verAnexos" Fuso="@_snap.FusoPadrao" OnContagem="@((int n) => _nFb = n)" /> }
-@if (_email) { <EmailOsDialogo ViagemId="@Id" Ator="@_ator" OnFechar="@(() => _email = false)" OnGerado="@(() => { var x = Svc.Foto().Viagem(Id); if (x is not null) { _v.Checklist = x.Checklist; _v.OsGeradoEm = x.OsGeradoEm; } })" /> }
+@if (_email) { <EmailOsDialogo ViagemId="@Id" Ator="@_ator" OnFechar="@(() => _email = false)" OnGerado="@(() => { var x = Svc.Foto(_ator).Viagem(Id); if (x is not null) { _v.Checklist = x.Checklist; _v.OsGeradoEm = x.OsGeradoEm; } })" /> }
 
 @code {
     [Parameter] public string Id { get; set; } = "";
@@ -233,8 +234,8 @@ else
     }
     private sealed class AtendVm { public Atendimento A = new(); public string Ini = "", Fim = "", IniReal = "", FimReal = ""; public HashSet<string> Tecs = new(); }
 
-    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
-    private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(c.Id); }
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(s.Id); }
+    private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(c.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verReserva, _verAnexos, _email;
     private string _abaV = "viagem"; private int _nNotas, _nFb;
     /// <summary>Histórico, feedback e lista de verificação: quem edita viagens ou o técnico escalado nesta viagem.</summary>
@@ -283,11 +284,11 @@ else
 
     private void Carregar()
     {
-        _snap = Svc.Foto(); _erros = null; _novo = Id == "novo"; _equipe = Svc.EquipeControle();
+        _snap = Svc.Foto(_ator); _erros = null; _novo = Id == "novo"; _equipe = Svc.EquipeControle();
         _pode = _ator.Pode(Perm.EditarViagens);
         if (_novo)
         {
-            _ok = _pode; _participa = _pode; _nFb = 0; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()) }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); _tr = new(); _at = new();
+            _ok = _pode; _participa = _pode; _nFb = 0; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()), BU = _ator.Bus.Count == 1 ? _ator.Bus.First() : "" }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); _tr = new(); _at = new();
         }
         else
         {
@@ -435,7 +436,7 @@ else
 
     private void CidadeSalva()
     {
-        _pedirCidade = null; _snap = Svc.Foto(); Validar(); Sessao.Avisar("Cidade gravada no cadastro da planta.");
+        _pedirCidade = null; _snap = Svc.Foto(_ator); Validar(); Sessao.Avisar("Cidade gravada no cadastro da planta.");
     }
     private void AoPlantaTrecho(TrechoVm x)
     {
@@ -486,6 +487,7 @@ else
         _erros = null;
         try
         {
+            if (string.IsNullOrWhiteSpace(_v.BU)) throw new ValidacaoException("Selecione a BU de origem da viagem (HSA, HCHL ou HPU).");
             Ui.ExigirProjeto(_v.Projeto); _v.Projeto = _v.Projeto.Trim();
             if (status is not null) _v.Status = status;
             var (v, tr, at) = Montar();

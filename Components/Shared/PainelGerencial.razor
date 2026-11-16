@@ -7,12 +7,18 @@
 <section class="gp @(Auto ? "gp-auto" : "")" aria-label="Indicadores gerenciais">
     @if (!Auto)
     {
-        <div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Período: <strong>@_de.ToString("dd/MM/yyyy") a @_ate.ToString("dd/MM/yyyy")</strong> · @RotuloPeriodo()@if (_tecFiltro.Count > 0) {<span> · Técnicos: <strong>@string.Join(", ", _tecFiltro.Select(id => Snap.Tecnico(id)?.Nome ?? "?").OrderBy(x => x))</strong></span>}</span></div>
+        <div class="gp-titulo"><h2>Indicadores gerenciais</h2><span class="muted">Período: <strong>@_de.ToString("dd/MM/yyyy") a @_ate.ToString("dd/MM/yyyy")</strong> · @RotuloPeriodo()@if (_buFiltro.Count > 0) {<span> · BU: <strong>@string.Join(", ", _buFiltro.OrderBy(x => x))</strong></span>}@if (_tecFiltro.Count > 0) {<span> · Técnicos: <strong>@string.Join(", ", _tecFiltro.Select(id => Snap.Tecnico(id)?.Nome ?? "?").OrderBy(x => x))</strong></span>}</span></div>
         <div class="gp-periodo" role="group" aria-label="Período dos indicadores">
             @foreach (var (k, r) in Atalhos) { <button type="button" class="chip @(_atalho == k ? "active" : "")" @onclick="() => Atalho(k)">@r</button> }
             <label class="gp-per-f">Mês<input type="month" value="@(_atalho == "mesesc" ? _de.ToString("yyyy-MM") : "")" @onchange="EscolherMes" /></label>
             <label class="gp-per-f">De<input type="date" value="@_de.ToString("yyyy-MM-dd")" @onchange="@(e => Datas(e.Value?.ToString(), null))" /></label>
             <label class="gp-per-f">Até<input type="date" value="@_ate.ToString("yyyy-MM-dd")" @onchange="@(e => Datas(null, e.Value?.ToString()))" /></label>
+            @if (Bus.Count > 1)
+            {
+                <span class="gp-bu" role="group" aria-label="BU">
+                    @foreach (var b in Bus) { <button type="button" class="chip @(_buFiltro.Contains(b) ? "active" : "")" @onclick="() => AlternarBu(b)">@b</button> }
+                </span>
+            }
             <div class="gp-tec">
                 <button type="button" class="chip @(_tecFiltro.Count > 0 ? "active" : "")" @onclick="() => _popTec = !_popTec">@Icons.Svg("users")@(_tecFiltro.Count == 0 ? "Técnicos (todos)" : _tecFiltro.Count == 1 ? Snap.Tecnico(_tecFiltro.First())?.Nome : $"{_tecFiltro.Count} técnicos")</button>
                 @if (_popTec)
@@ -155,6 +161,10 @@
     /// <summary>Quais blocos mostrar (null = todos). Chaves em AutoEtapas.Graficos.</summary>
     [Parameter] public HashSet<string>? Mostrar { get; set; }
     private bool Ver(string k) => Mostrar is null || Mostrar.Contains(k);
+    /// <summary>BUs que a pessoa acessa (botões do filtro de BU).</summary>
+    [Parameter] public List<string> Bus { get; set; } = new();
+    private HashSet<string> _buFiltro = new();
+    private void AlternarBu(string b) { if (!_buFiltro.Remove(b)) _buFiltro.Add(b); Calcular(); }
     /// <summary>Quais viagens entram nas contagens. Nulo = todas.</summary>
     [Parameter] public Func<Viagem, bool>? VeViagem { get; set; }
 
@@ -218,7 +228,7 @@
         if (_atalho == "")
         {
             // volta com o período e os técnicos que a pessoa tinha escolhido (vale enquanto estiver no programa)
-            if (!Auto && Sessao.Indicadores is { } f) { _de = f.De; _ate = f.Ate; _atalho = f.Atalho; _tecFiltro = f.Tecnicos.ToHashSet(); Calcular(); return; }
+            if (!Auto && Sessao.Indicadores is { } f) { _de = f.De; _ate = f.Ate; _atalho = f.Atalho; _tecFiltro = f.Tecnicos.ToHashSet(); _buFiltro = (f.Bus ?? new()).Where(Bus.Contains).ToHashSet(); Calcular(); return; }
             Atalho(Auto ? "prox30" : "mes"); return;
         }
         Calcular();
@@ -229,7 +239,7 @@
 
     private void Calcular()
     {
-        if (!Auto) Sessao.Indicadores = new Sessao.FiltroIndicadores(_de, _ate, _atalho, _tecFiltro.ToList());
+        if (!Auto) Sessao.Indicadores = new Sessao.FiltroIndicadores(_de, _ate, _atalho, _tecFiltro.ToList(), _buFiltro.ToList());
         _estados = Estados.Where(e => Sel(e.Tecnico.Id)).ToList(); _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
         var (u0, _) = Janela(_de); var (_, u1) = Janela(_ate);
         _situacao = Vocab.StatusOp.Select(s => (s.Label, s.Color, _estados.Count(e => e.Status == s.Key))).Where(x => x.Item3 > 0).ToList();
@@ -241,9 +251,12 @@
         _trainees = campoTec.Count(t => t.Trainee && t.Ativo);
         int NaEmpresa(DateTime d) => ocup.Values.Count(t => t.NaEmpresaEm(d));
 
-        var visiveis = Snap.Viagens.Values.Where(v => (VeViagem is null || VeViagem(v)) && (_tecFiltro.Count == 0 || Snapshot.Ids(v.TecnicoIds).Any(_tecFiltro.Contains)))
+        var visiveis = Snap.Viagens.Values.Where(v => (VeViagem is null || VeViagem(v)) && (_tecFiltro.Count == 0 || Snapshot.Ids(v.TecnicoIds).Any(_tecFiltro.Contains))
+                && (_buFiltro.Count == 0 || _buFiltro.Contains(Vocab.BuDe(v))))
             .Select(v => v.Id).ToHashSet();
-        var ev = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && Sel(e.TecnicoId) && (e.ViagemId == "" || visiveis.Contains(e.ViagemId))).ToList();
+        // com filtro de BU, só contam os compromissos das viagens daquela BU (atendimento avulso não tem BU)
+        var ev = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && Sel(e.TecnicoId)
+            && (e.ViagemId == "" ? _buFiltro.Count == 0 : visiveis.Contains(e.ViagemId))).ToList();
         var evOc = ev.Where(e => ocup.ContainsKey(e.TecnicoId)).ToList();
         // técnico-dias de um dia: (atendimento, deslocamento, provisório)
         (int at, int des, int prov) Dia(DateTime d, List<Evento> lista, bool soNaEmpresa = false)

@@ -259,7 +259,7 @@ else if (_aba == "apt")
 }
 
 @code {
-    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(s.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private List<Tecnico> _tecs = new(); private List<Evento> _eventos = new();
     private Dictionary<string, Estado> _estados = new(); private List<DocEngine.Linha> _venc = new();
     private string _aba = "equipe", _busca = "", _fEsp = "", _fPerfil = ""; private bool _inativos, _aOutros;   // padrão: só os ativos; o botão troca para só os inativos
@@ -278,7 +278,7 @@ else if (_aba == "apt")
 
     private void Carregar()
     {
-        _snap = Svc.Foto();
+        _snap = Svc.Foto(_ator);
         _tecs = _snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).ToList();
         _eventos = AgendaEngine.Eventos(_snap);
         var agora = DateTime.UtcNow;

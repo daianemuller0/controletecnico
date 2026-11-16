@@ -498,7 +498,7 @@ else
         Montar();
     }
 
-    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(s.Id); }
     private Ator _ator = new(); private Snapshot _snap = new();
     private List<Evento> _eventos = new(), _visiveis = new(); private List<Conflito> _conflitos = new();
     private HashSet<string> _confIds = new();
@@ -584,7 +584,7 @@ else
         _carregando = true; _erro = null;
         try
         {
-            _snap = Svc.Foto();
+            _snap = Svc.Foto(_ator);
             if (_ref == DateTime.Today) _ref = L(DateTime.UtcNow).Date;
             _eventos = AgendaEngine.Eventos(_snap);
             _conflitos = AgendaEngine.Conflitos(_snap, _eventos).Where(c => _ator.VeTecnico(c.TecnicoId)).ToList();
@@ -619,13 +619,13 @@ else
     private void AdicionarFeriado()
     {
         _errosFer = null;
-        try { Svc.AdicionarFeriado(_ator, _ferDia, _ferNome, _ferAnual); Sessao.Avisar($"Feriado \"{_ferNome.Trim()}\" cadastrado."); _ferNome = ""; _anoFer = _ferDia.Year; _snap = Svc.Foto(); Montar(); }
+        try { Svc.AdicionarFeriado(_ator, _ferDia, _ferNome, _ferAnual); Sessao.Avisar($"Feriado \"{_ferNome.Trim()}\" cadastrado."); _ferNome = ""; _anoFer = _ferDia.Year; _snap = Svc.Foto(_ator); Montar(); }
         catch (Exception ex) { _errosFer = Ui.Erros(ex); }
     }
     private void ExcluirFeriado(Feriados.Feriado f)
     {
         _errosFer = null;
-        try { Svc.ExcluirFeriado(_ator, f.Chave, f.Nome); Sessao.Avisar("Feriado excluído."); _snap = Svc.Foto(); Montar(); }
+        try { Svc.ExcluirFeriado(_ator, f.Chave, f.Nome); Sessao.Avisar("Feriado excluído."); _snap = Svc.Foto(_ator); Montar(); }
         catch (Exception ex) { _errosFer = Ui.Erros(ex); }
     }
     private void Montar()
@@ -797,7 +797,7 @@ else
         Previa();
         if (!string.IsNullOrEmpty(_form?.PlantaId) && _snap.Planta(_form.PlantaId) is { } p && string.IsNullOrWhiteSpace(p.Cidade) && _ator.Pode(Perm.EditarClientes)) _pedirCidade = _form.PlantaId;
     }
-    private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(); Previa(); Sessao.Avisar("Cidade gravada no cadastro da planta."); }
+    private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(_ator); Previa(); Sessao.Avisar("Cidade gravada no cadastro da planta."); }
 
     private Form? _form; private List<string>? _errosForm;
     private List<Conflito> _prevConf = new(); private List<Aptidao> _prevApt = new(); private bool _previaFeita;

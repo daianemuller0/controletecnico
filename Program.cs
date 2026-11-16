@@ -225,7 +225,8 @@ app.MapPost("/auth/login", async (HttpContext http, Db db, Servicos svc, LoginGu
     var claims = new List<Claim>
     {
         new(ClaimTypes.NameIdentifier, u.Id), new(ClaimTypes.Name, u.Nome), new(ClaimTypes.Role, Roles.Normalize(u.Papel)),
-        new("tecnico", u.TecnicoId ?? ""),
+        new("tecnico", u.TecnicoId ?? ""), new("bus", u.Bus ?? ""),
+        new("idioma", u.Idioma is "es" or "pt" ? u.Idioma : (http.Request.Cookies["ct-idioma"] is "es" ? "es" : "pt")),
     };
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
         new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));

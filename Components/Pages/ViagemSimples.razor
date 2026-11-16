@@ -20,7 +20,7 @@ else
 {
 <div class="page-head compacto">
     <div>
-        <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") @if (!string.IsNullOrWhiteSpace(_v.Projeto)) { <span class="proj-tag">Proj. @_v.Projeto</span> } @if (!string.IsNullOrWhiteSpace(_v.Classificacao)) { <span class="classif-tag">@_v.Classificacao</span> } <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
+        <h1>@(_novo ? "Nova viagem" : $"Viagem {_v.Codigo}") @if (!string.IsNullOrWhiteSpace(_v.Projeto)) { <span class="proj-tag">Proj. @_v.Projeto</span> } @if (!_novo || !string.IsNullOrEmpty(_v.BU)) { <span class="bu-tag">@Vocab.BuDe(_v)</span> } @if (!string.IsNullOrWhiteSpace(_v.Classificacao)) { <span class="classif-tag">@_v.Classificacao</span> } <StatusBadge Item="@Ui.StViagem(_v.Status)" /></h1>
         @if (!_pode && _participa) { <p class="subtitle">Você pode marcar a lista de verificação e registrar o histórico e o feedback do serviço; o restante da viagem é somente consulta.</p> }
     </div>
     @if (_pode)
@@ -53,6 +53,7 @@ else
 
     <div class="panel">
         <div class="form-grid">
+            <label class="fld">BU de origem *<select value="@_v.BU" @onchange="@(e => _v.BU = e.Value?.ToString() ?? "")"><option value="">— selecione —</option>@foreach (var b in Vocab.Bus.Where(b => _ator.VeBu(b.Cod) || b.Cod == _v.BU)) { <option value="@b.Cod">@b.Nome</option> }</select></label>
             <label class="fld">Nº do projeto *<CampoLista Value="@_v.Projeto" ValueChanged="@((string x) => { _v.Projeto = x; })" Opcoes="@Ui.ProjetosUsados(_snap)" Placeholder="Ex.: 4500123456" /></label>
             <label class="fld">Classificação <span class="hint">escolha ou digite outra</span><CampoLista Value="@_v.Classificacao" ValueChanged="@((string x) => { _v.Classificacao = x; })" Opcoes="@Svc.Classificacoes()" Placeholder="NB, AFM, SV, Visita comercial…" /></label>
             <div class="fld full"><span>Equipamentos <span class="hint">um ou mais</span></span><CampoEquipamentos Value="@_v.Equipamentos" ValueChanged="@((string x) => { _v.Equipamentos = x; })" Sugestoes="@Ui.EquipamentosUsados(_snap)" Disabled="@(!_pode)" /></div>
@@ -178,8 +179,8 @@ else
     /// <summary>Partes do serviço além da primeira (o serviço é dividido nas pausas em casa).</summary>
     private List<Atendimento> _servPartes = new();
 
-    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
-    private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(c.Id); }
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(s.Id); }
+    private Task<string?> CriarCli(string nome) { var c = Svc.CriarClienteRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(c.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private bool _ok, _novo, _pode, _verAnexos, _maisAberto, _cancelando, _localizando;
     private Viagem _v = new(); private HashSet<string> _tecs = new(); private Faixa _ida = new(), _serv = new(), _volta = new();
     private double? _horasPrev, _horasReal; private ResultadoViagem _res = new(); private List<string>? _erros; private Planta? _planta;
@@ -209,7 +210,7 @@ else
     private List<Usuario> _equipe = new();
 
     private void AoChecklist(List<Checklist.Item> l) { _v.Checklist = Checklist.Gravar(l); }
-    private void AoEmail() { var v = Svc.Foto().Viagem(Id); if (v is not null) { _v.Checklist = v.Checklist; _v.OsGeradoEm = v.OsGeradoEm; _v.OsGeradoPor = v.OsGeradoPor; } }
+    private void AoEmail() { var v = Svc.Foto(_ator).Viagem(Id); if (v is not null) { _v.Checklist = v.Checklist; _v.OsGeradoEm = v.OsGeradoEm; _v.OsGeradoPor = v.OsGeradoPor; } }
     private void AoResponsavel(ChangeEventArgs e)
     {
         var login = e.Value?.ToString() ?? "";
@@ -228,12 +229,12 @@ else
 
     private void Carregar()
     {
-        _snap = Svc.Foto(); _erros = null; _novo = Id == "novo"; _pode = _ator.Pode(Perm.EditarViagens);
+        _snap = Svc.Foto(_ator); _erros = null; _novo = Id == "novo"; _pode = _ator.Pode(Perm.EditarViagens);
         _verAnexos = (_ator.Pode(Perm.VerAnexosViagem) || _ator.Papel == Roles.Tecnico) && !Sessao.Apresentacao;
         _ida = new Faixa { Modal = Vocab.ModalAviao }; _serv = new Faixa(); _volta = new Faixa { Modal = Vocab.ModalAviao }; _horasPrev = _horasReal = null;
         _extras = new(); _servPartes = new();
         _equipe = Svc.EquipeControle();
-        if (_novo) { _ok = _pode; _participa = _pode; _nFb = 0; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()) }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); }
+        if (_novo) { _ok = _pode; _participa = _pode; _nFb = 0; _v = new Viagem { Checklist = Checklist.Gravar(Checklist.Novo()), BU = _ator.Bus.Count == 1 ? _ator.Bus.First() : "" }; _nNotas = 0; if (_equipe.Any(u => u.Id == _ator.Login)) { _v.ResponsavelLogin = _ator.Login; _v.Responsavel = _ator.Nome; } _tecs = new(); }
         else
         {
             var v = _snap.Viagem(Id);
@@ -477,13 +478,13 @@ else
         else if (!_planta.TemCoord && _planta.GeoStatus != "manual" && Geo.Configurado && _ator.Pode(Perm.EditarClientes)) await LocalizarAgora();
     }
     private void AlternarTec(string id, bool on) { if (on) _tecs.Add(id); else _tecs.Remove(id); AtualizarPlanta(); Validar(); _redesenhar = true; }
-    private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(); AtualizarPlanta(); Validar(); _redesenhar = true; Sessao.Avisar("Cidade gravada no cadastro da planta."); }
+    private void CidadeSalva() { _pedirCidade = null; _snap = Svc.Foto(_ator); AtualizarPlanta(); Validar(); _redesenhar = true; Sessao.Avisar("Cidade gravada no cadastro da planta."); }
 
     private async Task LocalizarAgora()
     {
         if (_planta is null) return;
         _localizando = true; StateHasChanged();
-        try { await Svc.SalvarPlantaAsync(_ator, Db.Plantas.Obter(_planta.Id)!, Geo, forcarGeocodificar: true); _snap = Svc.Foto(); AtualizarPlanta(); _redesenhar = true; Validar(); }
+        try { await Svc.SalvarPlantaAsync(_ator, Db.Plantas.Obter(_planta.Id)!, Geo, forcarGeocodificar: true); _snap = Svc.Foto(_ator); AtualizarPlanta(); _redesenhar = true; Validar(); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
         _localizando = false; StateHasChanged();
     }
@@ -525,6 +526,7 @@ else
         _erros = null;
         try
         {
+            if (string.IsNullOrWhiteSpace(_v.BU)) throw new ValidacaoException("Selecione a BU de origem da viagem (HSA, HCHL ou HPU).");
             Ui.ExigirProjeto(_v.Projeto); _v.Projeto = _v.Projeto.Trim();
             if (status is not null) _v.Status = status;
             var (v, tr, at) = Montar();

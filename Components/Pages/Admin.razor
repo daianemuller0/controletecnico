@@ -26,11 +26,12 @@
 {
     <div class="toolbar"><span class="grow"></span><button class="btn-primary" @onclick="NovoUsuario">@Icons.Svg("plus")Novo usuário</button></div>
     <div class="table-wrap"><table class="grid-tbl">
-        <thead><tr><th>Login</th><th>Nome</th><th>Perfil</th><th>Equipe de controle</th><th>Técnico vinculado</th><th>Situação</th><th></th></tr></thead>
+        <thead><tr><th>Login</th><th>Nome</th><th>Perfil</th><th>Equipe de controle</th><th>Técnico vinculado</th><th>BUs</th><th>Idioma</th><th>Situação</th><th></th></tr></thead>
         <tbody>
         @foreach (var u in _usuarios)
         {
             <tr><td><code>@u.Id</code></td><td>@if (Svc.FotoDoUsuario(u.Id) is { Length: > 0 } fu) { <img class="user-av-mini" src="/arquivos/@fu" alt="" /> } @u.Nome</td><td><span class="tag">@Roles.Label(u.Papel)</span></td><td>@if (u.EquipeControle) { <span class="badge st-info">@Icons.Svg("check", "bico")Sim</span> }</td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
+                <td>@(string.IsNullOrEmpty(u.Bus) ? "Todas" : u.Bus.Replace(",", ", "))</td><td>@(u.Idioma == "es" ? "Español" : "Português")</td>
                 <td><span class="badge @(u.Ativo ? "st-pos" : "st-neutral")">@(u.Ativo ? "Ativo" : "Inativo")</span></td>
                 <td class="right"><span class="acoes-usr">
                     <button class="btn-ghost sm" @onclick="() => EditarUsuario(u)" title="Editar dados, perfil e senha">@Icons.Svg("edit")Editar</button>
@@ -174,7 +175,7 @@ else if (_aba == "arm" && _ator.Pode(Perm.Administrar))
             <dt>Pasta de rede</dt><dd>@(d.Rede ? "Sim" : "Não (pasta local)")</dd>
             <dt>Espelho local (leitura)</dt><dd>@(d.Espelho is null ? "não usado" : d.Espelho)</dd>
             <dt>Leitura das telas</dt><dd>@(Repo<Tecnico>.SincronizarEmSegundoPlano ? "cópia local no computador (rápida); a rede é conferida em segundo plano" : "direto da pasta")</dd>
-            @if (Repo<Tecnico>.SincronizarEmSegundoPlano) { <dt>Última conferência com a rede</dt><dd>@(SincronizacaoService.UltimaConferencia is { } uc ? Ui.Hora(uc, null, Svc.Foto(), true) : "ainda não") @if (SincronizacaoService.UltimoErro is { } ue) { <span class="neg"> · @ue</span> }</dd> }
+            @if (Repo<Tecnico>.SincronizarEmSegundoPlano) { <dt>Última conferência com a rede</dt><dd>@(SincronizacaoService.UltimaConferencia is { } uc ? Ui.Hora(uc, null, Svc.Foto(_ator), true) : "ainda não") @if (SincronizacaoService.UltimoErro is { } ue) { <span class="neg"> · @ue</span> }</dd> }
             <dt>Teste de gravação</dt><dd>@d.LatenciaMs ms @if (!string.IsNullOrEmpty(d.Mensagem)) { <span class="neg"> · @d.Mensagem</span> }</dd>
         </dl>
         <p class="muted sm">Cada gravação cria um arquivo pequeno na pasta da entidade; a compactação consolida os arquivos e move os antigos para <code>_historico</code> (30 dias).</p>
@@ -221,6 +222,9 @@ else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
             <label class="fld chk"><input type="checkbox" @bind="_u.EquipeControle" />Equipe de controle de viagens <span class="hint">pode ser responsável por viagens e tem "Minhas viagens"</span></label>
             <label class="fld">Técnico vinculado <span class="hint">obrigatório para o perfil Técnico</span><select @bind="_u.TecnicoId"><option value="">—</option>@foreach (var t in Db.Tecnicos.Todos().OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select></label>
             <label class="fld full">@(_novoU ? "Senha (mín. 8 caracteres)" : "Nova senha (deixe vazio para manter)")<input type="password" @bind="_senha" autocomplete="new-password" /></label>
+            <div class="fld full"><span>BUs que acessa <span class="hint">nenhuma marcada = todas</span></span>
+                <div class="chk-grid">@foreach (var b in Vocab.Bus) { <label class="chk-inline"><input type="checkbox" checked="@Ator.LerBus(_u.Bus).Contains(b.Cod)" @onchange="@(e => AlternarBu(b.Cod, (bool)e.Value!))" />@b.Nome</label> }</div></div>
+            <label class="fld">Idioma do sistema<select @bind="_u.Idioma"><option value="pt">Português</option><option value="es">Español</option></select></label>
             <label class="fld chk"><input type="checkbox" @bind="_u.Ativo" />Usuário ativo</label>
         </div>
         <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _u = null)">Cancelar</button><button class="btn-primary" @onclick="SalvarUsuario">@Icons.Svg("check")Salvar</button></div>
@@ -329,6 +333,11 @@ else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
     private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar("Usuário salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void AlternarBu(string bu, bool on)
+    {
+        var l = Ator.LerBus(_u!.Bus).ToList(); if (on) { if (!l.Contains(bu)) l.Add(bu); } else l.Remove(bu);
+        _u.Bus = string.Join(",", Vocab.Bus.Select(b => b.Cod).Where(l.Contains));
+    }
     private void SalvarRelatorio() { _errosRel = null; try { Svc.SalvarDestinatariosRelatorio(_ator, _relPara, _relVenda); Sessao.Avisar("Destinatários do relatório do serviço salvos."); Carregar(); } catch (Exception ex) { _errosRel = Ui.Erros(ex); } }
     private void SalvarCfg() { _erros = null; try { Svc.SalvarConfig(_ator, _alertas, _fuso, _horas, _contatoGeo); Sessao.Avisar("Configurações salvas."); Carregar(); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
     private void ExecutarDados()
