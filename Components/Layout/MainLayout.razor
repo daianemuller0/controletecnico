@@ -9,13 +9,13 @@
         @if (Db.Demo)
         {
             <div class="demo-banner no-print" role="status">
-                @Icons.Svg("info")<strong>AMBIENTE DE DEMONSTRAÇÃO</strong><span>Todos os técnicos, clientes, viagens e documentos são fictícios.</span>
+                @Icons.Svg("info")<strong>@L["AMBIENTE DE DEMONSTRAÇÃO"]</strong><span>@L["Todos os técnicos, clientes, viagens e documentos são fictícios."]</span>
             </div>
         }
         @if (_versaoNova is { } vn)
         {
             <div class="demo-banner versao-banner no-print" role="status">
-                @Icons.Svg("refresh")<strong>NOVA VERSÃO PUBLICADA (@vn)</strong><span>Feche o Controle Técnico (todas as abas do sistema) e abra de novo pelo atalho para atualizar.</span>
+                @Icons.Svg("refresh")<strong>@L.F("NOVA VERSÃO PUBLICADA ({0})", vn)</strong><span>@L["Feche o Controle Técnico (todas as abas do sistema) e abra de novo pelo atalho para atualizar."]</span>
             </div>
         }
         <TopBar />

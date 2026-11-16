@@ -4,7 +4,7 @@
             <NotAuthorized>
                 @if (context.User.Identity?.IsAuthenticated == true)
                 {
-                    <div class="content"><div class="state-box state-err">@Icons.Svg("lock")<div><strong>Acesso não permitido</strong><div class="muted">Seu perfil não tem permissão para esta área.</div></div><a class="btn-ghost" href="/">Voltar ao início</a></div></div>
+                    <div class="content"><div class="state-box state-err">@Icons.Svg("lock")<div><strong>@L["Acesso não permitido"]</strong><div class="muted">@L["Seu perfil não tem permissão para esta área."]</div></div><a class="btn-ghost" href="/">@L["Voltar ao início"]</a></div></div>
                 }
                 else
                 {
@@ -16,7 +16,7 @@
     </Found>
     <NotFound>
         <LayoutView Layout="typeof(MainLayout)">
-            <div class="content"><div class="empty-state"><div class="ico">@Icons.Svg("map")</div><h3>Página não encontrada</h3><a class="btn-primary" href="/">Ir para a Visão operacional</a></div></div>
+            <div class="content"><div class="empty-state"><div class="ico">@Icons.Svg("map")</div><h3>@L["Página não encontrada"]</h3><a class="btn-primary" href="/">@L["Ir para a Visão operacional"]</a></div></div>
         </LayoutView>
     </NotFound>
 </Router>
