@@ -4,11 +4,11 @@
 @inject DownloadsTemporarios Dl
 @inject IJSRuntime JS
 
-<Dialogo Titulo="Enviar relatório do serviço" Largo="true" OnFechar="Fechar" Erros="_erros">
-    <ol class="rs-passos" aria-label="Etapas">
+<Dialogo Titulo="@L["Enviar relatório do serviço"]" Largo="true" OnFechar="Fechar" Erros="_erros">
+    <ol class="rs-passos" aria-label="@L["Etapas"]">
         @foreach (var (n, rot) in new[] { (1, "Como terminou"), (2, "Arquivos"), (3, "Conferir e enviar") })
         {
-            <li class="@(_passo == n ? "atual" : _passo > n ? "feito" : "")"><span>@(_passo > n ? "✓" : n.ToString())</span>@rot</li>
+            <li class="@(_passo == n ? "atual" : _passo > n ? "feito" : "")"><span>@(_passo > n ? "✓" : n.ToString())</span>@L[rot]</li>
         }
     </ol>
 
@@ -16,22 +16,22 @@
     {
         <div class="rs-ok">
             <div class="rs-ok-ico">@Icons.Svg("check")</div>
-            <h3>@(_como == "aberto no Outlook" ? "Pronto! O e-mail está aberto no Outlook." : "Pronto! O e-mail foi baixado.")</h3>
-            <p>@(_como == "aberto no Outlook" ? "Confira o e-mail no Outlook e clique em Enviar." : "Abra o arquivo .eml baixado: ele abre no Outlook como e-mail novo. Confira e clique em Enviar.")</p>
-            <p class="muted sm">O relatório e os arquivos ficaram guardados na aba Feedback do serviço desta viagem.</p>
-            <div class="modal-actions"><button class="btn-primary" @onclick="Fechar">Concluir</button></div>
+            <h3>@(_como == "aberto no Outlook" ? L["Pronto! O e-mail está aberto no Outlook."] : L["Pronto! O e-mail foi baixado."])</h3>
+            <p>@(_como == "aberto no Outlook" ? L["Confira o e-mail no Outlook e clique em Enviar."] : L["Abra o arquivo .eml baixado: ele abre no Outlook como e-mail novo. Confira e clique em Enviar."])</p>
+            <p class="muted sm">@L["O relatório e os arquivos ficaram guardados na aba Feedback do serviço desta viagem."]</p>
+            <div class="modal-actions"><button class="btn-primary" @onclick="Fechar">@L["Concluir"]</button></div>
         </div>
     }
     else if (_passo == 1)
     {
-        <p class="rs-pergunta">Como terminou o serviço no cliente?</p>
+        <p class="rs-pergunta">@L["Como terminou o serviço no cliente?"]</p>
         <div class="rs-tipos">
             @foreach (var t in RelatorioServico.Tipos)
             {
                 <button type="button" class="rs-tipo @(_r.Tipo == t.Key ? "on" : "")" style="--c:@t.Cor" @onclick="() => Escolher(t.Key)">
                     <span class="rs-tipo-ico">@Icons.Svg(t.Icone)</span>
-                    <strong>@t.Rotulo</strong>
-                    <small>@t.Dica</small>
+                    <strong>@L[t.Rotulo]</strong>
+                    <small>@L[t.Dica]</small>
                 </button>
             }
         </div>
@@ -39,52 +39,52 @@
     else if (_passo == 2)
     {
         var tipo = RelatorioServico.DeKey(_r.Tipo)!;
-        <div class="rs-escolhido" style="--c:@tipo.Cor">@Icons.Svg(tipo.Icone)<span>@tipo.Rotulo</span><button type="button" class="btn-link" @onclick="() => _passo = 1">trocar</button></div>
+        <div class="rs-escolhido" style="--c:@tipo.Cor">@Icons.Svg(tipo.Icone)<span>@L[tipo.Rotulo]</span><button type="button" class="btn-link" @onclick="() => _passo = 1">@L["trocar"]</button></div>
         @if (RelatorioServico.PedeTexto(_r.Tipo))
         {
-            <label class="fld rs-texto"><span><strong>@tipo.PerguntaTexto</strong> <span class="hint">obrigatório — vai no corpo do e-mail</span></span>
-                <textarea rows="5" @bind="_r.Texto" @bind:event="oninput" placeholder="@(_r.Tipo == RelatorioServico.Oportunidade ? "Ex.: Cliente precisa trocar os rolamentos do ventilador 2 nos próximos 3 meses; pediu orçamento de peças sobressalentes." : "Ex.: A área não foi liberada no horário combinado; o serviço atrasou 4 horas.")"></textarea></label>
+            <label class="fld rs-texto"><span><strong>@L[tipo.PerguntaTexto]</strong> <span class="hint">@L["obrigatório — vai no corpo do e-mail"]</span></span>
+                <textarea rows="5" @bind="_r.Texto" @bind:event="oninput" placeholder="@(_r.Tipo == RelatorioServico.Oportunidade ? L["Ex.: Cliente precisa trocar os rolamentos do ventilador 2 nos próximos 3 meses; pediu orçamento de peças sobressalentes."] : L["Ex.: A área não foi liberada no horário combinado; o serviço atrasou 4 horas."])"></textarea></label>
         }
         <div class="rs-arquivos">
-            @Slot("1", "Relatório de serviços", "O relatório que você preencheu no cliente.", _relatorio, "relatorio")
-            @Slot("2", "Formulário POWRA STAR", "Foto ou PDF do formulário preenchido.", _powra, "powra")
+            @Slot("1", L["Relatório de serviços"], L["O relatório que você preencheu no cliente."], _relatorio, "relatorio")
+            @Slot("2", L["Formulário POWRA STAR"], L["Foto ou PDF do formulário preenchido."], _powra, "powra")
         </div>
-        <p class="muted sm">Aceita PDF, foto (JPG/PNG), Word, Excel ou e-mail salvo — até 15 MB cada. Pode escolher mais de um arquivo em cada item.</p>
-        @if (_faltam.Count > 0 && _tentou) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@foreach (var f in _faltam) { <div>@f</div> }</div></div> }
+        <p class="muted sm">@L["Aceita PDF, foto (JPG/PNG), Word, Excel ou e-mail salvo — até 15 MB cada. Pode escolher mais de um arquivo em cada item."]</p>
+        @if (_faltam.Count > 0 && _tentou) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@foreach (var f in _faltam) { <div>@L[f]</div> }</div></div> }
         <div class="modal-actions">
-            <button class="btn-ghost" @onclick="() => _passo = 1">Voltar</button>
-            <button class="btn-primary" @onclick="Continuar">Continuar @Icons.Svg("arrow-right")</button>
+            <button class="btn-ghost" @onclick="() => _passo = 1">@L["Voltar"]</button>
+            <button class="btn-primary" @onclick="Continuar">@L["Continuar"] @Icons.Svg("arrow-right")</button>
         </div>
     }
     else
     {
         <div class="os-grid">
             <div class="os-form">
-                <div class="fld"><span>Para</span>
+                <div class="fld"><span>@L["Para"]</span>
                     @if (!_editarPara) { <div class="rs-chips">@foreach (var e in _r.Para.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) { <span class="chip">@e</span> }</div>
-                        <button type="button" class="btn-link sm" @onclick="() => _editarPara = true">Alterar destinatários</button> }
-                    else { <textarea rows="3" @bind="_r.Para" @bind:event="oninput"></textarea><span class="hint">separe os e-mails com ;</span> }
+                        <button type="button" class="btn-link sm" @onclick="() => _editarPara = true">@L["Alterar destinatários"]</button> }
+                    else { <textarea rows="3" @bind="_r.Para" @bind:event="oninput"></textarea><span class="hint">@L["separe os e-mails com ;"]</span> }
                 </div>
-                <label class="fld">Assunto<input @bind="_r.Assunto" @bind:event="oninput" /></label>
-                @if (string.IsNullOrWhiteSpace(Projeto)) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>Esta viagem está sem número de projeto. Digite o número no assunto antes de enviar.</div></div> }
-                <div class="fld"><span>Anexos</span>
+                <label class="fld">@L["Assunto"]<input @bind="_r.Assunto" @bind:event="oninput" /></label>
+                @if (string.IsNullOrWhiteSpace(Projeto)) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@L["Esta viagem está sem número de projeto. Digite o número no assunto antes de enviar."]</div></div> }
+                <div class="fld"><span>@L["Anexos"]</span>
                     @foreach (var a in _relatorio.Concat(_powra)) { <div class="anexo">@Icons.Svg("paperclip")<span>@a.Nome</span><span class="muted sm">@(a.Dados.Length / 1024) KB</span></div> }
                 </div>
-                <label class="chk-inline"><input type="checkbox" @bind="_marcarPowra" />Marcar "POWRA" na lista de verificação</label>
+                <label class="chk-inline"><input type="checkbox" @bind="_marcarPowra" />@(L["Marcar \"POWRA\" na lista de verificação"])</label>
             </div>
             <div class="os-prev">
-                <div class="os-prev-cab"><div><b>Assunto:</b> @_r.Assunto</div><div><b>Para:</b> @_r.Para</div>
+                <div class="os-prev-cab"><div><b>@L["Assunto:"]</b> @_r.Assunto</div><div><b>@L["Para:"]</b> @_r.Para</div>
                     <div class="os-prev-anexos">@foreach (var a in _relatorio.Concat(_powra)) { <span>@Icons.Svg("paperclip")@a.Nome</span> }</div></div>
-                <div class="os-prev-corpo">@((MarkupString)RelatorioServico.Html(_r))<div class="os-assin">— sua assinatura completa do Outlook entra aqui —</div></div>
+                <div class="os-prev-corpo">@((MarkupString)RelatorioServico.Html(_r))<div class="os-assin">@L["— sua assinatura completa do Outlook entra aqui —"]</div></div>
             </div>
         </div>
-        @if (_faltam.Count > 0) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@foreach (var f in _faltam) { <div>@f</div> }</div></div> }
+        @if (_faltam.Count > 0) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@foreach (var f in _faltam) { <div>@L[f]</div> }</div></div> }
         <div class="modal-actions">
-            <button class="btn-ghost" @onclick="() => _passo = 2">Voltar</button>
-            <button class="btn-ghost" @onclick="Baixar" disabled="@_ocupado">@Icons.Svg("download")Baixar e-mail (.eml)</button>
-            <button class="btn-primary rs-enviar" @onclick="Outlook" disabled="@_ocupado">@Icons.Svg("mail")@(_ocupado ? "Abrindo o Outlook…" : "Abrir no Outlook para enviar")</button>
+            <button class="btn-ghost" @onclick="() => _passo = 2">@L["Voltar"]</button>
+            <button class="btn-ghost" @onclick="Baixar" disabled="@_ocupado">@Icons.Svg("download")@L["Baixar e-mail (.eml)"]</button>
+            <button class="btn-primary rs-enviar" @onclick="Outlook" disabled="@_ocupado">@Icons.Svg("mail")@(_ocupado ? L["Abrindo o Outlook…"] : L["Abrir no Outlook para enviar"])</button>
         </div>
-        <p class="muted sm">"Abrir no Outlook" cria o e-mail no Outlook deste computador com a sua assinatura, os anexos e o texto — é só conferir e clicar em Enviar. Se o Outlook não abrir, use "Baixar e-mail (.eml)" (nele, a assinatura entra por Inserir → Assinatura).</p>
+        <p class="muted sm">@(L["\"Abrir no Outlook\" cria o e-mail no Outlook deste computador com a sua assinatura, os anexos e o texto — é só conferir e clicar em Enviar. Se o Outlook não abrir, use \"Baixar e-mail (.eml)\" (nele, a assinatura entra por Inserir → Assinatura)."])</p>
     }
 </Dialogo>
 
@@ -109,9 +109,9 @@
             @foreach (var a in lista.ToList())
             {
                 <div class="anexo">@Icons.Svg("file")<span>@a.Nome</span><span class="muted sm">@(a.Dados.Length / 1024) KB</span>
-                    <button type="button" class="row-act del" title="Tirar" aria-label="Tirar @a.Nome" @onclick="() => { lista.Remove(a); Conferir(); }">@Icons.Svg("x")</button></div>
+                    <button type="button" class="row-act del" title="@L["Tirar"]" aria-label="@L.F("Tirar {0}", a.Nome)" @onclick="() => { lista.Remove(a); Conferir(); }">@Icons.Svg("x")</button></div>
             }
-            <label class="dv-add rs-add">@Icons.Svg("paperclip")<span>@(lista.Count > 0 ? "Adicionar outro arquivo" : "Escolher arquivo")</span>
+            <label class="dv-add rs-add">@Icons.Svg("paperclip")<span>@(lista.Count > 0 ? L["Adicionar outro arquivo"] : L["Escolher arquivo"])</span>
                 <InputFile OnChange="e => Receber(e, lista)" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.doc,.xls,.msg,.eml" /></label>
         </div>
     };
@@ -201,7 +201,7 @@
             if (falhas.Count > 0) _erros = new List<string> { "O e-mail saiu, mas alguns arquivos não ficaram guardados na viagem:" }.Concat(falhas).ToList();
         }
         _como = como; _enviado = true;
-        Sessao.Avisar(como == "aberto no Outlook" ? "E-mail aberto no Outlook. Confira e clique em Enviar." : "E-mail baixado: abra o .eml no Outlook e clique em Enviar.");
+        Sessao.Avisar(como == "aberto no Outlook" ? L["E-mail aberto no Outlook. Confira e clique em Enviar."] : L["E-mail baixado: abra o .eml no Outlook e clique em Enviar."]);
         await OnRegistrado.InvokeAsync();
     }
 
