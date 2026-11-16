@@ -8,23 +8,23 @@
         @if (!_aberto)
         {
             <button type="button" class="sel-valor @(_atual is null ? "vazio" : "")" @onclick="Abrir" disabled="@Disabled">
-                @if (_atual is not null) { <strong>@_atual.Rotulo</strong> } else { <span>@Placeholder</span> }
+                @if (_atual is not null) { <strong>@_atual.Rotulo</strong> } else { <span>@L[Placeholder]</span> }
             </button>
         }
         else
         {
-            <input class="sel-input" @bind="_texto" @bind:event="oninput" @bind:after="Refiltrar" @onkeydown="Tecla" placeholder="@(Criar is null ? "Digite para buscar…" : "Digite para buscar ou criar…")" autocomplete="off" autofocus />
+            <input class="sel-input" @bind="_texto" @bind:event="oninput" @bind:after="Refiltrar" @onkeydown="Tecla" placeholder="@(Criar is null ? L["Digite para buscar…"] : L["Digite para buscar ou criar…"])" autocomplete="off" autofocus />
         }
-        @if (_atual is not null && AllowClear && !Disabled) { <button type="button" class="sel-x" @onclick="Limpar" aria-label="Limpar seleção">@Icons.Svg("x")</button> }
+        @if (_atual is not null && AllowClear && !Disabled) { <button type="button" class="sel-x" @onclick="Limpar" aria-label="@L["Limpar seleção"]">@Icons.Svg("x")</button> }
     </div>
     @if (_aberto)
     {
         <div class="sel-painel" role="listbox">
-            @if (!string.IsNullOrEmpty(Vazio)) { <button type="button" class="sel-op sel-vazio" @onclick="Limpar">@Vazio</button> }
+            @if (!string.IsNullOrEmpty(Vazio)) { <button type="button" class="sel-op sel-vazio" @onclick="Limpar">@L[Vazio]</button> }
             @if (PodeCriar)
             {
                 <button type="button" class="sel-op sel-criar @(_ativo == -1 ? "ativo" : "")" @onclick="CriarNovo">
-                    <span class="sel-l1">@Icons.Svg("plus")Criar @RotuloCriar “@_texto.Trim()”</span><span class="sel-l2">Usar um valor que ainda não está na lista</span>
+                    <span class="sel-l1">@Icons.Svg("plus")@L.F("Criar {0} “{1}”", L[RotuloCriar], _texto.Trim())</span><span class="sel-l2">@L["Usar um valor que ainda não está na lista"]</span>
                 </button>
             }
             @for (var i = 0; i < _res.Count; i++)
@@ -34,8 +34,8 @@
                     <span class="sel-l1">@r.Rotulo</span>@if (!string.IsNullOrEmpty(r.Sub)) { <span class="sel-l2">@r.Sub</span> }
                 </button>
             }
-            @if (_res.Count == 0 && !PodeCriar) { <div class="sel-nada">Nada encontrado.</div> }
-            <div class="sel-rodape">@(_total > _res.Count ? $"Mostrando {_res.Count} de {_total:N0}" : $"{_total:N0} opção(ões)")</div>
+            @if (_res.Count == 0 && !PodeCriar) { <div class="sel-nada">@L["Nada encontrado."]</div> }
+            <div class="sel-rodape">@(_total > _res.Count ? L.F("Mostrando {0} de {1:N0}", _res.Count, _total) : L.F("{0:N0} opção(ões)", _total))</div>
         </div>
     }
 </div>
