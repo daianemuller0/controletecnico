@@ -2,6 +2,7 @@
 @inject Sessao Sessao
 @inject Servicos Svc
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 
 <header class="topbar no-print">
     <div>
@@ -16,6 +17,9 @@
         </button>
         <AuthorizeView>
             <Authorized>
+                <div class="idioma-sel" role="group" aria-label="Idioma">
+                    @foreach (var (cod, nome) in Idiomas.Lista) { <a class="@(L.Idioma == cod ? "on" : "")" href="@($"/idioma/{cod}?volta={Uri.EscapeDataString("/" + Nav.ToBaseRelativePath(Nav.Uri))}")" title="@nome" data-enhance-nav="false">@cod.ToUpperInvariant()</a> }
+                </div>
                 <div class="user">
                     <div class="user-name">@context.User.Identity?.Name</div>
                     <div class="user-role">@Roles.Label(Roles.Normalize(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value))</div>

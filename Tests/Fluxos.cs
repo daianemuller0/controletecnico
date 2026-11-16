@@ -1679,6 +1679,21 @@ public class BuTests
     }
 }
 
+public class IdiomaTests
+{
+    [Fact]
+    public void Traduz_texto_exato_modelo_com_valores_e_mantem_portugues_sem_traducao()
+    {
+        Assert.Equal("Guardar", Idiomas.Traduzir("Salvar", "es"));
+        Assert.Equal(" Guardar ", Idiomas.Traduzir(" Salvar ", "es"));
+        Assert.Equal("Salvar", Idiomas.Traduzir("Salvar", "pt"));
+        Assert.Equal("3 de 17 ítems completados", Idiomas.Traduzir("3 de 17 itens concluídos", "es"));
+        Assert.Equal("Estado: Planificada", Idiomas.Traduzir("Status: Planejada", "es"));     // o valor também é traduzido
+        Assert.Equal("Texto sem tradução", Idiomas.Traduzir("Texto sem tradução", "es"));
+        Assert.True(Idiomas.Quantidade("es") > 0);
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]

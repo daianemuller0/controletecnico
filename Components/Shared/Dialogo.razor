@@ -8,7 +8,7 @@
         {
             <div class="alert-box alert-erro" role="alert">
                 @Icons.Svg("alert")
-                <div>@foreach (var e in Erros) { <div>@e</div> }</div>
+                <div>@foreach (var e in Erros) { <div>@L[e]</div> }</div>
             </div>
         }
         @ChildContent

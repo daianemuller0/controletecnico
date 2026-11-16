@@ -119,7 +119,7 @@ else
         var tecs = TecnicosLinha();
         var rs = _rs; var re = _re; var total = (re - rs).TotalMinutes;
         var diasLoc = Enumerable.Range(0, (int)Math.Round((_reLocal - _rsLocal).TotalDays)).Select(i => _rsLocal.AddDays(i)).ToList();
-        var hojeLoc = L(DateTime.UtcNow).Date;
+        var hojeLoc = Loc(DateTime.UtcNow).Date;
         var largo = diasLoc.Count > 45 ? "tl-longo" : diasLoc.Count > 21 ? "tl-medio" : "";
         <div class="tl @largo" style="--nd:@diasLoc.Count">
             <div class="tl-linha tl-cab">
@@ -159,7 +159,7 @@ else
                         {
                             var ini = ev.Ini < rs ? rs : ev.Ini; var fim = ev.Fim > re ? re : ev.Fim;
                             <button class="@ClasseEv(ev) tl-ev" style="left:@Pct((ini - rs).TotalMinutes / total)%;width:@Pct(Math.Max(0.9, (fim - ini).TotalMinutes / total * 100) / 100)%;top:@(lane * 28 + 5)px;--c:@Ui.TipoEv(ev.Tipo).Color"
-                                    title="@Dica(ev)" aria-label="@Dica(ev)" draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@L(ev.Ini).ToString("yyyy-MM-dd")"
+                                    title="@Dica(ev)" aria-label="@Dica(ev)" draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@Loc(ev.Ini).ToString("yyyy-MM-dd")"
                                     @onclick="() => AbrirEvento(ev)">
                                 @Icons.Svg(Ui.TipoEv(ev.Tipo).Icon, "ev-ico")<span class="ev-txt">@ev.Titulo</span>@if (_confIds.Contains(ev.Id)) { <span class="ev-x-ico" title="Conflito">!</span> }
                             </button>
@@ -176,7 +176,7 @@ else
         var tecs = TecnicosLinha();
         var rs = _rs; var re = _re; var total = (re - rs).TotalMinutes;
         var diasLoc = Enumerable.Range(0, (int)Math.Round((_reLocal - _rsLocal).TotalDays)).Select(i => _rsLocal.AddDays(i)).ToList();
-        var hojeLoc = L(DateTime.UtcNow).Date;
+        var hojeLoc = Loc(DateTime.UtcNow).Date;
         var rh = diasLoc.Count > 45 ? 26 : diasLoc.Count > 21 ? 34 : 46;          // altura de cada dia (px)
         var altura = diasLoc.Count * rh;
         <div class="tv" style="--nt:@Math.Max(1, tecs.Count);--rh:@(rh)px">
@@ -220,7 +220,7 @@ else
                         {
                             var ini = ev.Ini < rs ? rs : ev.Ini; var fim = ev.Fim > re ? re : ev.Fim;
                             <button class="@ClasseEv(ev) tv-ev" style="top:@Pct((ini - rs).TotalMinutes / total)%;height:@Pct((fim - ini).TotalMinutes / total)%;left:calc(@Pct(lane / (double)nl)% + 2px);width:calc(@Pct(1.0 / nl)% - 4px);--c:@Ui.TipoEv(ev.Tipo).Color"
-                                    title="@Dica(ev)" aria-label="@Dica(ev)" draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@L(ev.Ini).ToString("yyyy-MM-dd")"
+                                    title="@Dica(ev)" aria-label="@Dica(ev)" draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@Loc(ev.Ini).ToString("yyyy-MM-dd")"
                                     @onclick="() => AbrirEvento(ev)">
                                 @Icons.Svg(Ui.TipoEv(ev.Tipo).Icon, "ev-ico")<span class="ev-txt">@ev.Titulo</span>@if (_confIds.Contains(ev.Id)) { <span class="ev-x-ico" title="Conflito">!</span> }
                             </button>
@@ -234,7 +234,7 @@ else
     private RenderFragment Mes() => __builder =>
     {
         var dias = Enumerable.Range(0, (int)Math.Round((_reLocal - _rsLocal).TotalDays)).Select(i => _rsLocal.AddDays(i)).ToList();
-        var hojeLoc = L(DateTime.UtcNow).Date;
+        var hojeLoc = Loc(DateTime.UtcNow).Date;
         <div class="mes">
             @foreach (var d in new[] { "seg", "ter", "qua", "qui", "sex", "sáb", "dom" }) { <div class="mes-cab">@d</div> }
             @foreach (var d in dias)
@@ -248,7 +248,7 @@ else
                     @foreach (var ev in evs.Take(4))
                     {
                         <button class="@ClasseEv(ev) mes-ev" style="--c:@Ui.TipoEv(ev.Tipo).Color" title="@Dica(ev)" aria-label="@Dica(ev)"
-                                draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@L(ev.Ini).ToString("yyyy-MM-dd")" @onclick="() => AbrirEvento(ev)">
+                                draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@Loc(ev.Ini).ToString("yyyy-MM-dd")" @onclick="() => AbrirEvento(ev)">
                             <b>@Avatar.Iniciais(NomeTec(ev.TecnicoId))</b> <span class="ev-txt">@ev.Titulo</span>@if (_confIds.Contains(ev.Id)) { <span class="ev-x-ico">!</span> }
                         </button>
                     }
@@ -516,7 +516,7 @@ else
 
     private DotNetObjectReference<Agenda>? _ref2; private bool _dndOk;
 
-    private DateTime L(DateTime utc) => Tempo.ParaLocal(utc, _snap.FusoPadrao);
+    private DateTime Loc(DateTime utc) => Tempo.ParaLocal(utc, _snap.FusoPadrao);
     private DateTime U(DateTime local) => Tempo.ParaUtc(local, _snap.FusoPadrao);
     private static string Pct(double f) => (f * 100).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
     private string NomeTec(string id) => _snap.Tecnico(id)?.Nome ?? id;
@@ -552,7 +552,7 @@ else
                 var vistas = Sessao.AutoCfg.Vistas.Count > 0 ? Sessao.AutoCfg.Vistas : new List<string> { "30", "mes" };
                 foreach (var (vista, dias, titulo, baseMs) in vistas.Select(v => v == "30" ? ("linha", 30, "Agenda · próximos 30 dias", 12000) : ("mes", 0, "Agenda · visão do mês", 10000)))
                 {
-                    _view = vista; if (dias > 0) _dias = dias; _ref = L(DateTime.UtcNow).Date; Montar(); _autoTitulo = titulo;
+                    _view = vista; if (dias > 0) _dias = dias; _ref = Loc(DateTime.UtcNow).Date; Montar(); _autoTitulo = titulo;
                     await InvokeAsync(StateHasChanged);
                     // rolagem lenta e constante (px/s por velocidade); a etapa dura o tempo que a rolagem precisar
                     var fator = Sessao.AutoVel switch { "lenta" => 2.8, "rapida" => 1.0, _ => 1.8 };
@@ -585,7 +585,7 @@ else
         try
         {
             _snap = Svc.Foto(_ator);
-            if (_ref == DateTime.Today) _ref = L(DateTime.UtcNow).Date;
+            if (_ref == DateTime.Today) _ref = Loc(DateTime.UtcNow).Date;
             _eventos = AgendaEngine.Eventos(_snap);
             _conflitos = AgendaEngine.Conflitos(_snap, _eventos).Where(c => _ator.VeTecnico(c.TecnicoId)).ToList();
             _confIds = _conflitos.SelectMany(c => new[] { c.A.Id, c.B.Id }).ToHashSet();
@@ -698,7 +698,7 @@ else
     };
 
     private void MudarVista(string v) { _view = v; Montar(); }
-    private void Hoje() { _ref = L(DateTime.UtcNow).Date; Montar(); }
+    private void Hoje() { _ref = Loc(DateTime.UtcNow).Date; Montar(); }
     private void Mover(int s)
     {
         _ref = _view switch { "mes" => _ref.AddMonths(s), _ => _ref.AddDays(s * Math.Max(1, _dias)) };      // linha: avança um período inteiro
@@ -752,11 +752,11 @@ else
         if (dias == 0) return;
         var ev = _eventos.FirstOrDefault(e => e.Fonte == o[0] && e.FonteId == o[1] && e.TecnicoId == o[2]);
         if (ev is null) return;
-        var novoIni = U(L(ev.Ini).AddDays(dias));
+        var novoIni = U(Loc(ev.Ini).AddDays(dias));
         var r = new Reag
         {
             Fonte = o[0], FonteId = o[1], Delta = novoIni - ev.Ini, Vinculado = !string.IsNullOrEmpty(ev.ViagemId), ViagemInteira = !string.IsNullOrEmpty(ev.ViagemId),
-            Descricao = $"{NomeTec(ev.TecnicoId)} · {ev.Titulo}", De = L(ev.Ini).ToString("dd/MM/yyyy HH:mm"), Para = L(novoIni).ToString("dd/MM/yyyy HH:mm"),
+            Descricao = $"{NomeTec(ev.TecnicoId)} · {ev.Titulo}", De = Loc(ev.Ini).ToString("dd/MM/yyyy HH:mm"), Para = Loc(novoIni).ToString("dd/MM/yyyy HH:mm"),
             DeltaTexto = $"{(dias > 0 ? "+" : "−")}{Math.Abs(dias)} dia(s)",
         };
         _reag = r; _errosReag = null; _det = null;
@@ -805,7 +805,7 @@ else
 
     private void NovoCompromisso()
     {
-        var d = _ref; if (d < L(DateTime.UtcNow).Date) d = L(DateTime.UtcNow).Date;
+        var d = _ref; if (d < Loc(DateTime.UtcNow).Date) d = Loc(DateTime.UtcNow).Date;
         _form = new Form { Ini = d.AddHours(8), Fim = d.AddHours(17), DiaDe = d, DiaAte = d };
         if (_ator.Papel == Roles.Tecnico) _form.Tecs.Add(_ator.TecnicoId);
         _errosForm = null; _prevConf = new(); _prevApt = new(); _previaFeita = false;

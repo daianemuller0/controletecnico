@@ -38,6 +38,7 @@
     </div>
     <div class="cover-right">
         <div class="cover-form">
+            <div class="login-idioma">@foreach (var (cod, nome) in Idiomas.Lista) { <a class="@(L.Idioma == cod ? "on" : "")" href="/idioma-login/@cod">@nome</a> }</div>
             @if (Db.Demo)
             {
                 <div class="demo-chip">@Icons.Svg("info")Ambiente de demonstração · dados fictícios</div>
