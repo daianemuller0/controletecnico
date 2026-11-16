@@ -41,7 +41,7 @@
     }
 
     @if (Ver("cartoes")) {<div class="gp-heads">
-        @Head(L["Ocupação no período"], $"{_ocup:0}%", L["Técnico-dias de campo ÷ técnico-dias úteis na empresa"] + (_trainees > 0 ? " · " + L.F("sem {0} trainee(s)", _trainees) : ""), "#0369a1", _ocup)
+        @Head(L["Ocupação no período"], $"{_ocup:0}%", L["Técnico-dias de campo ÷ técnico-dias úteis na empresa, sem férias, folgas e afastamentos"] + (_trainees > 0 ? " · " + L.F("sem {0} trainee(s)", _trainees) : ""), "#0369a1", _ocup)
         @Head(L["Dias de campo"], _diasCampo.ToString("N0"), L["Técnico-dias com atendimento ou deslocamento"], "#004785", null)
         @Head(L["Viagens no período"], _nViagens.ToString("N0"), L.F("{0} realizada(s) · {1} em andamento ou prevista(s)", _nRealizadas, _nViagens - _nRealizadas), "#d9822b", null)
         @Head(L["Documentos em dia (hoje)"], $"{_docOk:0}%", L.F("{0} de {1} válidos", _docs.Valido + _docs.SemVenc, _docs.Total), _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
@@ -248,7 +248,16 @@
         var campoTec = Snap.Tecnicos.Values.Where(t => Vocab.SempreDisponivel(t.Perfil) && Sel(t.Id)).ToList();
         var ocup = campoTec.Where(t => !t.Trainee).ToDictionary(t => t.Id);
         _trainees = campoTec.Count(t => t.Trainee && t.Ativo);
-        int NaEmpresa(DateTime d) => ocup.Values.Count(t => t.NaEmpresaEm(d));
+        // férias, folgas e afastamentos (mesmo a confirmar) tiram o dia da capacidade do técnico
+        var ausencias = Eventos.Where(e => e.EhAusencia && e.Status != "cancelado" && e.Fim > u0 && e.Ini < u1 && ocup.ContainsKey(e.TecnicoId))
+            .GroupBy(e => e.TecnicoId).ToDictionary(g => g.Key, g => g.ToList());
+        bool Ausente(string tecId, DateTime d)
+        {
+            if (!ausencias.TryGetValue(tecId, out var l)) return false;
+            var (a, b) = Janela(d); var meio = a + (b - a) / 2;           // ausente no meio do dia = dia de ausência
+            return l.Any(e => e.Ini <= meio && e.Fim > meio);
+        }
+        int NaEmpresa(DateTime d) => ocup.Values.Count(t => t.NaEmpresaEm(d) && !Ausente(t.Id, d));
 
         var visiveis = Snap.Viagens.Values.Where(v => (VeViagem is null || VeViagem(v)) && (_tecFiltro.Count == 0 || Snapshot.Ids(v.TecnicoIds).Any(_tecFiltro.Contains))
                 && (_buFiltro.Count == 0 || _buFiltro.Contains(Vocab.BuDe(v))))
@@ -263,7 +272,7 @@
             var (a, b) = Janela(d); int at = 0, des = 0, prov = 0;
             foreach (var g in lista.Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
             {
-                if (soNaEmpresa && !(ocup.TryGetValue(g.Key, out var tec) && tec.NaEmpresaEm(d))) continue;
+                if (soNaEmpresa && !(ocup.TryGetValue(g.Key, out var tec) && tec.NaEmpresaEm(d) && !Ausente(g.Key, d))) continue;
                 var bl = g.Where(e => e.Bloqueia).ToList();
                 if (bl.Any(e => !e.EhViagem)) at++; else if (bl.Any()) des++; else if (g.Any(e => e.Provisorio)) prov++;
             }

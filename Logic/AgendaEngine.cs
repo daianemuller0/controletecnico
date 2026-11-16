@@ -38,6 +38,9 @@ public sealed record Evento
     public bool Provisorio => Status == "provisorio";
     public bool EhViagem => Tipo is Vocab.EvIda or Vocab.EvRetorno or Vocab.EvEntre;
     public bool EhIndisp => Tipo is Vocab.EvFerias or Vocab.EvFolga or Vocab.EvAfastamento or Vocab.EvBloqueio;
+    /// <summary>Ausência do técnico (férias, folga, afastamento): mesmo "a confirmar", ele NÃO está disponível nesses dias
+    /// e eles saem da capacidade nos indicadores de ocupação.</summary>
+    public bool EhAusencia => Tipo is Vocab.EvFerias or Vocab.EvFolga or Vocab.EvAfastamento;
     public TimeSpan Duracao => Fim - Ini;
     public bool Cruza(DateTime ini, DateTime fim) => Ini < fim && Fim > ini;
 }
@@ -265,7 +268,9 @@ public static class AgendaEngine
         var proximo = bloq.FirstOrDefault(e => e.Ini > instante);
         var anterior = bloq.LastOrDefault(e => e.Fim <= instante);
 
-        var ind = ativos.FirstOrDefault(e => e.EhIndisp);
+        var ind = ativos.FirstOrDefault(e => e.EhIndisp)
+                  // férias/folga/afastamento ainda "a confirmar" também tiram o técnico da disponibilidade
+                  ?? meus.FirstOrDefault(e => e.EhAusencia && e.Provisorio && e.Ini <= instante && instante < e.Fim);
         var atend = ativos.FirstOrDefault(e => e.Tipo == Vocab.EvAtendimento);
         var viag = ativos.FirstOrDefault(e => e.EhViagem);
 
@@ -374,7 +379,7 @@ public static class AgendaEngine
             var (ini, fim) = j.Value;
             var dentro = meus.Where(e => e.Cruza(ini, fim)).ToList();
             var bloq = dentro.Where(e => e.Bloqueia).ToList();
-            if (bloq.Any(e => e.EhIndisp && e.Ini <= ini && e.Fim >= fim)) { res.Add(new Livre(d, "indisponivel")); continue; }
+            if (bloq.Any(e => e.EhIndisp && e.Ini <= ini && e.Fim >= fim) || dentro.Any(e => e.EhAusencia && e.Ini <= ini && e.Fim >= fim)) { res.Add(new Livre(d, "indisponivel")); continue; }
             // cobertura do dia pelos blocos que bloqueiam
             var cobertos = Cobertura(bloq, ini, fim);
             if (cobertos >= (fim - ini) - TimeSpan.FromMinutes(1)) res.Add(new Livre(d, "ocupado"));

@@ -1722,6 +1722,22 @@ public class BuTecnicoTests
     }
 }
 
+public class FeriasTests
+{
+    [Fact]
+    public void Ferias_mesmo_a_confirmar_nao_deixam_o_tecnico_disponivel()
+    {
+        using var a = new Amb(); var t = a.NovoTec();
+        a.Svc.SalvarIndisponibilidade(a.Gestao, new Indisponibilidade { TecnicoId = t.Id, Tipo = Vocab.IndFerias, Ini = Amb.Fut(-2, 0), Fim = Amb.Fut(10, 0), Provisoria = true });
+        var snap = a.Svc.Foto(); var ev = AgendaEngine.Eventos(snap);
+        var est = AgendaEngine.EstadoEm(snap, ev, snap.Tecnicos[t.Id], DateTime.UtcNow, DateTime.UtcNow);
+        Assert.Equal(Vocab.OpFerias, est.Status);
+        var hoje = Tempo.ParaLocal(DateTime.UtcNow, snap.FusoPadrao).Date;
+        var dia = Enumerable.Range(1, 7).Select(i => hoje.AddDays(i)).First(d => d.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday));
+        Assert.Equal("indisponivel", AgendaEngine.Dias(snap, ev, snap.Tecnicos[t.Id], dia, dia)[0].Situacao);
+    }
+}
+
 public class EnderecoCasaTests
 {
     [Theory]
