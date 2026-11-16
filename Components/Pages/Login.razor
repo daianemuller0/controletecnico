@@ -4,7 +4,7 @@
 @inject Db Db
 @inject Servicos Svc
 
-<PageTitle>@L["Acesso"] · @Svc.NomeSistema</PageTitle>
+<PageTitle>Acesso · @Svc.NomeSistema</PageTitle>
 <div class="cover">
     <div class="cover-left">
         <div class="cover-top">
@@ -19,53 +19,53 @@
                     <div class="cover-brand-text"><strong>@Svc.NomeSistema</strong><span>@Svc.SubtituloSistema</span></div>
                 }
             </div>
-            <div class="cover-tags-top"><span>@L["VIAGENS"]</span><span class="dot">·</span><span>@L["AGENDA"]</span><span class="dot">·</span><span>@L["DOCUMENTAÇÃO"]</span></div>
+            <div class="cover-tags-top"><span>VIAGENS</span><span class="dot">·</span><span>AGENDA</span><span class="dot">·</span><span>DOCUMENTAÇÃO</span></div>
         </div>
         <div class="cover-hero">
-            <div class="cover-eyebrow">@L["Gestão e controladoria"]</div>
-            <h1 class="cover-title">@L["Onde cada técnico está, o que faz e"] <span>@L["quando ficará disponível"]</span></h1>
+            <div class="cover-eyebrow">Gestão e controladoria</div>
+            <h1 class="cover-title">Onde cada técnico está, o que faz e <span>quando ficará disponível</span></h1>
             <p class="cover-desc">
-                @L["Mapa, agenda e linha do tempo integrados às viagens, plantas dos clientes e à validade de documentos, treinamentos e certificações de toda a equipe."]
+                Mapa, agenda e linha do tempo integrados às viagens, plantas dos clientes e à validade de documentos,
+                treinamentos e certificações de toda a equipe.
             </p>
             <ul class="cover-list">
-                <li>@Icons.Svg("check")@L["Localização prevista e confirmada, sempre identificadas como tal"]</li>
-                <li>@Icons.Svg("check")@L["Viagens de carro e avião com múltiplos trechos e tempos separados"]</li>
-                <li>@Icons.Svg("check")@L["Conflitos de agenda e de deslocamento sinalizados antes de confirmar"]</li>
-                <li>@Icons.Svg("check")@L["Aptidão documental por planta e serviço, durante todo o atendimento"]</li>
+                <li>@Icons.Svg("check")Localização prevista e confirmada, sempre identificadas como tal</li>
+                <li>@Icons.Svg("check")Viagens de carro e avião com múltiplos trechos e tempos separados</li>
+                <li>@Icons.Svg("check")Conflitos de agenda e de deslocamento sinalizados antes de confirmar</li>
+                <li>@Icons.Svg("check")Aptidão documental por planta e serviço, durante todo o atendimento</li>
             </ul>
         </div>
     </div>
     <div class="cover-right">
         <div class="cover-form">
-            <div class="login-idioma">@foreach (var (cod, nome) in Idiomas.Lista) { <a class="@(L.Idioma == cod ? "on" : "")" href="/idioma-login/@cod">@nome</a> }</div>
             @if (Db.Demo)
             {
-                <div class="demo-chip">@Icons.Svg("info")@L["Ambiente de demonstração · dados fictícios"]</div>
+                <div class="demo-chip">@Icons.Svg("info")Ambiente de demonstração · dados fictícios</div>
             }
-            <div class="cover-eyebrow dark">@L["Acesso restrito"]</div>
-            <h2 class="cover-form-title">@L["Entrar no sistema"]</h2>
-            <p class="cover-form-sub">@L["Use o usuário e a senha fornecidos pela administração."]</p>
+            <div class="cover-eyebrow dark">Acesso restrito</div>
+            <h2 class="cover-form-title">Entrar no sistema</h2>
+            <p class="cover-form-sub">Use o usuário e a senha fornecidos pela administração.</p>
 
-            @if (Erro == "1") { <div class="alert-error" role="alert">@L["Usuário ou senha inválidos."]</div> }
-            @if (Erro == "2") { <div class="alert-error" role="alert">@L["Muitas tentativas. Aguarde alguns minutos e tente de novo."]</div> }
+            @if (Erro == "1") { <div class="alert-error" role="alert">Usuário ou senha inválidos.</div> }
+            @if (Erro == "2") { <div class="alert-error" role="alert">Muitas tentativas. Aguarde alguns minutos e tente de novo.</div> }
 
             <form method="post" action="/auth/login" class="login-form">
-                <label>@L["Usuário"]
-                    <input type="text" name="usuario" autocomplete="username" placeholder="@L["seu.usuario"]" required autofocus />
+                <label>Usuário
+                    <input type="text" name="usuario" autocomplete="username" placeholder="seu.usuario" required autofocus />
                 </label>
-                <label>@L["Senha"]
+                <label>Senha
                     <input type="password" name="senha" autocomplete="current-password" placeholder="••••••••" required />
                 </label>
-                <button type="submit" class="btn-primary">@L["Acessar"] @Icons.Svg("arrow-right")</button>
+                <button type="submit" class="btn-primary">Acessar @Icons.Svg("arrow-right")</button>
             </form>
             @if (Db.Demo)
             {
                 <div class="demo-creds">
-                    <strong>@L["Perfis de demonstração"]</strong> (@L["senha"] <code>demo2026</code>):
-                    <code>admin</code> · <code>gestao</code> · <code>controladoria</code> · <code>carlos</code> (@L["técnico"]) · <code>consulta</code>
+                    <strong>Perfis de demonstração</strong> (senha <code>demo2026</code>):
+                    <code>admin</code> · <code>gestao</code> · <code>controladoria</code> · <code>carlos</code> (técnico) · <code>consulta</code>
                 </div>
             }
-            <div class="cover-form-foot">@Icons.Svg("lock")<span>@L["Acesso exclusivo para usuários autorizados"]</span></div>
+            <div class="cover-form-foot">@Icons.Svg("lock")<span>Acesso exclusivo para usuários autorizados</span></div>
         </div>
     </div>
 </div>

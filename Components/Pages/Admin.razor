@@ -7,158 +7,157 @@
 @inject Sessao Sessao
 @inject IConfiguration Cfg
 
-<PageTitle>@L["Administração"] · Controle Técnico</PageTitle>
-<div class="page-head compacto"><div><h1>@L["Administração"]</h1><p class="subtitle">@L["Usuários e permissões, configurações, integrações e histórico de alterações."]</p></div></div>
+<PageTitle>Administração · Controle Técnico</PageTitle>
+<div class="page-head compacto"><div><h1>Administração</h1><p class="subtitle">Usuários e permissões, configurações, integrações e histórico de alterações.</p></div></div>
 
 <div class="tabs" role="tablist">
     @if (_ator.Pode(Perm.Administrar))
     {
-        <button class="tab @(_aba == "usr" ? "active" : "")" @onclick='() => _aba = "usr"'>@L["Usuários e perfis"]</button>
-        <button class="tab @(_aba == "cfg" ? "active" : "")" @onclick='() => _aba = "cfg"'>@L["Configurações e integrações"]</button>
+        <button class="tab @(_aba == "usr" ? "active" : "")" @onclick='() => _aba = "usr"'>Usuários e perfis</button>
+        <button class="tab @(_aba == "cfg" ? "active" : "")" @onclick='() => _aba = "cfg"'>Configurações e integrações</button>
     }
-    @if (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.EditarTecnicos)) { <button class="tab @(_aba == "apres" ? "active" : "")" @onclick='() => _aba = "apres"'>@L["Apresentação"]</button> }
-    @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "marca" ? "active" : "")" @onclick='() => _aba = "marca"'>@L["Identidade visual"]</button> }
-    @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "arm" ? "active" : "")" @onclick='() => _aba = "arm"'>@L["Armazenamento"]</button> }
-    <button class="tab @(_aba == "aud" ? "active" : "")" @onclick='() => _aba = "aud"'>@L["Histórico de alterações"]</button>
+    @if (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.EditarTecnicos)) { <button class="tab @(_aba == "apres" ? "active" : "")" @onclick='() => _aba = "apres"'>Apresentação</button> }
+    @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "marca" ? "active" : "")" @onclick='() => _aba = "marca"'>Identidade visual</button> }
+    @if (_ator.Pode(Perm.Administrar)) { <button class="tab @(_aba == "arm" ? "active" : "")" @onclick='() => _aba = "arm"'>Armazenamento</button> }
+    <button class="tab @(_aba == "aud" ? "active" : "")" @onclick='() => _aba = "aud"'>Histórico de alterações</button>
 </div>
 
 @if (_aba == "usr" && _ator.Pode(Perm.Administrar))
 {
-    <div class="toolbar"><span class="grow"></span><button class="btn-primary" @onclick="NovoUsuario">@Icons.Svg("plus")@L["Novo usuário"]</button></div>
+    <div class="toolbar"><span class="grow"></span><button class="btn-primary" @onclick="NovoUsuario">@Icons.Svg("plus")Novo usuário</button></div>
     <div class="table-wrap"><table class="grid-tbl">
-        <thead><tr><th>@L["Login"]</th><th>@L["Nome"]</th><th>@L["Perfil"]</th><th>@L["Equipe de controle"]</th><th>@L["Técnico vinculado"]</th><th>BUs</th><th>@L["Idioma"]</th><th>@L["Situação"]</th><th></th></tr></thead>
+        <thead><tr><th>Login</th><th>Nome</th><th>Perfil</th><th>Equipe de controle</th><th>Técnico vinculado</th><th>Situação</th><th></th></tr></thead>
         <tbody>
         @foreach (var u in _usuarios)
         {
-            <tr><td><code>@u.Id</code></td><td>@if (Svc.FotoDoUsuario(u.Id) is { Length: > 0 } fu) { <img class="user-av-mini" src="/arquivos/@fu" alt="" /> } @u.Nome</td><td><span class="tag">@L[Roles.Label(u.Papel)]</span></td><td>@if (u.EquipeControle) { <span class="badge st-info">@Icons.Svg("check", "bico")@L["Sim"]</span> }</td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
-                <td>@(string.IsNullOrEmpty(u.Bus) ? L["Todas"] : u.Bus.Replace(",", ", "))</td><td>@(u.Idioma == "es" ? "Español" : "Português")</td>
-                <td><span class="badge @(u.Ativo ? "st-pos" : "st-neutral")">@(u.Ativo ? L["Ativo"] : L["Inativo"])</span></td>
+            <tr><td><code>@u.Id</code></td><td>@if (Svc.FotoDoUsuario(u.Id) is { Length: > 0 } fu) { <img class="user-av-mini" src="/arquivos/@fu" alt="" /> } @u.Nome</td><td><span class="tag">@Roles.Label(u.Papel)</span></td><td>@if (u.EquipeControle) { <span class="badge st-info">@Icons.Svg("check", "bico")Sim</span> }</td><td>@Db.Tecnicos.Obter(u.TecnicoId)?.Nome</td>
+                <td><span class="badge @(u.Ativo ? "st-pos" : "st-neutral")">@(u.Ativo ? "Ativo" : "Inativo")</span></td>
                 <td class="right"><span class="acoes-usr">
-                    <button class="btn-ghost sm" @onclick="() => EditarUsuario(u)" title="@L["Editar dados, perfil e senha"]">@Icons.Svg("edit")@L["Editar"]</button>
-                    @if (u.Id != _ator.Login) { <button class="btn-ghost sm perigo" @onclick="() => { _excluirU = u; _erros = null; }" title="@L["Excluir usuário"]">@Icons.Svg("trash")@L["Excluir"]</button> }
+                    <button class="btn-ghost sm" @onclick="() => EditarUsuario(u)" title="Editar dados, perfil e senha">@Icons.Svg("edit")Editar</button>
+                    @if (u.Id != _ator.Login) { <button class="btn-ghost sm perigo" @onclick="() => { _excluirU = u; _erros = null; }" title="Excluir usuário">@Icons.Svg("trash")Excluir</button> }
                 </span></td></tr>
         }
         </tbody>
     </table></div>
     <div class="panel mt16">
-        <div class="panel-head"><div class="panel-title">@L["O que cada perfil pode fazer"]</div></div>
-        <table class="grid-tbl matriz"><thead><tr><th>@L["Permissão"]</th>@foreach (var r in Roles.All) { <th>@L[r.Label]</th> }</tr></thead><tbody>
+        <div class="panel-head"><div class="panel-title">O que cada perfil pode fazer</div></div>
+        <table class="grid-tbl matriz"><thead><tr><th>Permissão</th>@foreach (var r in Roles.All) { <th>@r.Label</th> }</tr></thead><tbody>
             @foreach (var (p, nome) in Matriz)
             {
-                <tr><td>@L[nome]</td>@foreach (var r in Roles.All) { var a = new Ator { Papel = r.Role }; <td class="c">@(a.Pode(p) ? "●" : r.Role == Roles.Tecnico && new Ator { Papel = r.Role, TecnicoId = "x" }.Pode(p, "x") ? L["só o próprio"] : "—")</td> }</tr>
+                <tr><td>@nome</td>@foreach (var r in Roles.All) { var a = new Ator { Papel = r.Role }; <td class="c">@(a.Pode(p) ? "●" : r.Role == Roles.Tecnico && new Ator { Papel = r.Role, TecnicoId = "x" }.Pode(p, "x") ? "só o próprio" : "—")</td> }</tr>
             }
         </tbody></table>
-        <p class="muted sm">@L["As permissões são aplicadas no servidor em cada operação, não apenas na interface."]</p>
+        <p class="muted sm">As permissões são aplicadas no servidor em cada operação, não apenas na interface.</p>
     </div>
 }
 else if (_aba == "cfg" && _ator.Pode(Perm.Administrar))
 {
     <div class="g12 top">
         <div class="c6"><div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["Parâmetros"]</div></div>
+            <div class="panel-head"><div class="panel-title">Parâmetros</div></div>
             <div class="form-grid">
-                <label class="fld full">@L["Alertas antecipados de vencimento (dias, separados por vírgula)"]<input @bind="_alertas" /></label>
-                <label class="fld">@L["Fuso horário padrão da agenda"]<CampoLista Value="@_fuso" ValueChanged="@((string v) => { _fuso = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" Class="field" /></label>
-                <label class="fld">@L["Validade da localização confirmada (horas)"]<input type="number" min="1" @bind="_horas" /></label>
-                <label class="fld full">@L["E-mail de contato da geocodificação"] <span class="hint">@L["opcional, recomendado pela política do serviço de mapas (Nominatim/OpenStreetMap)"]</span><input type="email" @bind="_contatoGeo" placeholder="@L["ti@suaempresa.com"]" /></label>
+                <label class="fld full">Alertas antecipados de vencimento (dias, separados por vírgula)<input @bind="_alertas" /></label>
+                <label class="fld">Fuso horário padrão da agenda<CampoLista Value="@_fuso" ValueChanged="@((string v) => { _fuso = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" Class="field" /></label>
+                <label class="fld">Validade da localização confirmada (horas)<input type="number" min="1" @bind="_horas" /></label>
+                <label class="fld full">E-mail de contato da geocodificação <span class="hint">opcional, recomendado pela política do serviço de mapas (Nominatim/OpenStreetMap)</span><input type="email" @bind="_contatoGeo" placeholder="ti@suaempresa.com" /></label>
             </div>
-            @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@L[e]</div> }</div></div> }
-            <div class="modal-actions"><button class="btn-primary" @onclick="SalvarCfg">@Icons.Svg("check")@L["Salvar"]</button></div>
+            @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
+            <div class="modal-actions"><button class="btn-primary" @onclick="SalvarCfg">@Icons.Svg("check")Salvar</button></div>
         </div></div>
         <div class="c6"><div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["Integrações externas"]</div></div>
-            <p class="muted sm">@L["Configuradas por ambiente (appsettings ou variáveis de ambiente). Segredos nunca ficam no código."]</p>
+            <div class="panel-head"><div class="panel-title">Integrações externas</div></div>
+            <p class="muted sm">Configuradas por ambiente (appsettings ou variáveis de ambiente). Segredos nunca ficam no código.</p>
             <table class="grid-tbl"><tbody>
-                <tr><td><strong>@L["Geocodificação (localizar plantas pelo endereço)"]</strong><div class="muted sm">Geocoding__Ativo · Geocoding__BaseUrl · Geocoding__Contato</div></td><td>@if (Geo.Configurado) { <span class="badge st-pos">@L["Ativa"]</span> } else { <span class="badge st-warn">@L["Desativada"]</span> }</td></tr>
-                <tr><td><strong>@L["Estimativa de rota (carro)"]</strong><div class="muted sm">Routing__BaseUrl @L["(compatível com OSRM)"]</div></td><td>@if (Rt.Configurada) { <span class="badge st-pos">@L["Ativa"]</span> } else { <span class="badge st-warn">@L["Não configurada — informar manualmente"]</span> }</td></tr>
-                <tr><td><strong>@L["Camada do mapa"]</strong><div class="muted sm">Mapa__TileUrl · @Cfg["Mapa:TileUrl"]</div></td><td><span class="badge st-info">@L["OpenStreetMap (público)"]</span></td></tr>
+                <tr><td><strong>Geocodificação (localizar plantas pelo endereço)</strong><div class="muted sm">Geocoding__Ativo · Geocoding__BaseUrl · Geocoding__Contato</div></td><td>@if (Geo.Configurado) { <span class="badge st-pos">Ativa</span> } else { <span class="badge st-warn">Desativada</span> }</td></tr>
+                <tr><td><strong>Estimativa de rota (carro)</strong><div class="muted sm">Routing__BaseUrl (compatível com OSRM)</div></td><td>@if (Rt.Configurada) { <span class="badge st-pos">Ativa</span> } else { <span class="badge st-warn">Não configurada — informar manualmente</span> }</td></tr>
+                <tr><td><strong>Camada do mapa</strong><div class="muted sm">Mapa__TileUrl · @Cfg["Mapa:TileUrl"]</div></td><td><span class="badge st-info">OpenStreetMap (público)</span></td></tr>
             </tbody></table>
         </div></div>
     </div>
     <div class="panel mt16" style="max-width:900px">
-        <div class="panel-head"><div class="panel-title">@Icons.Svg("customers")@(L["Endereço da empresa (técnicos \"na Howden\")"])</div></div>
-        <p class="muted sm">@L["Quando um técnico não está em viagem ele aparece"] <strong>@L["em casa"]</strong> @L["(endereço da ficha) ou, se marcado,"] <strong>@L["neste endereço"]</strong>@L[". Em ambos os casos fica disponível."]</p>
+        <div class="panel-head"><div class="panel-title">@Icons.Svg("customers")Endereço da empresa (técnicos "na Howden")</div></div>
+        <p class="muted sm">Quando um técnico não está em viagem ele aparece <strong>em casa</strong> (endereço da ficha) ou, se marcado, <strong>neste endereço</strong>. Em ambos os casos fica disponível.</p>
         <div class="form-grid g3">
-            <label class="fld">@L["Nome do local"]<input @bind="_hNome" maxlength="80" /></label>
-            <label class="fld full">@L["Endereço (rua, número, bairro)"]<input @bind="_hRua" /></label>
-            <label class="fld">@L["Cidade"]<input @bind="_hCidade" /></label>
-            <label class="fld">@L["Estado"]<input @bind="_hEstado" /></label>
-            <label class="fld">@L["País"]<input @bind="_hPais" /></label>
+            <label class="fld">Nome do local<input @bind="_hNome" maxlength="80" /></label>
+            <label class="fld full">Endereço (rua, número, bairro)<input @bind="_hRua" /></label>
+            <label class="fld">Cidade<input @bind="_hCidade" /></label>
+            <label class="fld">Estado<input @bind="_hEstado" /></label>
+            <label class="fld">País<input @bind="_hPais" /></label>
         </div>
-        <div class="mt8"><strong class="sm">@L["Posição exata da empresa no mapa"]</strong>
+        <div class="mt8"><strong class="sm">Posição exata da empresa no mapa</strong>
             <PosicaoExata Lat="@Svc.Howden().lat" Lon="@Svc.Howden().lon" Nivel="@Db.Cfg("howden_nivel")" OnDefinir="HowdenNoMapa" />
         </div>
-        @if (_errosH is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosH) { <div>@L[e]</div> }</div></div> }
-        <div class="modal-actions"><button class="btn-primary" @onclick="SalvarHowden">@Icons.Svg("check")@L["Salvar endereço da empresa"]</button></div>
+        @if (_errosH is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosH) { <div>@e</div> }</div></div> }
+        <div class="modal-actions"><button class="btn-primary" @onclick="SalvarHowden">@Icons.Svg("check")Salvar endereço da empresa</button></div>
     </div>
     <div class="panel mt16" style="max-width:900px">
-        <div class="panel-head"><div class="panel-title">@Icons.Svg("mail")@L["E-mail do relatório do serviço"]</div></div>
-        <p class="muted sm">@L["Quem recebe o e-mail que o técnico envia ao terminar a visita (aba"] <strong>@L["Feedback do serviço"]</strong> @L["da viagem). Separe os e-mails com ponto e vírgula."]</p>
+        <div class="panel-head"><div class="panel-title">@Icons.Svg("mail")E-mail do relatório do serviço</div></div>
+        <p class="muted sm">Quem recebe o e-mail que o técnico envia ao terminar a visita (aba <strong>Feedback do serviço</strong> da viagem). Separe os e-mails com ponto e vírgula.</p>
         <div class="form-grid">
-            <label class="fld full">@L["Sempre recebem"] <span class="hint">@L["serviço finalizado, com oportunidade de venda ou com ocorrência"]</span><textarea rows="2" @bind="_relPara"></textarea></label>
-            <label class="fld full">@L["Também recebem quando há oportunidade de venda ou ocorrência"]<textarea rows="2" @bind="_relVenda"></textarea></label>
+            <label class="fld full">Sempre recebem <span class="hint">serviço finalizado, com oportunidade de venda ou com ocorrência</span><textarea rows="2" @bind="_relPara"></textarea></label>
+            <label class="fld full">Também recebem quando há oportunidade de venda ou ocorrência<textarea rows="2" @bind="_relVenda"></textarea></label>
         </div>
-        @if (_errosRel is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosRel) { <div>@L[e]</div> }</div></div> }
-        <div class="modal-actions"><button class="btn-primary" @onclick="SalvarRelatorio">@Icons.Svg("check")@L["Salvar destinatários"]</button></div>
+        @if (_errosRel is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosRel) { <div>@e</div> }</div></div> }
+        <div class="modal-actions"><button class="btn-primary" @onclick="SalvarRelatorio">@Icons.Svg("check")Salvar destinatários</button></div>
     </div>
 }
 else if (_aba == "aud")
 {
     <div class="toolbar">
-        <input class="field busca" placeholder="@L["Filtrar por usuário, ação ou texto…"]" @bind="_buscaAud" @bind:event="oninput" />
-        <select class="field w-auto" @bind="_fAcao"><option value="">@L["Todas as ações"]</option>@foreach (var a in _aud.Select(x => x.Acao.Split('.')[0]).Distinct().OrderBy(x => x)) {<option>@a</option>}</select>
+        <input class="field busca" placeholder="Filtrar por usuário, ação ou texto…" @bind="_buscaAud" @bind:event="oninput" />
+        <select class="field w-auto" @bind="_fAcao"><option value="">Todas as ações</option>@foreach (var a in _aud.Select(x => x.Acao.Split('.')[0]).Distinct().OrderBy(x => x)) {<option>@a</option>}</select>
     </div>
     <div class="table-wrap"><table class="grid-tbl">
-        <thead><tr><th>@L["Quando"]</th><th>@L["Quem"]</th><th>@L["Ação"]</th><th>@L["Detalhe"]</th></tr></thead>
+        <thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Detalhe</th></tr></thead>
         <tbody>
         @foreach (var a in AudFiltrada.Take(300))
         {
-            <tr><td class="nowrap">@Tempo.Hora(a.Quando, Db.FusoPadrao, null, true)</td><td>@a.Usuario <span class="muted sm">(@L[Roles.Label(a.Papel)])</span></td><td><code>@a.Acao</code></td><td>@a.Resumo</td></tr>
+            <tr><td class="nowrap">@Tempo.Hora(a.Quando, Db.FusoPadrao, null, true)</td><td>@a.Usuario <span class="muted sm">(@Roles.Label(a.Papel))</span></td><td><code>@a.Acao</code></td><td>@a.Resumo</td></tr>
         }
         </tbody></table></div>
-    <p class="muted sm">@L.F("Exibindo as 300 mais recentes que atendem ao filtro (de {0} registros).", _aud.Count)</p>
+    <p class="muted sm">Exibindo as 300 mais recentes que atendem ao filtro (de @_aud.Count registros).</p>
 }
 else if (_aba == "apres" && (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.EditarTecnicos)))
 {
-    <p class="muted">@L["Defina o que aparece (e em que ordem) quando alguém aperta"] <strong>@L["Modo automático"]</strong> @L["na Visão operacional. Vale para todos os usuários."]</p>
+    <p class="muted">Defina o que aparece (e em que ordem) quando alguém aperta <strong>Modo automático</strong> na Visão operacional. Vale para todos os usuários.</p>
     <div class="g12 top">
         <div class="c6"><div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["Etapas e ordem"]</div></div>
+            <div class="panel-head"><div class="panel-title">Etapas e ordem</div></div>
             <ul class="ap-lista">
                 @foreach (var (e, i) in _apOrdem.Select((e, i) => (e, i)))
                 {
                     var on = _ap.Etapas.Contains(e.Chave);
                     <li class="@(on ? "" : "off")">
-                        <input type="checkbox" checked="@on" @onchange="x => ApAlternar(e.Chave, (bool)x.Value!)" aria-label="@L.F("Mostrar {0}", L[e.Titulo])" />
+                        <input type="checkbox" checked="@on" @onchange="x => ApAlternar(e.Chave, (bool)x.Value!)" aria-label="Mostrar @e.Titulo" />
                         <span class="ap-ico" style="background:@e.Cor">@Icons.Svg(e.Icone)</span>
-                        <span class="ap-nome"><strong>@L[e.Titulo]</strong><small>@L[e.Sub]</small></span>
-                        <button class="icon-btn" disabled="@(i == 0)" @onclick="() => ApMover(i, -1)" aria-label="@L["Subir"]">@Icons.Svg("up")</button>
-                        <button class="icon-btn" disabled="@(i == _apOrdem.Count - 1)" @onclick="() => ApMover(i, 1)" aria-label="@L["Descer"]">@Icons.Svg("down")</button>
+                        <span class="ap-nome"><strong>@e.Titulo</strong><small>@e.Sub</small></span>
+                        <button class="icon-btn" disabled="@(i == 0)" @onclick="() => ApMover(i, -1)" aria-label="Subir">@Icons.Svg("up")</button>
+                        <button class="icon-btn" disabled="@(i == _apOrdem.Count - 1)" @onclick="() => ApMover(i, 1)" aria-label="Descer">@Icons.Svg("down")</button>
                     </li>
                 }
             </ul>
         </div></div>
         <div class="c6">
             <div class="panel">
-                <div class="panel-head"><div class="panel-title">@L["Indicadores gerenciais — o que mostrar"]</div></div>
-                @foreach (var g in AutoEtapas.Graficos) { <label class="chk-inline ap-chk"><input type="checkbox" checked="@_ap.Graficos.Contains(g.Chave)" @onchange="x => ApLista(_ap.Graficos, g.Chave, (bool)x.Value!)" />@L[g.Rotulo]</label> }
+                <div class="panel-head"><div class="panel-title">Indicadores gerenciais — o que mostrar</div></div>
+                @foreach (var g in AutoEtapas.Graficos) { <label class="chk-inline ap-chk"><input type="checkbox" checked="@_ap.Graficos.Contains(g.Chave)" @onchange="x => ApLista(_ap.Graficos, g.Chave, (bool)x.Value!)" />@g.Rotulo</label> }
             </div>
             <div class="panel mt16">
-                <div class="panel-head"><div class="panel-title">@L["Agenda — visualizações"]</div></div>
-                @foreach (var v in AutoEtapas.VistasAgenda) { <label class="chk-inline ap-chk"><input type="checkbox" checked="@_ap.Vistas.Contains(v.Chave)" @onchange="x => ApLista(_ap.Vistas, v.Chave, (bool)x.Value!)" />@L[v.Rotulo]</label> }
+                <div class="panel-head"><div class="panel-title">Agenda — visualizações</div></div>
+                @foreach (var v in AutoEtapas.VistasAgenda) { <label class="chk-inline ap-chk"><input type="checkbox" checked="@_ap.Vistas.Contains(v.Chave)" @onchange="x => ApLista(_ap.Vistas, v.Chave, (bool)x.Value!)" />@v.Rotulo</label> }
             </div>
             <div class="panel mt16">
-                <div class="panel-head"><div class="panel-title">@L["Ritmo"]</div></div>
-                <label class="fld">@L["Velocidade ao iniciar"]<select @bind="_ap.Velocidade"><option value="lenta">@L["Lenta"]</option><option value="normal">@L["Normal"]</option><option value="rapida">@L["Rápida"]</option></select></label>
-                <label class="chk-inline ap-chk"><input type="checkbox" @bind="_ap.Repetir" />@L["Repetir o ciclo continuamente (desmarque para encerrar ao fim)"]</label>
+                <div class="panel-head"><div class="panel-title">Ritmo</div></div>
+                <label class="fld">Velocidade ao iniciar<select @bind="_ap.Velocidade"><option value="lenta">Lenta</option><option value="normal">Normal</option><option value="rapida">Rápida</option></select></label>
+                <label class="chk-inline ap-chk"><input type="checkbox" @bind="_ap.Repetir" />Repetir o ciclo continuamente (desmarque para encerrar ao fim)</label>
             </div>
         </div>
     </div>
-    @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt16">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@L[e]</div> }</div></div> }
+    @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt16">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
     <div class="modal-actions" style="justify-content:flex-start;gap:10px">
-        <button class="btn-primary" @onclick="ApSalvar">@Icons.Svg("check")@L["Salvar apresentação"]</button>
-        <button class="btn-ghost" @onclick="ApPadrao">@L["Restaurar padrão"]</button>
-        <a class="btn-ghost" href="/">@Icons.Svg("monitor")@L["Ir para a Visão operacional"]</a>
+        <button class="btn-primary" @onclick="ApSalvar">@Icons.Svg("check")Salvar apresentação</button>
+        <button class="btn-ghost" @onclick="ApPadrao">Restaurar padrão</button>
+        <a class="btn-ghost" href="/">@Icons.Svg("monitor")Ir para a Visão operacional</a>
     </div>
 }
 else if (_aba == "marca" && _ator.Pode(Perm.Administrar))
@@ -169,72 +168,69 @@ else if (_aba == "arm" && _ator.Pode(Perm.Administrar))
 {
     var d = Svc.DiagnosticoArmazenamento(_ator);
     <div class="panel">
-        <div class="panel-head"><div class="panel-title">@L["Base de dados compartilhada"]</div>@if (d.Ok) { <span class="badge st-pos">@Icons.Svg("check", "bico")@L["Leitura e escrita OK"]</span> } else { <span class="badge st-neg">@Icons.Svg("x", "bico")@L["Problema de acesso"]</span> }</div>
+        <div class="panel-head"><div class="panel-title">Base de dados compartilhada</div>@if (d.Ok) { <span class="badge st-pos">@Icons.Svg("check", "bico")Leitura e escrita OK</span> } else { <span class="badge st-neg">@Icons.Svg("x", "bico")Problema de acesso</span> }</div>
         <dl class="ficha-dl">
-            <dt>@L["Pasta"]</dt><dd><code>@d.Pasta</code></dd>
-            <dt>@L["Pasta de rede"]</dt><dd>@(d.Rede ? L["Sim"] : L["Não (pasta local)"])</dd>
-            <dt>@L["Espelho local (leitura)"]</dt><dd>@(d.Espelho is null ? L["não usado"] : d.Espelho)</dd>
-            <dt>@L["Leitura das telas"]</dt><dd>@(Repo<Tecnico>.SincronizarEmSegundoPlano ? L["cópia local no computador (rápida); a rede é conferida em segundo plano"] : L["direto da pasta"])</dd>
-            @if (Repo<Tecnico>.SincronizarEmSegundoPlano) { <dt>@L["Última conferência com a rede"]</dt><dd>@(SincronizacaoService.UltimaConferencia is { } uc ? Ui.Hora(uc, null, Svc.Foto(_ator), true) : L["ainda não"]) @if (SincronizacaoService.UltimoErro is { } ue) { <span class="neg"> · @L[ue]</span> }</dd> }
-            <dt>@L["Teste de gravação"]</dt><dd>@d.LatenciaMs ms @if (!string.IsNullOrEmpty(d.Mensagem)) { <span class="neg"> · @L[d.Mensagem]</span> }</dd>
+            <dt>Pasta</dt><dd><code>@d.Pasta</code></dd>
+            <dt>Pasta de rede</dt><dd>@(d.Rede ? "Sim" : "Não (pasta local)")</dd>
+            <dt>Espelho local (leitura)</dt><dd>@(d.Espelho is null ? "não usado" : d.Espelho)</dd>
+            <dt>Leitura das telas</dt><dd>@(Repo<Tecnico>.SincronizarEmSegundoPlano ? "cópia local no computador (rápida); a rede é conferida em segundo plano" : "direto da pasta")</dd>
+            @if (Repo<Tecnico>.SincronizarEmSegundoPlano) { <dt>Última conferência com a rede</dt><dd>@(SincronizacaoService.UltimaConferencia is { } uc ? Ui.Hora(uc, null, Svc.Foto(), true) : "ainda não") @if (SincronizacaoService.UltimoErro is { } ue) { <span class="neg"> · @ue</span> }</dd> }
+            <dt>Teste de gravação</dt><dd>@d.LatenciaMs ms @if (!string.IsNullOrEmpty(d.Mensagem)) { <span class="neg"> · @d.Mensagem</span> }</dd>
         </dl>
-        <p class="muted sm">@L["Cada gravação cria um arquivo pequeno na pasta da entidade; a compactação consolida os arquivos e move os antigos para"] <code>_historico</code> @L["(30 dias)."]</p>
-        <table class="grid-tbl"><thead><tr><th>@L["Entidade"]</th><th>@L["Arquivos na pasta"]</th></tr></thead><tbody>
+        <p class="muted sm">Cada gravação cria um arquivo pequeno na pasta da entidade; a compactação consolida os arquivos e move os antigos para <code>_historico</code> (30 dias).</p>
+        <table class="grid-tbl"><thead><tr><th>Entidade</th><th>Arquivos na pasta</th></tr></thead><tbody>
             @foreach (var kv in d.Arquivos.OrderBy(k => k.Key)) { <tr><td>@kv.Key</td><td>@kv.Value</td></tr> }
         </tbody></table>
-        <div class="modal-actions"><button class="btn-ghost" @onclick="Compactar">@Icons.Svg("layers")@L["Compactar agora"]</button></div>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="Compactar">@Icons.Svg("layers")Compactar agora</button></div>
     </div>
 }
 else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
 {
     <div class="panel">
-        <div class="panel-head"><div class="panel-title">@L["Ambiente de demonstração"]</div></div>
-        <p>@L["Situação:"] @if (Db.Demo) { <span class="badge st-warn">@L["Demonstração (dados fictícios)"]</span> } else { <span class="badge st-pos">@L["Dados reais"]</span> }</p>
+        <div class="panel-head"><div class="panel-title">Ambiente de demonstração</div></div>
+        <p>Situação: @if (Db.Demo) { <span class="badge st-warn">Demonstração (dados fictícios)</span> } else { <span class="badge st-pos">Dados reais</span> }</p>
         <div class="imp-acoes">
-            <button class="btn-ghost" @onclick="@(() => _confirma = "recarregar")">@Icons.Svg("refresh")@L["Recarregar dados fictícios"]</button>
-            <button class="btn-danger-ghost" @onclick="@(() => _confirma = "limpar")">@Icons.Svg("trash")@L["Apagar todos os dados operacionais"]</button>
+            <button class="btn-ghost" @onclick="@(() => _confirma = "recarregar")">@Icons.Svg("refresh")Recarregar dados fictícios</button>
+            <button class="btn-danger-ghost" @onclick="@(() => _confirma = "limpar")">@Icons.Svg("trash")Apagar todos os dados operacionais</button>
         </div>
-        <p class="muted sm">@L["Usuários e histórico de alterações são preservados. Apagar remove técnicos, clientes, plantas, viagens, documentos e anexos."]</p>
+        <p class="muted sm">Usuários e histórico de alterações são preservados. Apagar remove técnicos, clientes, plantas, viagens, documentos e anexos.</p>
     </div>
 }
 
 @if (_excluirU is not null)
 {
-    <Dialogo Titulo="@L["Excluir usuário"]" OnFechar="@(() => _excluirU = null)" Erros="_erros">
+    <Dialogo Titulo="Excluir usuário" OnFechar="@(() => _excluirU = null)" Erros="_erros">
         <ChildContent>
-            <p class="confirma-txt">@L["Você tem certeza que quer excluir o usuário"] <strong>@_excluirU.Nome</strong> (<code>@_excluirU.Id</code>)?</p>
-            <p class="muted">@(L["Ele deixa de entrar no sistema. O que ele fez continua no histórico de alterações. Para só bloquear o acesso por um tempo, use Editar → desmarque \"Usuário ativo\"."])</p>
+            <p class="confirma-txt">Você tem certeza que quer excluir o usuário <strong>@_excluirU.Nome</strong> (<code>@_excluirU.Id</code>)?</p>
+            <p class="muted">Ele deixa de entrar no sistema. O que ele fez continua no histórico de alterações. Para só bloquear o acesso por um tempo, use Editar → desmarque "Usuário ativo".</p>
         </ChildContent>
         <Rodape>
-            <button class="btn-ghost" @onclick="@(() => _excluirU = null)">@L["Não"]</button>
-            <button class="btn-danger" @onclick="ConfirmarExcluirUsuario">@Icons.Svg("trash")@L["Sim, excluir"]</button>
+            <button class="btn-ghost" @onclick="@(() => _excluirU = null)">Não</button>
+            <button class="btn-danger" @onclick="ConfirmarExcluirUsuario">@Icons.Svg("trash")Sim, excluir</button>
         </Rodape>
     </Dialogo>
 }
 @if (_u is not null)
 {
-    <Dialogo Titulo="@(_novoU ? L["Novo usuário"] : L["Editar usuário"])" OnFechar="@(() => _u = null)" Erros="_erros">
+    <Dialogo Titulo="@(_novoU ? "Novo usuário" : "Editar usuário")" OnFechar="@(() => _u = null)" Erros="_erros">
         <div class="form-grid">
-            <label class="fld">@L["Login"]<input @bind="_u.Id" disabled="@(!_novoU)" /></label>
-            <label class="fld">@L["Nome"]<input @bind="_u.Nome" /></label>
-            <label class="fld">@L["Perfil"]<select @bind="_u.Papel">@foreach (var r in Roles.All) {<option value="@r.Role">@L[r.Label]</option>}</select></label>
-            @if (!_novoU) { <div class="fld"><span>@L["Foto"]</span><InputFile OnChange="FotoUsuario" accept=".jpg,.jpeg,.png" /></div> }
-            <label class="fld chk"><input type="checkbox" @bind="_u.EquipeControle" />@L["Equipe de controle de viagens"] <span class="hint">@(L["pode ser responsável por viagens e tem \"Minhas viagens\""])</span></label>
-            <label class="fld">@L["Técnico vinculado"] <span class="hint">@L["obrigatório para o perfil Técnico"]</span><select @bind="_u.TecnicoId"><option value="">—</option>@foreach (var t in Db.Tecnicos.Todos().OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select></label>
-            <label class="fld full">@(_novoU ? L["Senha (mín. 8 caracteres)"] : L["Nova senha (deixe vazio para manter)"])<input type="password" @bind="_senha" autocomplete="new-password" /></label>
-            <div class="fld full"><span>@L["BUs que acessa"] <span class="hint">@L["nenhuma marcada = todas"]</span></span>
-                <div class="chk-grid">@foreach (var b in Vocab.Bus) { <label class="chk-inline"><input type="checkbox" checked="@Ator.LerBus(_u.Bus).Contains(b.Cod)" @onchange="@(e => AlternarBu(b.Cod, (bool)e.Value!))" />@L[b.Nome]</label> }</div></div>
-            <label class="fld">@L["Idioma do sistema"]<select @bind="_u.Idioma"><option value="pt">Português</option><option value="es">Español</option></select></label>
-            <label class="fld chk"><input type="checkbox" @bind="_u.Ativo" />@L["Usuário ativo"]</label>
+            <label class="fld">Login<input @bind="_u.Id" disabled="@(!_novoU)" /></label>
+            <label class="fld">Nome<input @bind="_u.Nome" /></label>
+            <label class="fld">Perfil<select @bind="_u.Papel">@foreach (var r in Roles.All) {<option value="@r.Role">@r.Label</option>}</select></label>
+            @if (!_novoU) { <div class="fld"><span>Foto</span><InputFile OnChange="FotoUsuario" accept=".jpg,.jpeg,.png" /></div> }
+            <label class="fld chk"><input type="checkbox" @bind="_u.EquipeControle" />Equipe de controle de viagens <span class="hint">pode ser responsável por viagens e tem "Minhas viagens"</span></label>
+            <label class="fld">Técnico vinculado <span class="hint">obrigatório para o perfil Técnico</span><select @bind="_u.TecnicoId"><option value="">—</option>@foreach (var t in Db.Tecnicos.Todos().OrderBy(t => t.Nome)) {<option value="@t.Id">@t.Nome</option>}</select></label>
+            <label class="fld full">@(_novoU ? "Senha (mín. 8 caracteres)" : "Nova senha (deixe vazio para manter)")<input type="password" @bind="_senha" autocomplete="new-password" /></label>
+            <label class="fld chk"><input type="checkbox" @bind="_u.Ativo" />Usuário ativo</label>
         </div>
-        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _u = null)">@L["Cancelar"]</button><button class="btn-primary" @onclick="SalvarUsuario">@Icons.Svg("check")@L["Salvar"]</button></div>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _u = null)">Cancelar</button><button class="btn-primary" @onclick="SalvarUsuario">@Icons.Svg("check")Salvar</button></div>
     </Dialogo>
 }
 @if (_confirma != "")
 {
-    <Dialogo Titulo="@L["Confirmar"]" OnFechar="@(() => _confirma = "")" Erros="_erros">
-        <p>@(_confirma == "recarregar" ? L["Apagar os dados atuais e carregar novamente os dados fictícios?"] : L["Apagar TODOS os dados operacionais e anexos? Esta ação não pode ser desfeita."])</p>
-        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _confirma = "")">@L["Cancelar"]</button><button class="btn-danger" @onclick="ExecutarDados">@L["Confirmar"]</button></div>
+    <Dialogo Titulo="Confirmar" OnFechar="@(() => _confirma = "")" Erros="_erros">
+        <p>@(_confirma == "recarregar" ? "Apagar os dados atuais e carregar novamente os dados fictícios?" : "Apagar TODOS os dados operacionais e anexos? Esta ação não pode ser desfeita.")</p>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _confirma = "")">Cancelar</button><button class="btn-danger" @onclick="ExecutarDados">Confirmar</button></div>
     </Dialogo>
 }
 
@@ -277,7 +273,7 @@ else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
     private async Task HowdenNoMapa((double lat, double lon, string origem) x)
     {
         _errosH = null;
-        try { await Svc.SalvarHowdenAsync(_ator, _hNome, _hRua, _hCidade, _hEstado, _hPais, x.lat, x.lon, null); HowdenCarregar(); Sessao.Avisar(L["Posição exata da Howden gravada."]); }
+        try { await Svc.SalvarHowdenAsync(_ator, _hNome, _hRua, _hCidade, _hEstado, _hPais, x.lat, x.lon, null); HowdenCarregar(); Sessao.Avisar("Posição exata da Howden gravada."); }
         catch (Exception ex) { _errosH = Ui.Erros(ex); }
     }
 
@@ -291,8 +287,8 @@ else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
             var manter = mesmoEndereco && Snapshot.Exata(Db.Cfg("howden_nivel"));
             var r = await Svc.SalvarHowdenAsync(_ator, _hNome, _hRua, _hCidade, _hEstado, _hPais, manter ? Num(_hLat) : null, manter ? Num(_hLon) : null, Geo);
             HowdenCarregar();
-            if (r is { Ok: false }) _errosH = new() { L.F("Endereço salvo, mas a posição exata não foi encontrada: {0}", L[r.Mensagem]) };
-            else Sessao.Avisar(r is { Ok: true } ? L["Endereço salvo e encontrado no mapa no endereço exato."] : L["Endereço salvo."]);
+            if (r is { Ok: false }) _errosH = new() { "Endereço salvo, mas a posição exata não foi encontrada: " + r.Mensagem };
+            else Sessao.Avisar(r is { Ok: true } ? "Endereço salvo e encontrado no mapa no endereço exato." : "Endereço salvo.");
         }
         catch (Exception ex) { _errosH = Ui.Erros(ex); }
     }
@@ -313,36 +309,31 @@ else if (_aba == "demo" && false)       // aba "Dados" oculta para todos
     private void ApSalvar()
     {
         _erros = null;
-        try { ApReordenar(); Svc.SalvarApresentacao(_ator, _ap); ApCarregar(); Sessao.Avisar(L["Configuração da apresentação salva."]); }
+        try { ApReordenar(); Svc.SalvarApresentacao(_ator, _ap); ApCarregar(); Sessao.Avisar("Configuração da apresentação salva."); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
 
-    private void Compactar() { try { var n = Svc.CompactarAgora(_ator); Sessao.Avisar(L.F("{0} entidade(s) compactada(s).", n)); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex).Select(x => L[x])), true); } }
+    private void Compactar() { try { var n = Svc.CompactarAgora(_ator); Sessao.Avisar($"{n} entidade(s) compactada(s)."); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); } }
     private void NovoUsuario() { _u = new Usuario { Papel = Roles.Consulta }; _novoU = true; _senha = ""; _erros = null; }
     private void EditarUsuario(Usuario u) { _u = u.Copia<Usuario>(); _novoU = false; _senha = ""; _erros = null; }
     private async Task FotoUsuario(InputFileChangeEventArgs e)
     {
-        try { await using var st = e.File.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.DefinirFotoUsuarioAsync(_ator, _u!.Id, e.File.Name, st); _u.FotoAnexoId = Db.Usuarios.Obter(_u.Id)!.FotoAnexoId; Carregar(); Sessao.Avisar(L["Foto do usuário atualizada."]); }
+        try { await using var st = e.File.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.DefinirFotoUsuarioAsync(_ator, _u!.Id, e.File.Name, st); _u.FotoAnexoId = Db.Usuarios.Obter(_u.Id)!.FotoAnexoId; Carregar(); Sessao.Avisar("Foto do usuário atualizada."); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
     private Usuario? _excluirU;
     private void ConfirmarExcluirUsuario()
     {
         _erros = null;
-        try { var n = _excluirU!.Nome; Svc.ExcluirUsuario(_ator, _excluirU.Id); _excluirU = null; Carregar(); Sessao.Avisar(L.F("Usuário {0} excluído.", n)); }
+        try { var n = _excluirU!.Nome; Svc.ExcluirUsuario(_ator, _excluirU.Id); _excluirU = null; Carregar(); Sessao.Avisar($"Usuário {n} excluído."); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
-    private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar(L["Usuário salvo."]); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
-    private void AlternarBu(string bu, bool on)
-    {
-        var l = Ator.LerBus(_u!.Bus).ToList(); if (on) { if (!l.Contains(bu)) l.Add(bu); } else l.Remove(bu);
-        _u.Bus = string.Join(",", Vocab.Bus.Select(b => b.Cod).Where(l.Contains));
-    }
-    private void SalvarRelatorio() { _errosRel = null; try { Svc.SalvarDestinatariosRelatorio(_ator, _relPara, _relVenda); Sessao.Avisar(L["Destinatários do relatório do serviço salvos."]); Carregar(); } catch (Exception ex) { _errosRel = Ui.Erros(ex); } }
-    private void SalvarCfg() { _erros = null; try { Svc.SalvarConfig(_ator, _alertas, _fuso, _horas, _contatoGeo); Sessao.Avisar(L["Configurações salvas."]); Carregar(); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void SalvarUsuario() { try { Svc.SalvarUsuario(_ator, _u!, _senha); _u = null; Carregar(); Sessao.Avisar("Usuário salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void SalvarRelatorio() { _errosRel = null; try { Svc.SalvarDestinatariosRelatorio(_ator, _relPara, _relVenda); Sessao.Avisar("Destinatários do relatório do serviço salvos."); Carregar(); } catch (Exception ex) { _errosRel = Ui.Erros(ex); } }
+    private void SalvarCfg() { _erros = null; try { Svc.SalvarConfig(_ator, _alertas, _fuso, _horas, _contatoGeo); Sessao.Avisar("Configurações salvas."); Carregar(); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
     private void ExecutarDados()
     {
-        try { if (_confirma == "recarregar") Svc.RecarregarDemo(_ator); else Svc.LimparDadosOperacionais(_ator); _confirma = ""; Carregar(); Sessao.Avisar(L["Concluído."]); }
+        try { if (_confirma == "recarregar") Svc.RecarregarDemo(_ator); else Svc.LimparDadosOperacionais(_ator); _confirma = ""; Carregar(); Sessao.Avisar("Concluído."); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
 }

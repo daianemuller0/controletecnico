@@ -63,7 +63,7 @@ app.mapa = {
             tl.on('tileerror', () => {
                 if (++erros === 6 && !el.querySelector('.mapa-aviso')) {
                     const d = document.createElement('div'); d.className = 'mapa-aviso';
-                    d.textContent = (/(^|; )ct-idioma=es/.test(document.cookie) ? 'No fue posible cargar el fondo del mapa (bloqueo de red o del proveedor). Los marcadores y rutas siguen siendo válidos. Vea Mapa:TileUrl en la configuración.' : 'Não foi possível carregar o fundo do mapa (bloqueio de rede ou do provedor). Marcadores e rotas continuam válidos. Veja Mapa:TileUrl na configuração.');
+                    d.textContent = 'Não foi possível carregar o fundo do mapa (bloqueio de rede ou do provedor). Marcadores e rotas continuam válidos. Veja Mapa:TileUrl na configuração.';
                     el.appendChild(d);
                 }
             });

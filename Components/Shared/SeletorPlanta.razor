@@ -9,28 +9,28 @@
         @Icons.Svg("search")
         @if (!_aberto && _atual is not null)
         {
-            <button type="button" class="sel-valor" @onclick="Abrir" disabled="@Disabled" title="@L["Trocar a planta"]">
-                <strong>@_atual.Nome</strong><span class="muted"> · @Local(_atual, L)</span>
+            <button type="button" class="sel-valor" @onclick="Abrir" disabled="@Disabled" title="Trocar a planta">
+                <strong>@_atual.Nome</strong><span class="muted"> · @Local(_atual)</span>
             </button>
         }
         else if (!_aberto)
         {
-            <button type="button" class="sel-valor vazio" @onclick="Abrir" disabled="@Disabled">@L[Placeholder]</button>
+            <button type="button" class="sel-valor vazio" @onclick="Abrir" disabled="@Disabled">@Placeholder</button>
         }
         else
         {
-            <input class="sel-input" @bind="_texto" @bind:event="oninput" @bind:after="Refiltrar" @onkeydown="Tecla" placeholder="@L["Digite nome, cidade, estado, país ou cliente…"]" autocomplete="off" autofocus />
+            <input class="sel-input" @bind="_texto" @bind:event="oninput" @bind:after="Refiltrar" @onkeydown="Tecla" placeholder="Digite nome, cidade, estado, país ou cliente…" autocomplete="off" autofocus />
         }
-        @if (_atual is not null && AllowClear && !Disabled) { <button type="button" class="sel-x" @onclick="Limpar" aria-label="@L["Limpar seleção"]">@Icons.Svg("x")</button> }
+        @if (_atual is not null && AllowClear && !Disabled) { <button type="button" class="sel-x" @onclick="Limpar" aria-label="Limpar seleção">@Icons.Svg("x")</button> }
     </div>
     @if (_aberto)
     {
         <div class="sel-painel" role="listbox">
-            @if (!string.IsNullOrEmpty(Vazio)) { <button type="button" class="sel-op sel-vazio" @onclick="Limpar">@L[Vazio]</button> }
+            @if (!string.IsNullOrEmpty(Vazio)) { <button type="button" class="sel-op sel-vazio" @onclick="Limpar">@Vazio</button> }
             @if (PodeCriar)
             {
                 <button type="button" class="sel-op sel-criar @(_ativo == -1 ? "ativo" : "")" @onclick="CriarNova">
-                    <span class="sel-l1">@Icons.Svg("plus")@L.F("Usar “{0}” como nova planta", _texto.Trim())</span><span class="sel-l2">@L["Planta que ainda não está cadastrada: depois você informa a cidade"]</span>
+                    <span class="sel-l1">@Icons.Svg("plus")Usar “@_texto.Trim()” como nova planta</span><span class="sel-l2">Planta que ainda não está cadastrada: depois você informa a cidade</span>
                 </button>
             }
             @for (var i = 0; i < _res.Count; i++)
@@ -38,12 +38,12 @@
                 var r = _res[i]; var idx = i;
                 <button type="button" role="option" class="sel-op @(i == _ativo ? "ativo" : "") @(r.Id == Value ? "sel" : "")" @onclick="() => Escolher(r)" @onmouseover="() => _ativo = idx">
                     <span class="sel-l1">@Realce(r.Nome)</span>
-                    <span class="sel-l2">@Local(r, L)@(string.IsNullOrEmpty(r.Cliente) ? "" : " · " + r.Cliente)</span>
-                    <span class="sel-geo g-@r.Geo" title="@L[GeoTxt(r.Geo)]">@Icons.Svg("pin")</span>
+                    <span class="sel-l2">@Local(r)@(string.IsNullOrEmpty(r.Cliente) ? "" : " · " + r.Cliente)</span>
+                    <span class="sel-geo g-@r.Geo" title="@GeoTxt(r.Geo)">@Icons.Svg("pin")</span>
                 </button>
             }
-            @if (_res.Count == 0 && !PodeCriar) { <div class="sel-nada">@(L.F("Nenhuma planta encontrada para \"{0}\".", _texto))</div> }
-            <div class="sel-rodape">@(_total > _res.Count ? L.F("Mostrando {0} de {1:N0} — digite mais para refinar", _res.Count, _total) : L.F("{0:N0} planta(s)", _total))</div>
+            @if (_res.Count == 0 && !PodeCriar) { <div class="sel-nada">Nenhuma planta encontrada para "@_texto".</div> }
+            <div class="sel-rodape">@(_total > _res.Count ? $"Mostrando {_res.Count} de {_total:N0} — digite mais para refinar" : $"{_total:N0} planta(s)")</div>
         </div>
     }
 </div>
@@ -96,10 +96,10 @@
         }
     }
 
-    private static string Local(PlantaItem r, Tr tr)
+    private static string Local(PlantaItem r)
     {
         var l = string.Join(", ", new[] { r.Cidade, r.Estado }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        l = string.IsNullOrEmpty(l) ? tr["sem cidade"] : l;
+        l = string.IsNullOrEmpty(l) ? "sem cidade" : l;
         return string.IsNullOrWhiteSpace(r.Pais) ? l : $"{l} · {r.Pais}";
     }
 

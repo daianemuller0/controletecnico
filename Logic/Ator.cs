@@ -20,15 +20,6 @@ public sealed class Ator
     public string Nome { get; init; } = "";
     public string Papel { get; init; } = Roles.Consulta;
     public string TecnicoId { get; init; } = "";
-    /// <summary>BUs que enxerga (vazio = todas).</summary>
-    public IReadOnlyCollection<string> Bus { get; init; } = Array.Empty<string>();
-    /// <summary>Idioma escolhido (pt | es).</summary>
-    public string Idioma { get; init; } = "pt";
-    public bool VeTodasBus => Bus.Count == 0;
-    public bool VeBu(string? bu) => VeTodasBus || Bus.Contains(string.IsNullOrWhiteSpace(bu) ? Vocab.BuPadrao : bu);
-    public bool VeViagemBu(Viagem? v) => v is not null && VeBu(Vocab.BuDe(v));
-    public static IReadOnlyCollection<string> LerBus(string? csv) =>
-        (csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(Vocab.BuValida).Distinct().ToArray();
 
     public static readonly Ator Sistema = new() { Login = "sistema", Nome = "Sistema", Papel = Roles.Admin };
 
@@ -97,8 +88,6 @@ public sealed class Ator
             Nome = u.Identity?.Name ?? "",
             Papel = Roles.Normalize(u.FindFirst(ClaimTypes.Role)?.Value),
             TecnicoId = u.FindFirst("tecnico")?.Value ?? "",
-            Bus = LerBus(u.FindFirst("bus")?.Value),
-            Idioma = u.FindFirst("idioma")?.Value is "es" ? "es" : "pt",
         };
     }
 }

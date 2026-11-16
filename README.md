@@ -5,16 +5,6 @@ Sistema web de controle de **viagens, agenda, disponibilidade e documentação d
 persistência em **Parquet consolidado por DuckDB** (sem servidor de banco), ClosedXML para Excel, login por cookie com perfis e o
 mesmo design system CSS (`wwwroot/app.css` herdado + `wwwroot/tecnico.css`).
 
-## Idiomas (português e espanhol) e BUs
-
-* **Idioma**: botões **PT / ES** no topo (e na tela de acesso). A escolha fica gravada no usuário; o administrador também define o idioma de cada login.
-  Os textos das telas passam por `L["texto em português"]` e as traduções ficam em `Idiomas/es/*.json` (embutidos no programa).
-  Texto novo numa tela: envolva com `L[...]` (ou `L.F("... {0} ...", valor)`) e acrescente a tradução num desses arquivos.
-  Continuam em português: dados digitados (nomes de serviços, plantas, itens da lista de verificação), o histórico de alterações gravado e o corpo dos e-mails.
-* **BU de origem** da viagem: HSA (Brasil), HCHL (Chile) ou HPU (Peru) — obrigatória ao criar. Viagens antigas sem BU contam como HSA.
-* **Acesso por BU**: no cadastro do login, marque as BUs que a pessoa enxerga (nenhuma = todas). Ela só vê e altera viagens dessas BUs
-  (lista, agenda, mapa, indicadores, ficha); técnicos, plantas e clientes são compartilhados. Os indicadores têm filtro por BU.
-
 ## Base de dados compartilhada
 
 **Toda a base (registros e anexos) fica em `\\BZVCPFIL003\proj_ramires$\DB\tec`** (`Data:Folder` no `appsettings.json`).

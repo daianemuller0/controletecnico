@@ -35,8 +35,6 @@ public sealed partial class Servicos
         });
 
     public Snapshot Foto() => Snapshot.Carregar(Db);
-    /// <summary>Foto dos dados que esta pessoa enxerga (viagens só das BUs dela).</summary>
-    public Snapshot Foto(Ator a) => Snapshot.Carregar(Db).ParaAtor(a);
 
     // ------------------------------------------------------------- viagens
     public static string Csv(IEnumerable<string> ids) => string.Join(",", ids.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
@@ -152,13 +150,6 @@ public sealed partial class Servicos
     {
         ator.Exigir(Perm.EditarViagens);
         var anterior = Db.Viagens.Obter(v.Id);
-        // BU de origem: obrigatória na viagem nova; a pessoa só grava viagens das BUs dela
-        if (anterior is not null && !ator.VeViagemBu(anterior)) throw new UnauthorizedAccessException("Esta viagem é de uma BU que você não acessa.");
-        v.BU = (v.BU ?? "").Trim().ToUpperInvariant();
-        // sem BU (viagem antiga, importação): mantém a anterior; senão a única BU da pessoa; senão HSA. As telas exigem a escolha.
-        if (v.BU == "") v.BU = anterior is not null ? Vocab.BuDe(anterior) : ator.Bus.Count == 1 ? ator.Bus.First() : Vocab.BuPadrao;
-        if (!Vocab.BuValida(v.BU)) throw new ValidacaoException("Selecione a BU de origem da viagem (HSA, HCHL ou HPU).");
-        if (!ator.VeBu(v.BU)) throw new UnauthorizedAccessException($"Você não tem acesso à BU {v.BU}.");
         v.TecnicoIds = Csv(Snapshot.Ids(v.TecnicoIds));
         // a lista de verificação e os textos do e-mail da OS têm telas próprias: o formulário da viagem não os sobrescreve
         if (anterior is not null)
@@ -255,7 +246,7 @@ public sealed partial class Servicos
     public Viagem AlterarStatusViagem(Ator ator, string viagemId, string novoStatus, string? motivo = null)
     {
         ator.Exigir(Perm.EditarViagens);
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         var trechos = Db.Trechos.Onde(t => t.ViagemId == viagemId).OrderBy(t => t.Ordem).ToList();
         var atends = Db.Atendimentos.Onde(a => a.ViagemId == viagemId);
         if (v.Status == Vocab.ViagemCancelada && novoStatus != Vocab.ViagemRascunho)
@@ -269,20 +260,16 @@ public sealed partial class Servicos
     // ------------------------------------------------ quem participa da viagem
     /// <summary>Pode registrar o histórico, o feedback do serviço e mexer na lista de verificação: quem edita viagens
     /// ou o técnico escalado nesta viagem (o resto da viagem continua só para quem edita viagens).</summary>
-    public bool PodeParticipar(Ator ator, Viagem v) => ator.VeViagemBu(v) && (ator.Pode(Perm.EditarViagens) || (ator.Papel == Roles.Tecnico && !string.IsNullOrEmpty(ator.TecnicoId) && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId)));
+    public bool PodeParticipar(Ator ator, Viagem v) =>
+        ator.Pode(Perm.EditarViagens) || (ator.Papel == Roles.Tecnico && !string.IsNullOrEmpty(ator.TecnicoId) && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId));
 
-    /// <summary>Enxerga a viagem: quem vê a equipe ou o técnico escalado nela (sempre dentro das BUs da pessoa).</summary>
-    public bool VeViagem(Ator ator, Viagem v) => ator.VeViagemBu(v) && (
-        ator.VeTodaEquipe || (ator.Papel == Roles.Tecnico && !string.IsNullOrEmpty(ator.TecnicoId) && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId)));
-
-    private static void ExigirBu(Ator ator, Viagem v)
-    {
-        if (!ator.VeViagemBu(v)) throw new UnauthorizedAccessException($"Esta viagem é da BU {Vocab.BuDe(v)}, que você não acessa.");
-    }
+    /// <summary>Enxerga a viagem: quem vê a equipe ou o técnico escalado nela.</summary>
+    public bool VeViagem(Ator ator, Viagem v) =>
+        ator.VeTodaEquipe || (ator.Papel == Roles.Tecnico && !string.IsNullOrEmpty(ator.TecnicoId) && Snapshot.Ids(v.TecnicoIds).Contains(ator.TecnicoId));
 
     private Viagem ViagemParaParticipar(Ator ator, string viagemId)
     {
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         if (!PodeParticipar(ator, v)) throw new UnauthorizedAccessException($"O perfil {Roles.Label(ator.Papel)} não tem permissão para esta operação.");
         return v;
     }
@@ -329,7 +316,7 @@ public sealed partial class Servicos
     public EmailOs.Rascunho RascunhoOs(Ator ator, string viagemId)
     {
         ator.Exigir(Perm.EditarViagens);
-        var s = Foto(); var v = s.Viagem(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var s = Foto(); var v = s.Viagem(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         var anexos = Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == viagemId);
         return EmailOs.Montar(s, v, anexos, Tempo.ParaLocal(DateTime.UtcNow, s.FusoPadrao));
     }
@@ -338,7 +325,7 @@ public sealed partial class Servicos
     public void SalvarTextosOs(Ator ator, string viagemId, EmailOs.Rascunho r)
     {
         ator.Exigir(Perm.EditarViagens);
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         v.OsCc = r.Cc.Trim(); v.OsHotel = r.UsaHotel ? r.Hotel.Trim() : "-"; v.OsCarro = r.UsaCarro ? r.Carro.Trim() : "-"; v.OsVoo = r.UsaVoo ? r.Voo.Trim() : "-";
         v.OsContato = r.Contato.Trim(); v.OsEscopo = r.Escopo.Trim(); v.OsInfo = r.Info.Trim();
         Db.Viagens.Salvar(v, ator.Login);
@@ -348,7 +335,6 @@ public sealed partial class Servicos
     public List<(string nome, string tipo, byte[] dados)> ArquivosDaViagem(Ator ator, string viagemId, IEnumerable<string> ids)
     {
         ator.Exigir(Perm.VerAnexosViagem);
-        if (Db.Viagens.Obter(viagemId) is { } vb) ExigirBu(ator, vb);
         var res = new List<(string, string, byte[])>();
         foreach (var a in Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == viagemId && ids.Contains(a.Id)))
         {
@@ -361,7 +347,7 @@ public sealed partial class Servicos
     public void RegistrarOs(Ator ator, string viagemId, EmailOs.Rascunho r, string como, bool marcarChecklist)
     {
         ator.Exigir(Perm.EditarViagens);
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         v.OsGeradoEm = DateTime.UtcNow; v.OsGeradoPor = Db.Usuarios.Obter(ator.Login)?.Nome is { Length: > 0 } n ? n : ator.Login;
         if (marcarChecklist)
         {
@@ -376,7 +362,7 @@ public sealed partial class Servicos
     // ------------------------------------------------ histórico da viagem
     public List<NotaViagem> NotasDaViagem(Ator ator, string viagemId)
     {
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         if (!VeViagem(ator, v)) throw new UnauthorizedAccessException("Sem acesso a esta viagem.");
         return Db.NotasViagem.Onde(n => n.ViagemId == viagemId).OrderByDescending(n => n.Quando).ThenByDescending(n => n.EscritoEm).ToList();
     }
@@ -420,7 +406,7 @@ public sealed partial class Servicos
     // ------------------------------------------------ feedback do serviço
     public List<FeedbackViagem> FeedbacksDaViagem(Ator ator, string viagemId)
     {
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         if (!VeViagem(ator, v)) throw new UnauthorizedAccessException("Sem acesso a esta viagem.");
         return Db.FeedbacksViagem.Onde(f => f.ViagemId == viagemId).OrderByDescending(f => f.EscritoEm).ToList();
     }
@@ -520,7 +506,7 @@ public sealed partial class Servicos
     public Viagem DefinirResponsavel(Ator ator, string viagemId, string login)
     {
         ator.Exigir(Perm.EditarViagens);
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         var antes = v.Responsavel;
         if (string.IsNullOrWhiteSpace(login)) { v.ResponsavelLogin = ""; v.Responsavel = ""; }
         else
@@ -538,7 +524,7 @@ public sealed partial class Servicos
     public void ExcluirViagem(Ator ator, string viagemId)
     {
         ator.Exigir(Perm.EditarViagens);
-        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada."); ExigirBu(ator, v);
+        var v = Db.Viagens.Obter(viagemId) ?? throw new ValidacaoException("Viagem não encontrada.");
         foreach (var t in Db.Trechos.Onde(t => t.ViagemId == viagemId)) Db.Trechos.Apagar(t.Id);
         foreach (var a in Db.Atendimentos.Onde(a => a.ViagemId == viagemId)) Db.Atendimentos.Apagar(a.Id);
         foreach (var an in Db.Anexos.Onde(a => a.DonoTipo == "viagem" && a.DonoId == viagemId)) Arquivos.Remover(an);
@@ -685,8 +671,6 @@ public sealed partial class Servicos
     public void Reagendar(Ator ator, string fonte, string fonteId, TimeSpan delta, bool viagemInteira, bool aceitarAvisos)
     {
         ator.Exigir(Perm.EditarAgenda);
-        var vid = fonte == "trecho" ? Db.Trechos.Obter(fonteId)?.ViagemId : fonte == "ind" ? null : Db.Atendimentos.Obter(fonteId)?.ViagemId;
-        if (!string.IsNullOrEmpty(vid) && Db.Viagens.Obter(vid) is { } vv) ExigirBu(ator, vv);
         var sim = SimularReagendar(ator, fonte, fonteId, delta, viagemInteira);
         if (sim.Impedimentos.Count > 0) throw new ValidacaoException(sim.Impedimentos);
         var erros = sim.Conflitos.Where(c => c.Erro).ToList();

@@ -25,12 +25,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Dicionários de tradução (o texto em português é a chave): vão dentro do programa. -->
-    <EmbeddedResource Include="Idiomas/**/*.json" />
-    <Content Remove="Idiomas/**/*.json" />
-  </ItemGroup>
-
-  <ItemGroup>
     <!-- Mesmo provider do Previsão: DuckDB sobre Parquet (inclui a lib nativa). -->
     <PackageReference Include="DuckDB.NET.Data.Full" Version="1.1.3" />
     <!-- Leitura/escrita de .xlsx (importação e planilha modelo). -->

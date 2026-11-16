@@ -1,19 +1,19 @@
 @{ var n = Snapshot.NivelPlanta(P); }
 @if (!P.TemCoord || !Snapshot.Aproveitavel(n))
 {
-    <span class="badge st-warn" title="@(string.IsNullOrEmpty(P.GeoFonte) ? L["Sem posição: não aparece no mapa"] : L[P.GeoFonte])">@Icons.Svg("pin", "bico")@L["Localização pendente"]</span>
+    <span class="badge st-warn" title="@(string.IsNullOrEmpty(P.GeoFonte) ? "Sem posição: não aparece no mapa" : P.GeoFonte)">@Icons.Svg("pin", "bico")Localização pendente</span>
 }
 else if (n == "manual")
 {
-    <span class="badge st-pos" title="@L[P.GeoFonte]">@Icons.Svg("pin", "bico")@L["Posição exata (marcada)"]</span>
+    <span class="badge st-pos" title="@P.GeoFonte">@Icons.Svg("pin", "bico")Posição exata (marcada)</span>
 }
 else if (!Snapshot.Exata(n))
 {
-    <span class="badge st-warn" title="@(string.IsNullOrEmpty(P.GeoNivel) ? L["Localizada antes da conferência de precisão: pode estar só na cidade. Reconfira ou marque no mapa."] : L[P.GeoFonte])">@Icons.Svg("pin", "bico")@L.F("Aproximada: {0}", n == "cep" ? "CEP" : n == "bairro" ? L["bairro"] : L["cidade"])</span>
+    <span class="badge st-warn" title="@(string.IsNullOrEmpty(P.GeoNivel) ? "Localizada antes da conferência de precisão: pode estar só na cidade. Reconfira ou marque no mapa." : P.GeoFonte)">@Icons.Svg("pin", "bico")Aproximada: @(n == "cep" ? "CEP" : n == "bairro" ? "bairro" : "cidade")</span>
 }
 else
 {
-    <span class="badge st-pos" title="@L[P.GeoFonte]">@Icons.Svg("pin", "bico")@L["Endereço exato"]</span>
+    <span class="badge st-pos" title="@P.GeoFonte">@Icons.Svg("pin", "bico")Endereço exato</span>
 }
 
 @code {

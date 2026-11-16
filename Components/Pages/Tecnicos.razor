@@ -7,44 +7,44 @@
 @inject ImportadorTecnicos Imp
 @inject IJSRuntime JS
 
-<PageTitle>@L["Técnicos"] · Controle Técnico</PageTitle>
+<PageTitle>Técnicos · Controle Técnico</PageTitle>
 
 <div class="page-head compacto">
     <div>
-        <h1>@L["Técnicos"]</h1>
-        <p class="subtitle">@L["Equipe, vencimentos de documentos e treinamentos, e quem está livre e apto para cada planta ou serviço."]</p>
+        <h1>Técnicos</h1>
+        <p class="subtitle">Equipe, vencimentos de documentos e treinamentos, e quem está livre e apto para cada planta ou serviço.</p>
     </div>
     <div class="momento-ctl">
-        @if (_ator.Pode(Perm.EditarTecnicos)) { <a class="btn-primary" href="/tecnicos/novo">@Icons.Svg("plus")@L["Novo técnico"]</a> }
+        @if (_ator.Pode(Perm.EditarTecnicos)) { <a class="btn-primary" href="/tecnicos/novo">@Icons.Svg("plus")Novo técnico</a> }
     </div>
 </div>
 
 <div class="tabs" role="tablist">
-    <button role="tab" class="tab @(_aba == "equipe" ? "active" : "")" @onclick='() => _aba = "equipe"'>@L["Equipe"] <span class="tab-badge">@_tecs.Count</span></button>
+    <button role="tab" class="tab @(_aba == "equipe" ? "active" : "")" @onclick='() => _aba = "equipe"'>Equipe <span class="tab-badge">@_tecs.Count</span></button>
     @if (_ator.Pode(Perm.EditarTecnicos))
     {
-        <button role="tab" class="tab @(_aba == "imp" ? "active" : "")" @onclick='() => _aba = "imp"'>@L["Importar planilha"]</button>
+        <button role="tab" class="tab @(_aba == "imp" ? "active" : "")" @onclick='() => _aba = "imp"'>Importar planilha</button>
     }
     @if (_ator.Pode(Perm.VerDocsStatus))
     {
-        <button role="tab" class="tab @(_aba == "venc" ? "active" : "")" @onclick='() => _aba = "venc"'>@L["Vencimentos"] <span class="tab-badge">@_venc.Count(v => v.Status is Vocab.DocProximo or Vocab.DocVencido)</span></button>
+        <button role="tab" class="tab @(_aba == "venc" ? "active" : "")" @onclick='() => _aba = "venc"'>Vencimentos <span class="tab-badge">@_venc.Count(v => v.Status is Vocab.DocProximo or Vocab.DocVencido)</span></button>
     }
     @if (_ator.VeTodaEquipe)
     {
-        <button role="tab" class="tab @(_aba == "apt" ? "active" : "")" @onclick='() => _aba = "apt"'>@L["Requisitos e aptidão"]</button>
+        <button role="tab" class="tab @(_aba == "apt" ? "active" : "")" @onclick='() => _aba = "apt"'>Requisitos e aptidão</button>
     }
 </div>
 
 @if (_aba == "equipe")
 {
     <div class="toolbar">
-        <input class="field busca" placeholder="@L["Buscar técnico, cidade…"]" @bind="_busca" @bind:event="oninput" aria-label="@L["Buscar técnico"]" />
-        <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@_fEsp" ValueChanged="@(async (string v) => { _fEsp = v; })" Placeholder="@L["Todas as especialidades"]" />
-        <select class="field w-auto" @bind="_fPerfil" aria-label="@L["Perfil"]"><option value="">@L["Todos os perfis"]</option>@foreach (var p in Vocab.PerfisTecnico) { <option value="@p.Valor">@L[p.Rotulo]</option> }</select>
-        <button class="btn-ghost @(_inativos ? "on" : "")" aria-pressed="@_inativos" title="@(_inativos ? L["Voltar para os técnicos ativos"] : L["Ver só os técnicos inativos"])" @onclick="@(() => _inativos = !_inativos)">@Icons.Svg("user")@(_inativos ? L.F("Inativos ({0})", _tecs.Count(t => !t.Ativo)) : L.F("Ver inativos ({0})", _tecs.Count(t => !t.Ativo)))</button>
+        <input class="field busca" placeholder="Buscar técnico, cidade…" @bind="_busca" @bind:event="oninput" aria-label="Buscar técnico" />
+        <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@_fEsp" ValueChanged="@(async (string v) => { _fEsp = v; })" Placeholder="Todas as especialidades" />
+        <select class="field w-auto" @bind="_fPerfil" aria-label="Perfil"><option value="">Todos os perfis</option>@foreach (var p in Vocab.PerfisTecnico) { <option value="@p.Valor">@p.Rotulo</option> }</select>
+        <button class="btn-ghost @(_inativos ? "on" : "")" aria-pressed="@_inativos" title="@(_inativos ? "Voltar para os técnicos ativos" : "Ver só os técnicos inativos")" @onclick="@(() => _inativos = !_inativos)">@Icons.Svg("user")@(_inativos ? $"Inativos ({_tecs.Count(t => !t.Ativo)})" : $"Ver inativos ({_tecs.Count(t => !t.Ativo)})")</button>
     </div>
     <div class="table-wrap"><table class="grid-tbl">
-        <thead><tr><th>@L["Técnico"]</th><th>@L["Status agora"]</th><th>@L["Onde mora"]</th><th>@L["Especialidades"]</th><th>@L["Próximo período disponível"]</th><th>@L["Documentos"]</th></tr></thead>
+        <thead><tr><th>Técnico</th><th>Status agora</th><th>Onde mora</th><th>Especialidades</th><th>Próximo período disponível</th><th>Documentos</th></tr></thead>
         <tbody>
         @foreach (var t in Filtrados)
         {
@@ -53,190 +53,190 @@
             var nv = venc.Count(v => v.Status == Vocab.DocVencido); var np = venc.Count(v => v.Status == Vocab.DocProximo);
             var livre = e is null ? null : AgendaEngine.ProximoLivre(_snap, _eventos, t, DateTime.UtcNow);
             <tr>
-                <td><a class="lnk-tec" href="/tecnicos/@t.Id"><Avatar Nome="@t.Nome" FotoId="@t.FotoAnexoId" Cor="@it.Color" Tam="sm" /><strong>@t.Nome</strong></a>@if (!t.Ativo) { <span class="tag neg">@L["inativo"]</span> }@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@L[Vocab.PerfilRotulo(t.Perfil)]</span> }@if (t.Trainee) { <span class="tag trainee-tag" title="@L["Não entra na ocupação dos indicadores gerenciais"]">@L["trainee"]</span> }</td>
-                <td>@if (!Vocab.SempreDisponivel(t.Perfil) && e is not null && !Vocab.NaVisao(t.Perfil, e.Status)) { <span class="muted sm" title="@L["Só aparece na disponibilidade quando estiver em viagem ou atendimento"]">@L["Fora da disponibilidade"]</span> } else { <StatusBadge Item="@Trad(it)" /> }</td>
+                <td><a class="lnk-tec" href="/tecnicos/@t.Id"><Avatar Nome="@t.Nome" FotoId="@t.FotoAnexoId" Cor="@it.Color" Tam="sm" /><strong>@t.Nome</strong></a>@if (!t.Ativo) { <span class="tag neg">inativo</span> }@if (!Vocab.SempreDisponivel(t.Perfil)) { <span class="tag perfil-tag">@Vocab.PerfilRotulo(t.Perfil)</span> }@if (t.Trainee) { <span class="tag trainee-tag" title="Não entra na ocupação dos indicadores gerenciais">trainee</span> }</td>
+                <td>@if (!Vocab.SempreDisponivel(t.Perfil) && e is not null && !Vocab.NaVisao(t.Perfil, e.Status)) { <span class="muted sm" title="Só aparece na disponibilidade quando estiver em viagem ou atendimento">Fora da disponibilidade</span> } else { <StatusBadge Item="@it" /> }</td>
                 <td>@t.Cidade@(string.IsNullOrEmpty(t.Estado) ? "" : "/" + t.Estado)</td>
                 <td>@string.Join(", ", Ui.Ids(t.EspecialidadeIds).Select(i => _snap.Especialidades.GetValueOrDefault(i)?.Nome).Where(n => n != null))</td>
-                <td>@(livre is { } l ? (l.fim is null ? L.F("a partir de {0}", l.ini.ToString("dd/MM")) : $"{l.ini:dd/MM} a {l.fim:dd/MM}") : "—")</td>
-                <td>@if (nv > 0) { <span class="badge st-neg">@Icons.Svg("alert", "bico")@L.F("{0} vencido(s)", nv)</span> } @if (np > 0) { <span class="badge st-warn">@Icons.Svg("clock", "bico")@L.F("{0} a vencer", np)</span> } @if (nv + np == 0) { <span class="badge st-pos">@Icons.Svg("check", "bico")@L["Em dia"]</span> }</td>
+                <td>@(livre is { } l ? (l.fim is null ? $"a partir de {l.ini:dd/MM}" : $"{l.ini:dd/MM} a {l.fim:dd/MM}") : "—")</td>
+                <td>@if (nv > 0) { <span class="badge st-neg">@Icons.Svg("alert", "bico")@nv vencido(s)</span> } @if (np > 0) { <span class="badge st-warn">@Icons.Svg("clock", "bico")@np a vencer</span> } @if (nv + np == 0) { <span class="badge st-pos">@Icons.Svg("check", "bico")Em dia</span> }</td>
             </tr>
         }
         </tbody>
     </table></div>
-    @if (!Filtrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("users")</div><h3>@(_inativos ? L["Nenhum técnico inativo"] : L["Nenhum técnico encontrado"])</h3></div> }
+    @if (!Filtrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("users")</div><h3>@(_inativos ? "Nenhum técnico inativo" : "Nenhum técnico encontrado")</h3></div> }
 }
 else if (_aba == "imp" && _ator.Pode(Perm.EditarTecnicos))
 {
     <div class="steps">
         @foreach (var (n, r) in new[] { (1, "Arquivo"), (2, "Colunas"), (3, "Prévia e validação"), (4, "Resultado") })
-        { <span class="step @(_passo == n ? "on" : _passo > n ? "ok" : "")"><b>@n</b>@L[r]</span> }
+        { <span class="step @(_passo == n ? "on" : _passo > n ? "ok" : "")"><b>@n</b>@r</span> }
     </div>
     @if (_passo == 1)
     {
         <div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["1. Escolha o arquivo"]</div></div>
-            <p>@L["Aceita"] <strong>.xlsx</strong> @L["e"] <strong>.csv</strong> @L["(até 25 MB e 20.000 linhas). Importe"] <strong>@L["somente os nomes"]</strong> @L["(uma coluna). Cidade, contatos, especialidades, jornada e demais dados são preenchidos depois, na ficha de cada técnico."]</p>
+            <div class="panel-head"><div class="panel-title">1. Escolha o arquivo</div></div>
+            <p>Aceita <strong>.xlsx</strong> e <strong>.csv</strong> (até 25 MB e 20.000 linhas). Importe <strong>somente os nomes</strong> (uma coluna). Cidade, contatos, especialidades, jornada e demais dados são preenchidos depois, na ficha de cada técnico.</p>
             <div class="imp-acoes">
-                <a class="btn-ghost" href="/modelo/tecnicos.xlsx" download>@Icons.Svg("download")@L["Baixar planilha modelo"]</a>
-                <label class="btn-primary file-btn">@Icons.Svg("upload")@L["Selecionar arquivo"]<InputFile OnChange="AoArquivo" accept=".xlsx,.csv" class="sr-only" /></label>
+                <a class="btn-ghost" href="/modelo/tecnicos.xlsx" download>@Icons.Svg("download")Baixar planilha modelo</a>
+                <label class="btn-primary file-btn">@Icons.Svg("upload")Selecionar arquivo<InputFile OnChange="AoArquivo" accept=".xlsx,.csv" class="sr-only" /></label>
             </div>
-            @if (_lendo) { <p class="muted">@L["Lendo o arquivo…"]</p> }
-            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@L[e]</div> }</div></div> }
+            @if (_lendo) { <p class="muted">Lendo o arquivo…</p> }
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
         </div>
     }
     else if (_passo == 2 && _arq is not null)
     {
         <div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["2. Mapeie as colunas"]</div><span class="tag">@_arq.Nome · @L.F("{0} linha(s)", _arq.Linhas.Count)</span></div>
+            <div class="panel-head"><div class="panel-title">2. Mapeie as colunas</div><span class="tag">@_arq.Nome · @_arq.Linhas.Count linha(s)</span></div>
             <div class="map-cols">
                 @foreach (var c in ImportadorTecnicos.Campos)
                 {
-                    <label class="fld">@L[c.Label] @if (c.Obrigatorio) { <span class="neg">*</span> }
+                    <label class="fld">@c.Label @if (c.Obrigatorio) { <span class="neg">*</span> }
                         <select value="@(_map.TryGetValue(c.Key, out var ix) ? ix : -1)" @onchange="e => Mapear(c.Key, e.Value?.ToString())">
-                            <option value="-1">@L["— não importar —"]</option>
-                            @for (var i = 0; i < _arq.Cabecalhos.Count; i++) { <option value="@i">@(string.IsNullOrWhiteSpace(_arq.Cabecalhos[i]) ? L.F("(coluna {0})", i + 1) : _arq.Cabecalhos[i])</option> }
+                            <option value="-1">— não importar —</option>
+                            @for (var i = 0; i < _arq.Cabecalhos.Count; i++) { <option value="@i">@(string.IsNullOrWhiteSpace(_arq.Cabecalhos[i]) ? $"(coluna {i + 1})" : _arq.Cabecalhos[i])</option> }
                         </select></label>
                 }
             </div>
-            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@L[e]</div> }</div></div> }
-            <div class="modal-actions"><button class="btn-ghost" @onclick="ReiniciarImport">@L["Voltar"]</button><button class="btn-primary" @onclick="AnalisarImp">@L["Validar e ver prévia"] @Icons.Svg("arrow-right")</button></div>
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
+            <div class="modal-actions"><button class="btn-ghost" @onclick="ReiniciarImport">Voltar</button><button class="btn-primary" @onclick="AnalisarImp">Validar e ver prévia @Icons.Svg("arrow-right")</button></div>
         </div>
     }
     else if (_passo == 3)
     {
         var rej = _linhas.Count(l => l.Rejeitada); var exist = _linhas.Count(l => l.Existente && !l.Rejeitada); var novas = _linhas.Count(l => !l.Existente && !l.Rejeitada);
         <div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["3. Prévia e validação"]</div><span class="tag">@L.F("{0} linha(s)", _linhas.Count)</span></div>
-            <div class="imp-resumo"><div class="imp-n pos"><b>@novas</b>@L["novos"]</div><div class="imp-n warn"><b>@exist</b>@L["já cadastrados"]</div><div class="imp-n neg"><b>@rej</b>@L["com erro (rejeitados)"]</div></div>
+            <div class="panel-head"><div class="panel-title">3. Prévia e validação</div><span class="tag">@_linhas.Count linha(s)</span></div>
+            <div class="imp-resumo"><div class="imp-n pos"><b>@novas</b>novos</div><div class="imp-n warn"><b>@exist</b>já cadastrados</div><div class="imp-n neg"><b>@rej</b>com erro (rejeitados)</div></div>
             @if (exist > 0)
             {
-                <div class="toolbar"><strong>@L["Técnicos já cadastrados:"]</strong>
-                    <select class="field w-auto" @onchange="e => AplicarPadrao(e.Value?.ToString())"><option value="Ignorar">@L["Ignorar (já cadastrado)"]</option><option value="Criar">@L["Criar homônimo"]</option></select>
-                    <span class="muted sm">@L["Ajuste linha a linha abaixo. Nada é alterado sem aparecer aqui."]</span></div>
+                <div class="toolbar"><strong>Técnicos já cadastrados:</strong>
+                    <select class="field w-auto" @onchange="e => AplicarPadrao(e.Value?.ToString())"><option value="Ignorar">Ignorar (já cadastrado)</option><option value="Criar">Criar homônimo</option></select>
+                    <span class="muted sm">Ajuste linha a linha abaixo. Nada é alterado sem aparecer aqui.</span></div>
             }
-            <div class="toolbar"><label class="chk-inline"><input type="checkbox" @bind="_soProblemas" />@L["Mostrar só linhas com erro, aviso ou já cadastradas"]</label></div>
+            <div class="toolbar"><label class="chk-inline"><input type="checkbox" @bind="_soProblemas" />Mostrar só linhas com erro, aviso ou já cadastradas</label></div>
             <div class="table-wrap prev-wrap"><table class="grid-tbl">
-                <thead><tr><th>@L["Linha"]</th><th>@L["Nome"]</th><th>@L["Situação"]</th><th>@L["Ação"]</th></tr></thead>
+                <thead><tr><th>Linha</th><th>Nome</th><th>Situação</th><th>Ação</th></tr></thead>
                 <tbody>
                 @foreach (var l in _linhas.Where(l => !_soProblemas || l.Rejeitada || l.Existente || l.Avisos.Count > 0))
                 {
                     <tr class="@(l.Rejeitada ? "lin-erro" : "")">
                         <td>@l.Numero</td><td>@l.V["nome"]</td>
-                        <td>@if (l.Rejeitada) { <span class="badge st-neg">@Icons.Svg("x", "bico")@L["Erro"]</span> @foreach (var e in l.Erros) { <div class="sm neg">@L[e]</div> } }
-                            else if (l.Existente) { <span class="badge st-warn">@Icons.Svg("copy", "bico")@L["Já cadastrado"]</span> @if (l.Diferencas.Count > 0) { <ul class="difs">@foreach (var d in l.Diferencas) { <li>@L[d]</li> }</ul> } }
-                            else { <span class="badge st-pos">@Icons.Svg("plus", "bico")@L["Novo"]</span> }
-                            @foreach (var a in l.Avisos) { <div class="sm warn">@L[a]</div> }</td>
-                        <td>@if (l.Rejeitada) { <span class="muted">@L["Rejeitado"]</span> } else if (l.Existente) { <select class="field w-auto" @bind="l.Acao"><option value="@AcaoImport.Ignorar">@L["Ignorar"]</option><option value="@AcaoImport.Criar">@L["Criar homônimo"]</option></select> } else { <span class="muted">@L["Criar"]</span> }</td>
+                        <td>@if (l.Rejeitada) { <span class="badge st-neg">@Icons.Svg("x", "bico")Erro</span> @foreach (var e in l.Erros) { <div class="sm neg">@e</div> } }
+                            else if (l.Existente) { <span class="badge st-warn">@Icons.Svg("copy", "bico")Já cadastrado</span> @if (l.Diferencas.Count > 0) { <ul class="difs">@foreach (var d in l.Diferencas) { <li>@d</li> }</ul> } }
+                            else { <span class="badge st-pos">@Icons.Svg("plus", "bico")Novo</span> }
+                            @foreach (var a in l.Avisos) { <div class="sm warn">@a</div> }</td>
+                        <td>@if (l.Rejeitada) { <span class="muted">Rejeitado</span> } else if (l.Existente) { <select class="field w-auto" @bind="l.Acao"><option value="@AcaoImport.Ignorar">Ignorar</option><option value="@AcaoImport.Criar">Criar homônimo</option></select> } else { <span class="muted">Criar</span> }</td>
                     </tr>
                 }
                 </tbody></table></div>
-            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@L[e]</div> }</div></div> }
-            <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _passo = 2)">@L["Voltar"]</button><button class="btn-primary" @onclick="ConfirmarImp" disabled="@(_linhas.All(l => l.Rejeitada || l.Acao == AcaoImport.Ignorar))">@Icons.Svg("check")@L["Confirmar importação"]</button></div>
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
+            <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _passo = 2)">Voltar</button><button class="btn-primary" @onclick="ConfirmarImp" disabled="@(_linhas.All(l => l.Rejeitada || l.Acao == AcaoImport.Ignorar))">@Icons.Svg("check")Confirmar importação</button></div>
         </div>
     }
     else if (_passo == 4 && _res is not null)
     {
         <div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["4. Resultado da importação"]</div></div>
-            <div class="imp-resumo"><div class="imp-n pos"><b>@_res.Importadas</b>@L["importados"]</div><div class="imp-n"><b>@_res.Ignoradas</b>@L["ignorados"]</div><div class="imp-n neg"><b>@_res.Rejeitadas.Count</b>@L["rejeitados"]</div></div>
+            <div class="panel-head"><div class="panel-title">4. Resultado da importação</div></div>
+            <div class="imp-resumo"><div class="imp-n pos"><b>@_res.Importadas</b>importados</div><div class="imp-n"><b>@_res.Ignoradas</b>ignorados</div><div class="imp-n neg"><b>@_res.Rejeitadas.Count</b>rejeitados</div></div>
             @if (_res.Rejeitadas.Count > 0)
             {
-                <h3 class="sec">@Icons.Svg("alert")@L["Linhas rejeitadas e motivos"]</h3>
-                <div class="table-wrap"><table class="grid-tbl"><thead><tr><th>@L["Linha"]</th><th>@L["Nome"]</th><th>@L["Motivo"]</th></tr></thead><tbody>
-                    @foreach (var e in _res.Rejeitadas) { <tr><td>@e.linha</td><td>@e.cliente</td><td class="neg">@L[e.motivo]</td></tr> }</tbody></table></div>
-                <button class="btn-ghost mt8" @onclick="BaixarErros">@Icons.Svg("download")@L["Baixar lista de erros (CSV)"]</button>
+                <h3 class="sec">@Icons.Svg("alert")Linhas rejeitadas e motivos</h3>
+                <div class="table-wrap"><table class="grid-tbl"><thead><tr><th>Linha</th><th>Nome</th><th>Motivo</th></tr></thead><tbody>
+                    @foreach (var e in _res.Rejeitadas) { <tr><td>@e.linha</td><td>@e.cliente</td><td class="neg">@e.motivo</td></tr> }</tbody></table></div>
+                <button class="btn-ghost mt8" @onclick="BaixarErros">@Icons.Svg("download")Baixar lista de erros (CSV)</button>
             }
-            @if (_res.Avisos.Count > 0) { <h3 class="sec">@Icons.Svg("info")@L["Avisos"]</h3><ul class="difs">@foreach (var a in _res.Avisos) { <li>@(a.linha > 0 ? L.F("Linha {0}:", a.linha) + " " : "")@L[a.detalhe]</li> }</ul> }
-            <p class="muted mt16">@L["Próximos passos: abra a ficha de cada técnico e preencha cidade, contatos, especialidades, serviços e jornada (a cidade é obrigatória ao salvar a ficha); depois cadastre documentos e treinamentos."]</p>
-            <div class="modal-actions"><button class="btn-ghost" @onclick="ReiniciarImport">@L["Nova importação"]</button><button class="btn-primary" @onclick="@(() => { _aba = "equipe"; ReiniciarImport(); })">@L["Ver equipe"]</button></div>
+            @if (_res.Avisos.Count > 0) { <h3 class="sec">@Icons.Svg("info")Avisos</h3><ul class="difs">@foreach (var a in _res.Avisos) { <li>@(a.linha > 0 ? $"Linha {a.linha}: " : "")@a.detalhe</li> }</ul> }
+            <p class="muted mt16">Próximos passos: abra a ficha de cada técnico e preencha cidade, contatos, especialidades, serviços e jornada (a cidade é obrigatória ao salvar a ficha); depois cadastre documentos e treinamentos.</p>
+            <div class="modal-actions"><button class="btn-ghost" @onclick="ReiniciarImport">Nova importação</button><button class="btn-primary" @onclick="@(() => { _aba = "equipe"; ReiniciarImport(); })">Ver equipe</button></div>
         </div>
     }
 }
 else if (_aba == "venc")
 {
     <div class="imp-resumo">
-        <div class="imp-n neg"><b>@_venc.Count(v => v.Status == Vocab.DocVencido)</b>@L["vencidos"]</div>
+        <div class="imp-n neg"><b>@_venc.Count(v => v.Status == Vocab.DocVencido)</b>vencidos</div>
         @foreach (var a in Db.DiasAlerta)
         {
             var n = _venc.Count(v => v.Dias is >= 0 && v.Dias <= a && (a == Db.DiasAlerta.Min() || v.Dias > Db.DiasAlerta.Where(x => x < a).DefaultIfEmpty(-1).Max()));
-            <div class="imp-n warn"><b>@n</b>@L.F("vencem em até {0} dias", a)</div>
+            <div class="imp-n warn"><b>@n</b>vencem em até @a dias</div>
         }
-        <div class="imp-n pos"><b>@_venc.Count(v => v.Status is Vocab.DocValido or Vocab.DocSemVenc)</b>@L["válidos"]</div>
+        <div class="imp-n pos"><b>@_venc.Count(v => v.Status is Vocab.DocValido or Vocab.DocSemVenc)</b>válidos</div>
     </div>
     <div class="toolbar">
-        <SeletorLista Itens="@(_tecs.OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_vTec" ValueChanged="@(async (string v) => { _vTec = v; })" Placeholder="@L["Todos os técnicos"]" />
-        <CampoLista Value="@_vCat" ValueChanged="@((string v) => { _vCat = v; })" Opcoes="@(Vocab.CategoriasDoc)" Placeholder="@L["Todas as categorias"]" Class="field w-auto" />
-        <CampoLista Value="@_vNorma" ValueChanged="@((string v) => { _vNorma = v; })" Opcoes="@(_venc.Select(v => v.Doc.Norma))" Placeholder="@L["Todas as normas"]" Class="field w-auto" />
-        <select class="field w-auto" @bind="_vSt"><option value="">@L["Todas as situações"]</option>@foreach (var s in Vocab.StatusDoc.Where(s => s.Key != Vocab.DocAusente)) {<option value="@s.Key">@L[s.Label]</option>}</select>
-        <label class="fld-i">@L["Vence de"] <input type="date" class="field" value="@Ui.DataInput(_vDe)" @onchange="e => _vDe = Ui.DoDataInput(e.Value?.ToString())" /></label>
-        <label class="fld-i">@L["até"] <input type="date" class="field" value="@Ui.DataInput(_vAte)" @onchange="e => _vAte = Ui.DoDataInput(e.Value?.ToString())" /></label>
+        <SeletorLista Itens="@(_tecs.OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_vTec" ValueChanged="@(async (string v) => { _vTec = v; })" Placeholder="Todos os técnicos" />
+        <CampoLista Value="@_vCat" ValueChanged="@((string v) => { _vCat = v; })" Opcoes="@(Vocab.CategoriasDoc)" Placeholder="Todas as categorias" Class="field w-auto" />
+        <CampoLista Value="@_vNorma" ValueChanged="@((string v) => { _vNorma = v; })" Opcoes="@(_venc.Select(v => v.Doc.Norma))" Placeholder="Todas as normas" Class="field w-auto" />
+        <select class="field w-auto" @bind="_vSt"><option value="">Todas as situações</option>@foreach (var s in Vocab.StatusDoc.Where(s => s.Key != Vocab.DocAusente)) {<option value="@s.Key">@s.Label</option>}</select>
+        <label class="fld-i">Vence de <input type="date" class="field" value="@Ui.DataInput(_vDe)" @onchange="e => _vDe = Ui.DoDataInput(e.Value?.ToString())" /></label>
+        <label class="fld-i">até <input type="date" class="field" value="@Ui.DataInput(_vAte)" @onchange="e => _vAte = Ui.DoDataInput(e.Value?.ToString())" /></label>
         <span class="grow"></span>
-        <a class="btn-ghost" href="/export/vencimentos.csv" download>@Icons.Svg("download")@L["Exportar CSV"]</a>
+        <a class="btn-ghost" href="/export/vencimentos.csv" download>@Icons.Svg("download")Exportar CSV</a>
     </div>
     <div class="table-wrap"><table class="grid-tbl">
-        <thead><tr><th>@L["Técnico"]</th><th>@L["Registro"]</th><th>@L["Categoria"]</th><th>@L["Norma"]</th><th>@L["Vencimento"]</th><th>@L["Dias"]</th><th>@L["Situação"]</th></tr></thead>
+        <thead><tr><th>Técnico</th><th>Registro</th><th>Categoria</th><th>Norma</th><th>Vencimento</th><th>Dias</th><th>Situação</th></tr></thead>
         <tbody>
         @foreach (var v in VencFiltrados)
         {
-            <tr><td><a href="/tecnicos/@v.Doc.TecnicoId">@v.Tecnico?.Nome</a></td><td>@v.Doc.Nome</td><td>@L[v.Doc.Categoria]</td><td>@v.Doc.Norma</td>
+            <tr><td><a href="/tecnicos/@v.Doc.TecnicoId">@v.Tecnico?.Nome</a></td><td>@v.Doc.Nome</td><td>@v.Doc.Categoria</td><td>@v.Doc.Norma</td>
                 <td>@(v.Doc.SemVencimento ? "—" : Tempo.Dia(v.Doc.Vencimento))</td><td>@(v.Dias?.ToString() ?? "—")</td>
-                <td><StatusBadge Item="@Trad(Ui.StDoc(v.Status))" Extra="@(v.Alerta is { } a ? $"≤{a}d" : null)" /></td></tr>
+                <td><StatusBadge Item="@Ui.StDoc(v.Status)" Extra="@(v.Alerta is { } a ? $"≤{a}d" : null)" /></td></tr>
         }
         </tbody>
     </table></div>
-    @if (!VencFiltrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("shield")</div><h3>@L["Nenhum registro para os filtros"]</h3></div> }
+    @if (!VencFiltrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("shield")</div><h3>Nenhum registro para os filtros</h3></div> }
 }
 else if (_aba == "apt")
 {
     <div class="g12 top">
         <div class="c5">
             <div class="panel">
-                <div class="panel-head"><div class="panel-title">@L["Requisitos por serviço ou planta"]</div></div>
-                <p class="muted sm">@L["Defina quais documentos e treinamentos são exigidos e se a falta"] <strong>@L["bloqueia a confirmação"]</strong> @L["ou apenas gera alerta. A validade vem do registro de cada técnico."]</p>
-                @if (_ator.Pode(Perm.EditarRequisitos)) { <button class="btn-primary" @onclick="NovoReq">@Icons.Svg("plus")@L["Novo requisito"]</button> }
+                <div class="panel-head"><div class="panel-title">Requisitos por serviço ou planta</div></div>
+                <p class="muted sm">Defina quais documentos e treinamentos são exigidos e se a falta <strong>bloqueia a confirmação</strong> ou apenas gera alerta. A validade vem do registro de cada técnico.</p>
+                @if (_ator.Pode(Perm.EditarRequisitos)) { <button class="btn-primary" @onclick="NovoReq">@Icons.Svg("plus")Novo requisito</button> }
                 <div class="table-wrap mt8"><table class="grid-tbl">
-                    <thead><tr><th>@L["Onde"]</th><th>@L["Exigido"]</th><th>@L["Efeito"]</th><th></th></tr></thead>
+                    <thead><tr><th>Onde</th><th>Exigido</th><th>Efeito</th><th></th></tr></thead>
                     <tbody>
                     @foreach (var r in _snap.Requisitos.OrderBy(r => r.Escopo).ThenBy(r => EscopoNome(r)))
                     {
-                        <tr><td><span class="tag">@(r.Escopo == "servico" ? L["Serviço"] : L["Planta"])</span> @EscopoNome(r)</td><td>@r.Nome@if (!string.IsNullOrEmpty(r.Norma)) { <div class="muted sm">@L.F("norma {0}", r.Norma)</div> }</td>
-                            <td><span class="badge @(r.Bloqueia ? "st-neg" : "st-warn")">@(r.Bloqueia ? L["Bloqueia"] : L["Só alerta"])</span></td>
-                            <td class="right nowrap">@if (_ator.Pode(Perm.EditarRequisitos)) { <button class="row-act" @onclick="() => EditarReq(r)" title="@L["Editar"]">@Icons.Svg("edit")</button><button class="row-act del" @onclick="() => ExcluirReq(r)" title="@L["Excluir"]">@Icons.Svg("trash")</button> }</td></tr>
+                        <tr><td><span class="tag">@(r.Escopo == "servico" ? "Serviço" : "Planta")</span> @EscopoNome(r)</td><td>@r.Nome@if (!string.IsNullOrEmpty(r.Norma)) { <div class="muted sm">norma @r.Norma</div> }</td>
+                            <td><span class="badge @(r.Bloqueia ? "st-neg" : "st-warn")">@(r.Bloqueia ? "Bloqueia" : "Só alerta")</span></td>
+                            <td class="right nowrap">@if (_ator.Pode(Perm.EditarRequisitos)) { <button class="row-act" @onclick="() => EditarReq(r)" title="Editar">@Icons.Svg("edit")</button><button class="row-act del" @onclick="() => ExcluirReq(r)" title="Excluir">@Icons.Svg("trash")</button> }</td></tr>
                     }
                     </tbody></table></div>
-                @if (_snap.Requisitos.Count == 0) { <div class="empty-state sm"><h3>@L["Nenhum requisito configurado"]</h3></div> }
+                @if (_snap.Requisitos.Count == 0) { <div class="empty-state sm"><h3>Nenhum requisito configurado</h3></div> }
             </div>
         </div>
         <div class="c7">
             <div class="panel">
-                <div class="panel-head"><div class="panel-title">@L["Quem pode atender?"]</div></div>
-                <p class="muted sm">@L["Mostra, separadamente, a"] <strong>@L["disponibilidade de agenda"]</strong> @L["e a"] <strong>@L["aptidão documental"]</strong> @L["no período, considerando a validade durante todo o atendimento."]</p>
+                <div class="panel-head"><div class="panel-title">Quem pode atender?</div></div>
+                <p class="muted sm">Mostra, separadamente, a <strong>disponibilidade de agenda</strong> e a <strong>aptidão documental</strong> no período, considerando a validade durante todo o atendimento.</p>
                 <div class="form-grid g3">
-                    <div class="fld">@L["Planta"]<SeletorPlanta Value="@_aPlanta" ValueChanged="id => _aPlanta = id ?? string.Empty" Vazio="@L["— qualquer —"]" Placeholder="@L["— qualquer —"]" /></div>
-                    <label class="fld">@L["Serviço"]<SeletorLista Itens="@(_snap.Servicos.Values.OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_aServ" ValueChanged="@(async (string v) => { _aServ = v; })" Placeholder="@L["— qualquer —"]" /></label>
-                    <label class="fld chk"><input type="checkbox" @bind="_aSo" />@L["Só livres e aptos"]</label>
-                    <label class="fld chk full"><input type="checkbox" @bind="_aOutros" />@L["Incluir engenharia, terceiros, fábrica e quem viaja esporadicamente"]</label>
-                    <label class="fld">@L["Início"]<input type="date" value="@Ui.DataInput(_aDe)" @onchange="e => _aDe = Ui.DoDataInput(e.Value?.ToString()) ?? _aDe" /></label>
-                    <label class="fld">@L["Término"]<input type="date" value="@Ui.DataInput(_aAte)" @onchange="e => _aAte = Ui.DoDataInput(e.Value?.ToString()) ?? _aAte" /></label>
+                    <div class="fld">Planta<SeletorPlanta Value="@_aPlanta" ValueChanged="id => _aPlanta = id ?? string.Empty" Vazio="— qualquer —" Placeholder="— qualquer —" /></div>
+                    <label class="fld">Serviço<SeletorLista Itens="@(_snap.Servicos.Values.OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_aServ" ValueChanged="@(async (string v) => { _aServ = v; })" Placeholder="— qualquer —" /></label>
+                    <label class="fld chk"><input type="checkbox" @bind="_aSo" />Só livres e aptos</label>
+                    <label class="fld chk full"><input type="checkbox" @bind="_aOutros" />Incluir engenharia, terceiros, fábrica e quem viaja esporadicamente</label>
+                    <label class="fld">Início<input type="date" value="@Ui.DataInput(_aDe)" @onchange="e => _aDe = Ui.DoDataInput(e.Value?.ToString()) ?? _aDe" /></label>
+                    <label class="fld">Término<input type="date" value="@Ui.DataInput(_aAte)" @onchange="e => _aAte = Ui.DoDataInput(e.Value?.ToString()) ?? _aAte" /></label>
                 </div>
                 @{ var linhas = Aptidoes(); }
                 <div class="table-wrap mt8"><table class="grid-tbl">
-                    <thead><tr><th>@L["Técnico"]</th><th>@L["Agenda no período"]</th><th>@L["Aptidão documental"]</th><th></th></tr></thead>
+                    <thead><tr><th>Técnico</th><th>Agenda no período</th><th>Aptidão documental</th><th></th></tr></thead>
                     <tbody>
                     @foreach (var l in linhas)
                     {
                         <tr class="@(l.livre && l.ap.Apto ? "lin-ok" : "")">
                             <td><a href="/tecnicos/@l.t.Id">@l.t.Nome</a></td>
-                            <td><span class="badge @(l.livre ? "st-pos" : "st-warn")">@(l.livre ? L["Livre"] : L["Com compromissos"])</span><div class="muted sm">@l.agenda</div></td>
-                            <td>@if (l.ap.Apto) { <span class="badge st-pos">@Icons.Svg("check", "bico")@L["Apto"]</span> }
-                                else if (l.ap.Bloqueado) { <span class="badge st-neg">@Icons.Svg("x", "bico")@L["Precisa renovar / pendente"]</span> }
-                                else { <span class="badge st-warn">@Icons.Svg("alert", "bico")@L["Apto com alertas"]</span> }
-                                @foreach (var p in l.ap.Pendencias) { <div class="sm @(p.Bloqueia ? "neg" : "warn")">@L[p.Motivo]</div> }</td>
-                            <td>@if (l.livre && l.ap.Apto) { <span class="tag ok">@L["Livre e apto"]</span> }</td>
+                            <td><span class="badge @(l.livre ? "st-pos" : "st-warn")">@(l.livre ? "Livre" : "Com compromissos")</span><div class="muted sm">@l.agenda</div></td>
+                            <td>@if (l.ap.Apto) { <span class="badge st-pos">@Icons.Svg("check", "bico")Apto</span> }
+                                else if (l.ap.Bloqueado) { <span class="badge st-neg">@Icons.Svg("x", "bico")Precisa renovar / pendente</span> }
+                                else { <span class="badge st-warn">@Icons.Svg("alert", "bico")Apto com alertas</span> }
+                                @foreach (var p in l.ap.Pendencias) { <div class="sm @(p.Bloqueia ? "neg" : "warn")">@p.Motivo</div> }</td>
+                            <td>@if (l.livre && l.ap.Apto) { <span class="tag ok">Livre e apto</span> }</td>
                         </tr>
                     }
                     </tbody></table></div>
-                @if (linhas.Count == 0) { <div class="empty-state sm"><h3>@L["Nenhum técnico atende aos filtros"]</h3></div> }
+                @if (linhas.Count == 0) { <div class="empty-state sm"><h3>Nenhum técnico atende aos filtros</h3></div> }
             </div>
         </div>
     </div>
@@ -244,22 +244,22 @@ else if (_aba == "apt")
 
 @if (_req is not null)
 {
-    <Dialogo Titulo="@(string.IsNullOrEmpty(_req.Id) ? L["Novo requisito"] : L["Editar requisito"])" OnFechar="@(() => _req = null)" Erros="_erros">
+    <Dialogo Titulo="@(string.IsNullOrEmpty(_req.Id) ? "Novo requisito" : "Editar requisito")" OnFechar="@(() => _req = null)" Erros="_erros">
         <div class="form-grid">
-            <label class="fld">@L["Vale para"]<select @bind="_req.Escopo" @bind:after="@(() => _req.EscopoId = "")"><option value="servico">@L["Serviço"]</option><option value="planta">@L["Planta"]</option></select></label>
-            <div class="fld">@(_req.Escopo == "servico" ? L["Serviço"] : L["Planta"])@if (_req.Escopo == "servico") { <SeletorLista Itens="@(_snap.Servicos.Values.OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_req.EscopoId" ValueChanged="@(async (string v) => { _req.EscopoId = v; })" Placeholder="@L["— selecione —"]" Criar="CriarServ" RotuloCriar="@L["serviço"]" /> } else { <SeletorPlanta Value="@_req.EscopoId" ValueChanged="id => _req.EscopoId = id ?? string.Empty" /> }</div>
-            <label class="fld full">@L["Documento / treinamento exigido"] *<input @bind="_req.Nome" /><span class="hint">@L["O técnico atende se tiver um registro atual com este nome ou com a norma abaixo."]</span></label>
-            <label class="fld">@L["Norma"] <span class="hint">@L["opcional"]</span><input @bind="_req.Norma" /></label>
-            <label class="fld">@L["Categoria"]<CampoLista Value="@_req.Categoria" ValueChanged="@((string v) => { _req.Categoria = v; })" Opcoes="@(Vocab.CategoriasDoc)" Placeholder="" /></label>
-            <label class="fld chk full"><input type="checkbox" @bind="_req.Bloqueia" />@L["Bloqueia a confirmação quando ausente, vencido ou vencendo antes do fim do atendimento (desmarcado: só alerta)"]</label>
-            <label class="fld full">@L["Observações"]<input @bind="_req.Obs" /></label>
+            <label class="fld">Vale para<select @bind="_req.Escopo" @bind:after="@(() => _req.EscopoId = "")"><option value="servico">Serviço</option><option value="planta">Planta</option></select></label>
+            <div class="fld">@(_req.Escopo == "servico" ? "Serviço" : "Planta")@if (_req.Escopo == "servico") { <SeletorLista Itens="@(_snap.Servicos.Values.OrderBy(s => s.Nome).Select(s => new SeletorLista.ItemSel(s.Id, s.Nome)))" Value="@_req.EscopoId" ValueChanged="@(async (string v) => { _req.EscopoId = v; })" Placeholder="— selecione —" Criar="CriarServ" RotuloCriar="serviço" /> } else { <SeletorPlanta Value="@_req.EscopoId" ValueChanged="id => _req.EscopoId = id ?? string.Empty" /> }</div>
+            <label class="fld full">Documento / treinamento exigido *<input @bind="_req.Nome" /><span class="hint">O técnico atende se tiver um registro atual com este nome ou com a norma abaixo.</span></label>
+            <label class="fld">Norma <span class="hint">opcional</span><input @bind="_req.Norma" /></label>
+            <label class="fld">Categoria<CampoLista Value="@_req.Categoria" ValueChanged="@((string v) => { _req.Categoria = v; })" Opcoes="@(Vocab.CategoriasDoc)" Placeholder="" /></label>
+            <label class="fld chk full"><input type="checkbox" @bind="_req.Bloqueia" />Bloqueia a confirmação quando ausente, vencido ou vencendo antes do fim do atendimento (desmarcado: só alerta)</label>
+            <label class="fld full">Observações<input @bind="_req.Obs" /></label>
         </div>
-        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _req = null)">@L["Cancelar"]</button><button class="btn-primary" @onclick="SalvarReq">@Icons.Svg("check")@L["Salvar"]</button></div>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _req = null)">Cancelar</button><button class="btn-primary" @onclick="SalvarReq">@Icons.Svg("check")Salvar</button></div>
     </Dialogo>
 }
 
 @code {
-    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(_ator); return Task.FromResult<string?>(s.Id); }
+    private Task<string?> CriarServ(string nome) { var s = Svc.CriarServicoRapido(_ator, nome); _snap = Svc.Foto(); return Task.FromResult<string?>(s.Id); }
     private Ator _ator = new(); private Snapshot _snap = new(); private List<Tecnico> _tecs = new(); private List<Evento> _eventos = new();
     private Dictionary<string, Estado> _estados = new(); private List<DocEngine.Linha> _venc = new();
     private string _aba = "equipe", _busca = "", _fEsp = "", _fPerfil = ""; private bool _inativos, _aOutros;   // padrão: só os ativos; o botão troca para só os inativos
@@ -278,7 +278,7 @@ else if (_aba == "apt")
 
     private void Carregar()
     {
-        _snap = Svc.Foto(_ator);
+        _snap = Svc.Foto();
         _tecs = _snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id)).ToList();
         _eventos = AgendaEngine.Eventos(_snap);
         var agora = DateTime.UtcNow;
@@ -295,9 +295,6 @@ else if (_aba == "apt")
         (_vTec == "" || v.Doc.TecnicoId == _vTec) && (_vCat == "" || Ui.Contem(v.Doc.Categoria, _vCat)) && (_vNorma == "" || Ui.Contem(v.Doc.Norma, _vNorma))
         && (_vSt == "" || v.Status == _vSt) && (_vDe is null || (v.Doc.Vencimento is { } d && d >= _vDe)) && (_vAte is null || (v.Doc.Vencimento is { } d2 && d2 <= _vAte)))
         .OrderBy(v => v.Dias ?? int.MaxValue);
-
-    /// <summary>Rótulo do vocabulário traduzido para o StatusBadge.</summary>
-    private Item Trad(Item i) => i with { Label = L[i.Label] };
 
     private string EscopoNome(Requisito r) => r.Escopo == "servico" ? _snap.Servico(r.EscopoId)?.Nome ?? "?" : _snap.NomePlanta(r.EscopoId);
 
@@ -316,7 +313,7 @@ else if (_aba == "apt")
             var dias = AgendaEngine.Dias(_snap, _eventos, t, Tempo.ParaLocal(ini, t.FusoHorario).Date, Tempo.ParaLocal(fim, t.FusoHorario).Date);
             var util = dias.Where(d => d.Situacao != "naoutil").ToList();
             var livre = util.Count > 0 && util.All(d => d.Situacao is "livre" or "provisorio");
-            var agenda = livre ? L["Livre em todos os dias úteis do período"] : string.Join(", ", util.Where(d => d.Situacao is not ("livre" or "provisorio")).Select(d => $"{d.Dia:dd/MM} {d.Situacao switch { "ocupado" => L["ocupado"], "parcial" => L["parcial"], "indisponivel" => L["indisponível"], _ => d.Situacao }}").Take(4));
+            var agenda = livre ? "Livre em todos os dias úteis do período" : string.Join(", ", util.Where(d => d.Situacao is not ("livre" or "provisorio")).Select(d => $"{d.Dia:dd/MM} {d.Situacao switch { "ocupado" => "ocupado", "parcial" => "parcial", "indisponivel" => "indisponível", _ => d.Situacao }}").Take(4));
             var ap = DocEngine.Avaliar(_snap, t, reqs, ini, fim, hoje, fusoP);
             if (_aSo && !(livre && ap.Apto)) continue;
             res.Add((t, livre, agenda, ap));

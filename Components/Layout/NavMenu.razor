@@ -18,23 +18,23 @@
             </div>
         }
     </div>
-    <nav class="nav" aria-label="@L["Navegação principal"]">
-        <div class="nav-section">@L["Operação"]</div>
+    <nav class="nav" aria-label="Navegação principal">
+        <div class="nav-section">Operação</div>
         @foreach (var it in Itens.Where(i => Visivel(i)))
         {
-            <a class="nav-item @(Ativo(it.Rota) ? "active" : "")" href="@it.Rota" title="@L[it.Rotulo]">
-                @Icons.Svg(it.Icone, "nav-ico")<span>@L[it.Rotulo]</span>
+            <a class="nav-item @(Ativo(it.Rota) ? "active" : "")" href="@it.Rota" title="@it.Rotulo">
+                @Icons.Svg(it.Icone, "nav-ico")<span>@it.Rotulo</span>
             </a>
         }
         @if (_ator.Pode(Perm.Administrar) || _ator.Pode(Perm.VerAuditoria))
         {
-            <div class="nav-section">@L["Sistema"]</div>
-            <a class="nav-item @(Ativo("/admin") ? "active" : "")" href="/admin" title="@L["Administração"]">
-                @Icons.Svg("admin", "nav-ico")<span>@L["Administração"]</span>
+            <div class="nav-section">Sistema</div>
+            <a class="nav-item @(Ativo("/admin") ? "active" : "")" href="/admin" title="Administração">
+                @Icons.Svg("admin", "nav-ico")<span>Administração</span>
             </a>
         }
     </nav>
-    <div class="sidebar-footer"><div class="version">@Svc.NomeSistema · @(Lancador.Versao == "" ? L["desenvolvimento"] : L.F("versão {0}", Lancador.Versao))</div></div>
+    <div class="sidebar-footer"><div class="version">@Svc.NomeSistema · @(Lancador.Versao == "" ? "desenvolvimento" : "versão " + Lancador.Versao)</div></div>
 </aside>
 
 @code {

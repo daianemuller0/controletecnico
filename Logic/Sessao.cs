@@ -30,7 +30,7 @@ public sealed class Sessao
     public event Action? Mudou;
 
     /// <summary>Período e técnicos escolhidos nos indicadores gerenciais (valem enquanto a pessoa estiver no programa).</summary>
-    public sealed record FiltroIndicadores(DateTime De, DateTime Ate, string Atalho, List<string> Tecnicos, List<string>? Bus = null);
+    public sealed record FiltroIndicadores(DateTime De, DateTime Ate, string Atalho, List<string> Tecnicos);
     public FiltroIndicadores? Indicadores { get; set; }
 
     /// <summary>Filtros da Agenda: continuam valendo ao ir para outra tela e voltar (zeram ao sair do programa).</summary>

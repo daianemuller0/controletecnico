@@ -1,55 +1,55 @@
 @inject Servicos Svc
 @inject Sessao Sessao
 
-<p class="muted">@L["Dois logos, trocáveis a qualquer momento: o da"] <strong>@L["página de entrada"]</strong> @L["(tela de login) e o do"] <strong>@L["sistema"]</strong> @L["(barra lateral). A troca vale para todos os usuários, na hora."]</p>
+<p class="muted">Dois logos, trocáveis a qualquer momento: o da <strong>página de entrada</strong> (tela de login) e o do <strong>sistema</strong> (barra lateral). A troca vale para todos os usuários, na hora.</p>
 
 @if (!_ator.Pode(Perm.Administrar))
 {
-    <div class="state-box">@Icons.Svg("lock")<div><strong>@L["Somente o administrador altera a identidade visual."]</strong></div></div>
+    <div class="state-box">@Icons.Svg("lock")<div><strong>Somente o administrador altera a identidade visual.</strong></div></div>
 }
 else
 {
 
-    <p class="muted">@L["PNG, JPG, SVG ou WebP · até 3 MB · de preferência PNG com fundo transparente."]</p>
+    <p class="muted">PNG, JPG, SVG ou WebP · até 3 MB · de preferência PNG com fundo transparente.</p>
     <div class="g12 top">
         <div class="c6"><div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["Logo da página de entrada"]</div></div>
+            <div class="panel-head"><div class="panel-title">Logo da página de entrada</div></div>
             <div class="logo-slot">
                 <div class="logo-preview on-dark">
-                    @if (Svc.LogoDe("login") is { } l1) { <img src="/marca/login?v=@l1.Id" alt="@L["Logo do login"]" /> }
+                    @if (Svc.LogoDe("login") is { } l1) { <img src="/marca/login?v=@l1.Id" alt="Logo do login" /> }
                     else { <div class="logo-padrao"><span class="brand-mark big">@Sigla()</span><strong>@_nome</strong></div> }
                 </div>
-                <div class="muted sm">@L["Aparece no painel azul à esquerda da tela de login. Use uma versão"] <strong>@L["clara ou com fundo transparente"]</strong>@L["; tamanho sugerido: largura 400–800 px."]</div>
+                <div class="muted sm">Aparece no painel azul à esquerda da tela de login. Use uma versão <strong>clara ou com fundo transparente</strong>; tamanho sugerido: largura 400–800 px.</div>
                 <div class="logo-actions">
-                    <label class="btn-primary file-btn">@Icons.Svg("upload")@(Svc.LogoDe("login") is null ? L["Enviar logo"] : L["Trocar logo"])<InputFile OnChange="EnviarLogoLogin" accept=".png,.jpg,.jpeg,.svg,.webp" /></label>
-                    @if (Svc.LogoDe("login") is not null) { <button class="btn-danger-ghost" @onclick="@(() => RemoverLogo("login"))">@Icons.Svg("trash")@L["Remover (voltar ao padrão)"]</button> }
+                    <label class="btn-primary file-btn">@Icons.Svg("upload")@(Svc.LogoDe("login") is null ? "Enviar logo" : "Trocar logo")<InputFile OnChange="EnviarLogoLogin" accept=".png,.jpg,.jpeg,.svg,.webp" /></label>
+                    @if (Svc.LogoDe("login") is not null) { <button class="btn-danger-ghost" @onclick="@(() => RemoverLogo("login"))">@Icons.Svg("trash")Remover (voltar ao padrão)</button> }
                 </div>
             </div>
         </div></div>
         <div class="c6"><div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["Logo do sistema (barra lateral)"]</div></div>
+            <div class="panel-head"><div class="panel-title">Logo do sistema (barra lateral)</div></div>
             <div class="logo-slot">
                 <div class="logo-preview on-dark logo-menu">
-                    @if (Svc.LogoDe("menu") is { } l2) { <img src="/marca/menu?v=@l2.Id" alt="@L["Logo do menu"]" /> }
+                    @if (Svc.LogoDe("menu") is { } l2) { <img src="/marca/menu?v=@l2.Id" alt="Logo do menu" /> }
                     else { <div class="logo-padrao"><span class="brand-mark">@Sigla()</span><span><strong>@_nome</strong><br /><small>@_sub</small></span></div> }
                 </div>
-                <div class="muted sm">@L["Aparece no topo do menu (fundo azul-escuro). Prefira logo"] <strong>@L["horizontal, claro ou transparente"]</strong>@L["; altura sugerida: 80–160 px."]</div>
+                <div class="muted sm">Aparece no topo do menu (fundo azul-escuro). Prefira logo <strong>horizontal, claro ou transparente</strong>; altura sugerida: 80–160 px.</div>
                 <div class="logo-actions">
-                    <label class="btn-primary file-btn">@Icons.Svg("upload")@(Svc.LogoDe("menu") is null ? L["Enviar logo"] : L["Trocar logo"])<InputFile OnChange="EnviarLogoMenu" accept=".png,.jpg,.jpeg,.svg,.webp" /></label>
-                    @if (Svc.LogoDe("menu") is not null) { <button class="btn-danger-ghost" @onclick="@(() => RemoverLogo("menu"))">@Icons.Svg("trash")@L["Remover (voltar ao padrão)"]</button> }
+                    <label class="btn-primary file-btn">@Icons.Svg("upload")@(Svc.LogoDe("menu") is null ? "Enviar logo" : "Trocar logo")<InputFile OnChange="EnviarLogoMenu" accept=".png,.jpg,.jpeg,.svg,.webp" /></label>
+                    @if (Svc.LogoDe("menu") is not null) { <button class="btn-danger-ghost" @onclick="@(() => RemoverLogo("menu"))">@Icons.Svg("trash")Remover (voltar ao padrão)</button> }
                 </div>
             </div>
         </div></div>
     </div>
     <div class="panel mt16" style="max-width:640px">
-        <div class="panel-head"><div class="panel-title">@L["Nome do sistema"]</div></div>
+        <div class="panel-head"><div class="panel-title">Nome do sistema</div></div>
         <div class="form-grid">
-            <label class="fld">@L["Nome"] <span class="hint">@L["usado quando não há logo, no topo e na aba do navegador"]</span><input @bind="_nome" maxlength="40" /></label>
-            <label class="fld">@L["Subtítulo"]<input @bind="_sub" maxlength="60" /></label>
+            <label class="fld">Nome <span class="hint">usado quando não há logo, no topo e na aba do navegador</span><input @bind="_nome" maxlength="40" /></label>
+            <label class="fld">Subtítulo<input @bind="_sub" maxlength="60" /></label>
         </div>
-        <div class="modal-actions"><button class="btn-primary" @onclick="SalvarNome">@Icons.Svg("check")@L["Salvar nome"]</button></div>
+        <div class="modal-actions"><button class="btn-primary" @onclick="SalvarNome">@Icons.Svg("check")Salvar nome</button></div>
     </div>
-    @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt16">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@L[e]</div> }</div></div> }
+    @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt16">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
 }
 
 @code {
@@ -68,9 +68,9 @@ else
     private async Task EnviarLogo(string tipo, InputFileChangeEventArgs e)
     {
         _erros = null;
-        try { await using var s = e.File.OpenReadStream(Armazenamento.TamanhoMaxMarca); await Svc.DefinirLogoAsync(_ator, tipo, e.File.Name, s); Sessao.Avisar(tipo == "login" ? L["Logo da página de entrada salvo — já aparece na tela de login."] : L["Logo do sistema salvo — já aparece na barra lateral."]); }
+        try { await using var s = e.File.OpenReadStream(Armazenamento.TamanhoMaxMarca); await Svc.DefinirLogoAsync(_ator, tipo, e.File.Name, s); Sessao.Avisar(tipo == "login" ? "Logo da página de entrada salvo — já aparece na tela de login." : "Logo do sistema salvo — já aparece na barra lateral."); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
-    private void RemoverLogo(string tipo) { try { Svc.RemoverLogo(_ator, tipo); Sessao.Avisar(L["Logo removido; voltou ao padrão."]); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
-    private void SalvarNome() { _erros = null; try { Svc.SalvarNomeSistema(_ator, _nome, _sub); Sessao.Avisar(L["Nome salvo."]); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void RemoverLogo(string tipo) { try { Svc.RemoverLogo(_ator, tipo); Sessao.Avisar("Logo removido; voltou ao padrão."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
+    private void SalvarNome() { _erros = null; try { Svc.SalvarNomeSistema(_ator, _nome, _sub); Sessao.Avisar("Nome salvo."); } catch (Exception ex) { _erros = Ui.Erros(ex); } }
 }

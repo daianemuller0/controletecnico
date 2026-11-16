@@ -5,8 +5,8 @@
 {
     <div class="ctrl-toast @(_erro ? "toast-erro" : "")" role="status" aria-live="polite">
         @Icons.Svg(_erro ? "alert" : "check")
-        <span>@L[_msg]</span>
-        <button class="icon-btn" @onclick="Fechar" aria-label="@L["Fechar"]">@Icons.Svg("x")</button>
+        <span>@_msg</span>
+        <button class="icon-btn" @onclick="Fechar" aria-label="Fechar">@Icons.Svg("x")</button>
     </div>
 }
 

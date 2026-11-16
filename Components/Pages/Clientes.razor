@@ -11,112 +11,112 @@
 @inject IJSRuntime JS
 @inject IConfiguration Cfg
 
-<PageTitle>@L["Clientes e plantas"] · Controle Técnico</PageTitle>
+<PageTitle>Clientes e plantas · Controle Técnico</PageTitle>
 
 <div class="page-head compacto">
     <div>
-        <h1>@L["Clientes e plantas"]</h1>
-        <p class="subtitle">@L["Cadastro dos clientes e das plantas/unidades de atendimento, com localização no mapa e importação por planilha."]</p>
+        <h1>Clientes e plantas</h1>
+        <p class="subtitle">Cadastro dos clientes e das plantas/unidades de atendimento, com localização no mapa e importação por planilha.</p>
     </div>
     <div class="momento-ctl">
         @if (!Geo.Configurado)
         {
-            <span class="tag warn" title="@L[Geo.Pendencia]">@L["Geocodificação desativada"]</span>
+            <span class="tag warn" title="@Geo.Pendencia">Geocodificação desativada</span>
         }
     </div>
 </div>
 
 <div class="tabs" role="tablist">
-    <button role="tab" class="tab @(_aba == "plantas" ? "active" : "")" @onclick='() => _aba = "plantas"'>@L["Plantas / unidades"] <span class="tab-badge">@_plantas.Count</span></button>
-    <button role="tab" class="tab @(_aba == "clientes" ? "active" : "")" @onclick='() => _aba = "clientes"'>@L["Clientes"] <span class="tab-badge">@_clientes.Count</span></button>
+    <button role="tab" class="tab @(_aba == "plantas" ? "active" : "")" @onclick='() => _aba = "plantas"'>Plantas / unidades <span class="tab-badge">@_plantas.Count</span></button>
+    <button role="tab" class="tab @(_aba == "clientes" ? "active" : "")" @onclick='() => _aba = "clientes"'>Clientes <span class="tab-badge">@_clientes.Count</span></button>
     @if (_pode)
     {
-        <button role="tab" class="tab @(_aba == "importar" ? "active" : "")" @onclick='() => _aba = "importar"'>@L["Importar planilha"]</button>
+        <button role="tab" class="tab @(_aba == "importar" ? "active" : "")" @onclick='() => _aba = "importar"'>Importar planilha</button>
     }
 </div>
 
 @if (_aba == "clientes")
 {
     <div class="toolbar">
-        <input class="field busca" placeholder="@L["Buscar cliente…"]" @bind="_buscaCli" @bind:event="oninput" aria-label="@L["Buscar cliente"]" />
-        <label class="chk-inline"><input type="checkbox" @bind="_soAtivosCli" />@L["Somente ativos"]</label>
+        <input class="field busca" placeholder="Buscar cliente…" @bind="_buscaCli" @bind:event="oninput" aria-label="Buscar cliente" />
+        <label class="chk-inline"><input type="checkbox" @bind="_soAtivosCli" />Somente ativos</label>
         <span class="grow"></span>
-        @if (_pode) { <button class="btn-primary" @onclick="NovoCliente">@Icons.Svg("plus")@L["Novo cliente"]</button> }
+        @if (_pode) { <button class="btn-primary" @onclick="NovoCliente">@Icons.Svg("plus")Novo cliente</button> }
     </div>
     <div class="table-wrap"><table class="grid-tbl">
-        <thead><tr><th>@L["Cliente"]</th><th>@L["Contato"]</th><th>@L["Plantas"]</th><th>@L["Situação"]</th><th></th></tr></thead>
+        <thead><tr><th>Cliente</th><th>Contato</th><th>Plantas</th><th>Situação</th><th></th></tr></thead>
         <tbody>
         @foreach (var c in ClientesFiltrados)
         {
             var np = _plantas.Count(p => p.ClienteId == c.Id);
             <tr>
                 <td><strong>@c.Nome</strong>@if (!string.IsNullOrEmpty(c.RazaoSocial) && c.RazaoSocial != c.Nome) { <div class="muted sm">@c.RazaoSocial</div> }</td>
-                <td>@c.Contato@if (!Sessao.Apresentacao && _ator.Pode(Perm.VerContatos)) { <div class="muted sm">@c.Telefone @c.Email</div> } else if (Sessao.Apresentacao) { <div class="muted sm">@L["contato oculto"]</div> }</td>
-                <td><button class="btn-link" @onclick="() => FiltrarPlantas(c.Id)">@L.F("{0} planta(s)", np)</button></td>
-                <td><span class="badge @(c.Ativo ? "st-pos" : "st-neutral")">@(c.Ativo ? L["Ativo"] : L["Inativo"])</span></td>
-                <td class="right">@if (_pode) { <button class="row-act" title="@L["Editar cliente"]" @onclick="() => EditarCliente(c)">@Icons.Svg("edit")</button> }</td>
+                <td>@c.Contato@if (!Sessao.Apresentacao && _ator.Pode(Perm.VerContatos)) { <div class="muted sm">@c.Telefone @c.Email</div> } else if (Sessao.Apresentacao) { <div class="muted sm">contato oculto</div> }</td>
+                <td><button class="btn-link" @onclick="() => FiltrarPlantas(c.Id)">@np planta(s)</button></td>
+                <td><span class="badge @(c.Ativo ? "st-pos" : "st-neutral")">@(c.Ativo ? "Ativo" : "Inativo")</span></td>
+                <td class="right">@if (_pode) { <button class="row-act" title="Editar cliente" @onclick="() => EditarCliente(c)">@Icons.Svg("edit")</button> }</td>
             </tr>
         }
         </tbody>
     </table></div>
-    @if (!ClientesFiltrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("customers")</div><h3>@L["Nenhum cliente encontrado"]</h3></div> }
+    @if (!ClientesFiltrados.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("customers")</div><h3>Nenhum cliente encontrado</h3></div> }
 }
 else if (_aba == "plantas")
 {
     <div class="pl-topo">
         <div class="pl-busca">
             @Icons.Svg("search")
-            <input id="busca-plantas" placeholder="@L.F("Buscar entre {0} plantas: nome, cidade, estado, país, cliente ou endereço…", _plantas.Count.ToString("N0"))" @bind="_buscaPl" @bind:event="oninput" @bind:after="Refiltrar" aria-label="@L["Buscar planta"]" autocomplete="off" />
-            @if (!string.IsNullOrEmpty(_buscaPl)) { <button class="sel-x" @onclick="@(() => { _buscaPl = ""; Refiltrar(); })" aria-label="@L["Limpar busca"]">@Icons.Svg("x")</button> }
-            <kbd title="@L["Atalho: tecla / para buscar"]">/</kbd>
+            <input id="busca-plantas" placeholder="Buscar entre @_plantas.Count.ToString("N0") plantas: nome, cidade, estado, país, cliente ou endereço…" @bind="_buscaPl" @bind:event="oninput" @bind:after="Refiltrar" aria-label="Buscar planta" autocomplete="off" />
+            @if (!string.IsNullOrEmpty(_buscaPl)) { <button class="sel-x" @onclick="@(() => { _buscaPl = ""; Refiltrar(); })" aria-label="Limpar busca">@Icons.Svg("x")</button> }
+            <kbd title="Atalho: tecla / para buscar">/</kbd>
         </div>
         <div class="pl-acoes">
             @if (_pode)
             {
                 @if (Geo.Configurado && !Job.Rodando && _plantas.Any(p => !p.TemCoord && p.GeoStatus != "manual"))
                 {
-                    <button class="btn-ghost" @onclick="IniciarJob">@Icons.Svg("pin")@L["Localizar pendentes"] (@_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual"))</button>
+                    <button class="btn-ghost" @onclick="IniciarJob">@Icons.Svg("pin")Localizar pendentes (@_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual"))</button>
                 }
                 @if (Geo.Configurado && !Job.Rodando && Job.Aproximadas() is > 0 and var nAp)
                 {
-                    <button class="btn-ghost" @onclick="ReconferirJob" title="@L["Busca de novo o endereço exato das plantas posicionadas só pela cidade (não piora nenhuma)"]">@Icons.Svg("refresh")@L["Reconferir aproximadas"] (@nAp)</button>
+                    <button class="btn-ghost" @onclick="ReconferirJob" title="Busca de novo o endereço exato das plantas posicionadas só pela cidade (não piora nenhuma)">@Icons.Svg("refresh")Reconferir aproximadas (@nAp)</button>
                 }
-                <button class="btn-primary" @onclick="NovaPlanta">@Icons.Svg("plus")@L["Nova planta"]</button>
+                <button class="btn-primary" @onclick="NovaPlanta">@Icons.Svg("plus")Nova planta</button>
             }
         </div>
     </div>
     <div class="pl-chips">
         @foreach (var (k, r, ic) in Chips)
         {
-            <button class="pl-chip @(_chip == k ? "on" : "") c-@(k == "" ? "todas" : k)" @onclick="() => { _chip = k; _pagPl = 0; Refiltrar(); }">@Icons.Svg(ic)@L[r] <b>@_cont.GetValueOrDefault(k).ToString("N0")</b></button>
+            <button class="pl-chip @(_chip == k ? "on" : "") c-@(k == "" ? "todas" : k)" @onclick="() => { _chip = k; _pagPl = 0; Refiltrar(); }">@Icons.Svg(ic)@r <b>@_cont.GetValueOrDefault(k).ToString("N0")</b></button>
         }
         <span class="grow"></span>
-        <label class="chk-inline"><input type="checkbox" @bind="_soAtivosPl" @bind:after="Refiltrar" />@L["Somente ativas"]</label>
+        <label class="chk-inline"><input type="checkbox" @bind="_soAtivosPl" @bind:after="Refiltrar" />Somente ativas</label>
     </div>
     <div class="pl-filtros">
-        <label class="flt"><span class="flt-label">@L["Cliente"]</span><SeletorLista Itens="@(_clientes.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; Refiltrar(); })" Placeholder="@L["Todos"]" /></label>
-        <label class="flt"><span class="flt-label">@L["País"]</span><CampoLista Value="@_fPais" ValueChanged="@((string v) => { _fPais = v; Refiltrar(); })" Opcoes="@(_paises)" Placeholder="@L["Todos"]" Class="field" /></label>
-        <label class="flt"><span class="flt-label">@L["Estado"]</span><CampoLista Value="@_fUf" ValueChanged="@((string v) => { _fUf = v; Refiltrar(); })" Opcoes="@(_ufs)" Placeholder="@L["Todos"]" Class="field" /></label>
-        <label class="flt"><span class="flt-label">@L["Ordenar por"]</span><select @bind="_ordem" @bind:after="Refiltrar"><option value="nome">@L["Nome"]</option><option value="cidade">@L["Cidade"]</option><option value="pais">@L["País"]</option><option value="geo">@L["Localização"]</option></select></label>
-        <label class="flt"><span class="flt-label">@L["Por página"]</span><select @bind="_tam" @bind:after="@(() => _pagPl = 0)"><option value="50">50</option><option value="100">100</option><option value="200">200</option></select></label>
-        @if (_fCli != "" || _fPais != "" || _fUf != "" || _chip != "" || _buscaPl != "") { <button class="btn-link" @onclick="LimparFiltros">@Icons.Svg("x")@L["Limpar tudo"]</button> }
+        <label class="flt"><span class="flt-label">Cliente</span><SeletorLista Itens="@(_clientes.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; Refiltrar(); })" Placeholder="Todos" /></label>
+        <label class="flt"><span class="flt-label">País</span><CampoLista Value="@_fPais" ValueChanged="@((string v) => { _fPais = v; Refiltrar(); })" Opcoes="@(_paises)" Placeholder="Todos" Class="field" /></label>
+        <label class="flt"><span class="flt-label">Estado</span><CampoLista Value="@_fUf" ValueChanged="@((string v) => { _fUf = v; Refiltrar(); })" Opcoes="@(_ufs)" Placeholder="Todos" Class="field" /></label>
+        <label class="flt"><span class="flt-label">Ordenar por</span><select @bind="_ordem" @bind:after="Refiltrar"><option value="nome">Nome</option><option value="cidade">Cidade</option><option value="pais">País</option><option value="geo">Localização</option></select></label>
+        <label class="flt"><span class="flt-label">Por página</span><select @bind="_tam" @bind:after="@(() => _pagPl = 0)"><option value="50">50</option><option value="100">100</option><option value="200">200</option></select></label>
+        @if (_fCli != "" || _fPais != "" || _fUf != "" || _chip != "" || _buscaPl != "") { <button class="btn-link" @onclick="LimparFiltros">@Icons.Svg("x")Limpar tudo</button> }
         <span class="grow"></span>
-        <span class="muted sm"><strong>@_lista.Count.ToString("N0")</strong> @L["resultado(s)"]</span>
+        <span class="muted sm"><strong>@_lista.Count.ToString("N0")</strong> resultado(s)</span>
     </div>
     @PainelJob()
     @if (Job.AutomaticoLigado && !Job.Rodando && _plantas.Any(p => !p.TemCoord && p.GeoStatus != "manual"))
     {
-        <div class="muted sm geo-auto">@Icons.Svg("info")@L["As plantas sem localização são procuradas"] <strong>@L["automaticamente"]</strong> @(L["em segundo plano (primeiro as usadas em viagens e compromissos, 1 consulta por segundo). Passe o mouse sobre \"Sem localização\" para ver o motivo."])</div>
+        <div class="muted sm geo-auto">@Icons.Svg("info")As plantas sem localização são procuradas <strong>automaticamente</strong> em segundo plano (primeiro as usadas em viagens e compromissos, 1 consulta por segundo). Passe o mouse sobre "Sem localização" para ver o motivo.</div>
     }
-    @if (!string.IsNullOrEmpty(_msgGeo)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@L[_msgGeo]</div></div> }
+    @if (!string.IsNullOrEmpty(_msgGeo)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@_msgGeo</div></div> }
     <div class="table-wrap"><table class="grid-tbl pl-tbl">
-        <thead><tr><th>@L["Planta"]</th><th>@L["Local"]</th><th>@L["País"]</th><th>@L["Localização no mapa"]</th><th></th></tr></thead>
+        <thead><tr><th>Planta</th><th>Local</th><th>País</th><th>Localização no mapa</th><th></th></tr></thead>
         <tbody>
         @foreach (var p in _lista.Skip(PagPl * _tam).Take(_tam))
         {
             <tr class="@(p.Ativa ? "" : "inativa")" @onclick="() => AbrirPlanta(p.Id)" tabindex="0" @onkeydown="e => TeclaLinha(e, p.Id)">
-                <td><div class="pl-nome">@RealceBusca(p.Nome)</div>@if (!string.IsNullOrEmpty(p.Cliente)) { <div class="muted sm">@p.Cliente</div> }@if (!p.Ativa) { <span class="tag">@L["inativa"]</span> }</td>
-                <td>@if (string.IsNullOrWhiteSpace(p.Cidade)) { <span class="badge st-warn">@L["sem cidade"]</span> } else { <span>@p.Cidade@(string.IsNullOrEmpty(p.Estado) ? "" : ", " + p.Estado)</span> }@if (!string.IsNullOrWhiteSpace(p.Rua)) { <div class="muted sm">@Ui.Corte(p.Rua, 60)</div> }</td>
+                <td><div class="pl-nome">@RealceBusca(p.Nome)</div>@if (!string.IsNullOrEmpty(p.Cliente)) { <div class="muted sm">@p.Cliente</div> }@if (!p.Ativa) { <span class="tag">inativa</span> }</td>
+                <td>@if (string.IsNullOrWhiteSpace(p.Cidade)) { <span class="badge st-warn">sem cidade</span> } else { <span>@p.Cidade@(string.IsNullOrEmpty(p.Estado) ? "" : ", " + p.Estado)</span> }@if (!string.IsNullOrWhiteSpace(p.Rua)) { <div class="muted sm">@Ui.Corte(p.Rua, 60)</div> }</td>
                 <td>@p.Pais</td>
                 <td>@GeoChip(p.Geo, p.GeoMotivo)</td>
                 <td class="right nowrap"><span class="row-act" aria-hidden="true">@Icons.Svg(_pode ? "edit" : "eye")</span></td>
@@ -125,48 +125,48 @@ else if (_aba == "plantas")
         </tbody>
     </table></div>
     @PaginacaoLista()
-    @if (_lista.Count == 0) { <div class="empty-state sm"><div class="ico">@Icons.Svg("pin")</div><h3>@L["Nenhuma planta encontrada"]</h3><p>@(_plantas.Count == 0 ? L["Cadastre uma planta ou importe uma planilha."] : L["Tente outras palavras ou limpe os filtros."])</p></div> }
+    @if (_lista.Count == 0) { <div class="empty-state sm"><div class="ico">@Icons.Svg("pin")</div><h3>Nenhuma planta encontrada</h3><p>@(_plantas.Count == 0 ? "Cadastre uma planta ou importe uma planilha." : "Tente outras palavras ou limpe os filtros.")</p></div> }
 }
 else if (_aba == "importar" && _pode)
 {
     @* ---------------- importação ---------------- *@
     <div class="steps">
         @foreach (var (n, r) in new[] { (1, "Arquivo"), (2, "Colunas"), (3, "Prévia e validação"), (4, "Resultado") })
-        { <span class="step @(_passo == n ? "on" : _passo > n ? "ok" : "")"><b>@n</b>@L[r]</span> }
+        { <span class="step @(_passo == n ? "on" : _passo > n ? "ok" : "")"><b>@n</b>@r</span> }
     </div>
 
     @if (_passo == 1)
     {
         <div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["1. Escolha o arquivo"]</div></div>
-            <p>@L["Aceita"] <strong>.xlsx</strong> @L["e"] <strong>.csv</strong> @L["(até 25 MB e 20.000 linhas). Colunas:"] <strong>Account</strong> @L["(nome da planta),"] <strong>Country</strong>, <strong>City</strong>, <strong>State</strong> @L["e"] <strong>Address1</strong>. @L["Só o nome da planta é obrigatório."]</p>
+            <div class="panel-head"><div class="panel-title">1. Escolha o arquivo</div></div>
+            <p>Aceita <strong>.xlsx</strong> e <strong>.csv</strong> (até 25 MB e 20.000 linhas). Colunas: <strong>Account</strong> (nome da planta), <strong>Country</strong>, <strong>City</strong>, <strong>State</strong> e <strong>Address1</strong>. Só o nome da planta é obrigatório.</p>
             <div class="imp-acoes">
-                <a class="btn-ghost" href="/modelo/plantas.xlsx" download>@Icons.Svg("download")@L["Baixar planilha modelo"]</a>
-                <label class="btn-primary file-btn">@Icons.Svg("upload")@L["Selecionar arquivo"]<InputFile OnChange="AoArquivo" accept=".xlsx,.csv" class="sr-only" /></label>
+                <a class="btn-ghost" href="/modelo/plantas.xlsx" download>@Icons.Svg("download")Baixar planilha modelo</a>
+                <label class="btn-primary file-btn">@Icons.Svg("upload")Selecionar arquivo<InputFile OnChange="AoArquivo" accept=".xlsx,.csv" class="sr-only" /></label>
             </div>
-            @if (_lendo) { <p class="muted">@Icons.Svg("clock")@L["Lendo o arquivo…"]</p> }
-            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@L[e]</div> }</div></div> }
+            @if (_lendo) { <p class="muted">@Icons.Svg("clock")Lendo o arquivo…</p> }
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
         </div>
     }
     else if (_passo == 2 && _arq is not null)
     {
         <div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["2. Mapeie as colunas"]</div><span class="tag">@_arq.Nome · @L.F("{0} linha(s)", _arq.Linhas.Count)</span></div>
-            <p class="muted">@L["Conferimos os títulos do arquivo e sugerimos a correspondência. Ajuste o que estiver errado; colunas opcionais podem ficar sem mapeamento."]</p>
+            <div class="panel-head"><div class="panel-title">2. Mapeie as colunas</div><span class="tag">@_arq.Nome · @_arq.Linhas.Count linha(s)</span></div>
+            <p class="muted">Conferimos os títulos do arquivo e sugerimos a correspondência. Ajuste o que estiver errado; colunas opcionais podem ficar sem mapeamento.</p>
             <div class="map-cols">
                 @foreach (var c in Importador.Campos)
                 {
                     <label class="fld">@c.Label @if (c.Obrigatorio) { <span class="neg">*</span> }
                         <select value="@(_map.TryGetValue(c.Key, out var ix) ? ix : -1)" @onchange="e => Mapear(c.Key, e.Value?.ToString())">
-                            <option value="-1">@L["— não importar —"]</option>
-                            @for (var i = 0; i < _arq.Cabecalhos.Count; i++) { <option value="@i">@(string.IsNullOrWhiteSpace(_arq.Cabecalhos[i]) ? L.F("(coluna {0})", i + 1) : _arq.Cabecalhos[i])</option> }
+                            <option value="-1">— não importar —</option>
+                            @for (var i = 0; i < _arq.Cabecalhos.Count; i++) { <option value="@i">@(string.IsNullOrWhiteSpace(_arq.Cabecalhos[i]) ? $"(coluna {i + 1})" : _arq.Cabecalhos[i])</option> }
                         </select></label>
                 }
             </div>
-            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@L[e]</div> }</div></div> }
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
             <div class="modal-actions">
-                <button class="btn-ghost" @onclick="ReiniciarImport">@L["Voltar"]</button>
-                <button class="btn-primary" @onclick="Analisar" disabled="@_lendo">@(_lendo ? L["Validando…"] : L["Validar e ver prévia"])@Icons.Svg("arrow-right")</button>
+                <button class="btn-ghost" @onclick="ReiniciarImport">Voltar</button>
+                <button class="btn-primary" @onclick="Analisar" disabled="@_lendo">@(_lendo ? "Validando…" : "Validar e ver prévia")@Icons.Svg("arrow-right")</button>
             </div>
         </div>
     }
@@ -175,28 +175,28 @@ else if (_aba == "importar" && _pode)
         var rej = _linhas.Count(l => l.Rejeitada); var exist = _linhas.Count(l => l.Existente && !l.Rejeitada);
         var novas = _linhas.Count(l => !l.Existente && !l.Rejeitada); var avisos = _linhas.Count(l => l.Avisos.Count > 0 && !l.Rejeitada);
         <div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["3. Prévia e validação"]</div><span class="tag">@L.F("{0} linha(s)", _linhas.Count)</span></div>
+            <div class="panel-head"><div class="panel-title">3. Prévia e validação</div><span class="tag">@_linhas.Count linha(s)</span></div>
             <div class="imp-resumo">
-                <div class="imp-n pos"><b>@novas</b>@L["novas"]</div>
-                <div class="imp-n warn"><b>@exist</b>@L["já cadastradas"]</div>
-                <div class="imp-n neg"><b>@rej</b>@L["com erro (serão rejeitadas)"]</div>
-                <div class="imp-n"><b>@avisos</b>@L["com aviso"]</div>
+                <div class="imp-n pos"><b>@novas</b>novas</div>
+                <div class="imp-n warn"><b>@exist</b>já cadastradas</div>
+                <div class="imp-n neg"><b>@rej</b>com erro (serão rejeitadas)</div>
+                <div class="imp-n"><b>@avisos</b>com aviso</div>
             </div>
             @if (exist > 0)
             {
                 <div class="toolbar">
-                    <span><strong>@L["Plantas já cadastradas:"]</strong></span>
+                    <span><strong>Plantas já cadastradas:</strong></span>
                     <select class="field w-auto" @onchange="e => AplicarPadrao(e.Value?.ToString())">
-                        <option value="Atualizar">@L["Atualizar o cadastro existente (somente campos preenchidos)"]</option>
-                        <option value="Ignorar">@L["Ignorar (manter o cadastro como está)"]</option>
-                        <option value="Criar">@L["Criar nova com nome diferenciado"]</option>
+                        <option value="Atualizar">Atualizar o cadastro existente (somente campos preenchidos)</option>
+                        <option value="Ignorar">Ignorar (manter o cadastro como está)</option>
+                        <option value="Criar">Criar nova com nome diferenciado</option>
                     </select>
-                    <span class="muted sm">@L["Você pode mudar linha a linha abaixo. Nada é substituído sem aparecer aqui."]</span>
+                    <span class="muted sm">Você pode mudar linha a linha abaixo. Nada é substituído sem aparecer aqui.</span>
                 </div>
             }
-            <div class="toolbar"><label class="chk-inline"><input type="checkbox" @bind="_soProblemas" @bind:after="@(() => _pagPrev = 0)" />@L["Mostrar só linhas com erro, aviso ou duplicidade"]</label><span class="muted sm">@L.F("{0} linha(s) lidas; a tabela é paginada, mas a importação vale para todas.", _linhas.Count.ToString("N0"))</span></div>
+            <div class="toolbar"><label class="chk-inline"><input type="checkbox" @bind="_soProblemas" @bind:after="@(() => _pagPrev = 0)" />Mostrar só linhas com erro, aviso ou duplicidade</label><span class="muted sm">@_linhas.Count.ToString("N0") linha(s) lidas; a tabela é paginada, mas a importação vale para todas.</span></div>
             <div class="table-wrap prev-wrap"><table class="grid-tbl">
-                <thead><tr><th>@L["Linha"]</th><th>@L["Cliente"]</th><th>@L["Planta"]</th><th>@L["Local"]</th><th>@L["Situação"]</th><th>@L["Ação"]</th></tr></thead>
+                <thead><tr><th>Linha</th><th>Cliente</th><th>Planta</th><th>Local</th><th>Situação</th><th>Ação</th></tr></thead>
                 <tbody>
                 @foreach (var l in LinhasPrev.Skip(_pagPrev * TamPag).Take(TamPag))
                 {
@@ -204,19 +204,19 @@ else if (_aba == "importar" && _pode)
                         <td>@l.Numero</td><td>@l.Cliente</td><td>@l.Planta</td>
                         <td>@l.V["cidade"]@(string.IsNullOrEmpty(l.V["estado"]) ? "" : "/" + l.V["estado"]) · @l.V["pais"]</td>
                         <td>
-                            @if (l.Rejeitada) { <span class="badge st-neg">@Icons.Svg("x", "bico")@L["Erro"]</span> @foreach (var e in l.Erros) { <div class="sm neg">@L[e]</div> } }
-                            else if (l.Existente) { <span class="badge st-warn">@Icons.Svg("copy", "bico")@L["Já cadastrada"]</span>
-                                @if (l.Diferencas.Count > 0) { <ul class="difs">@foreach (var d in l.Diferencas) { <li>@L[d]</li> }</ul> } }
-                            else { <span class="badge st-pos">@Icons.Svg("plus", "bico")@L["Nova"]</span> }
-                            @foreach (var a in l.Avisos) { <div class="sm warn">@L[a]</div> }
+                            @if (l.Rejeitada) { <span class="badge st-neg">@Icons.Svg("x", "bico")Erro</span> @foreach (var e in l.Erros) { <div class="sm neg">@e</div> } }
+                            else if (l.Existente) { <span class="badge st-warn">@Icons.Svg("copy", "bico")Já cadastrada</span>
+                                @if (l.Diferencas.Count > 0) { <ul class="difs">@foreach (var d in l.Diferencas) { <li>@d</li> }</ul> } }
+                            else { <span class="badge st-pos">@Icons.Svg("plus", "bico")Nova</span> }
+                            @foreach (var a in l.Avisos) { <div class="sm warn">@a</div> }
                         </td>
                         <td>
-                            @if (l.Rejeitada) { <span class="muted">@L["Rejeitada"]</span> }
+                            @if (l.Rejeitada) { <span class="muted">Rejeitada</span> }
                             else if (l.Existente)
                             {
-                                <select class="field w-auto" @bind="l.Acao"><option value="@AcaoImport.Atualizar">@L["Atualizar"]</option><option value="@AcaoImport.Ignorar">@L["Ignorar"]</option><option value="@AcaoImport.Criar">@L["Criar nova"]</option></select>
+                                <select class="field w-auto" @bind="l.Acao"><option value="@AcaoImport.Atualizar">Atualizar</option><option value="@AcaoImport.Ignorar">Ignorar</option><option value="@AcaoImport.Criar">Criar nova</option></select>
                             }
-                            else { <span class="muted">@L["Criar"]</span> }
+                            else { <span class="muted">Criar</span> }
                         </td>
                     </tr>
                 }
@@ -224,44 +224,44 @@ else if (_aba == "importar" && _pode)
             </table></div>
             @Paginacao(LinhasPrev.Count(), _pagPrev, n => _pagPrev = n)
             <div class="modal-actions">
-                <button class="btn-ghost" @onclick="@(() => _passo = 2)">@L["Voltar"]</button>
-                <button class="btn-primary" @onclick="ConfirmarImport" disabled="@(_importando || _linhas.All(l => l.Rejeitada || l.Acao == AcaoImport.Ignorar))">@Icons.Svg(_importando ? "clock" : "check")@(_importando ? L["Importando… aguarde"] : L["Confirmar importação"])</button>
+                <button class="btn-ghost" @onclick="@(() => _passo = 2)">Voltar</button>
+                <button class="btn-primary" @onclick="ConfirmarImport" disabled="@(_importando || _linhas.All(l => l.Rejeitada || l.Acao == AcaoImport.Ignorar))">@Icons.Svg(_importando ? "clock" : "check")@(_importando ? "Importando… aguarde" : "Confirmar importação")</button>
             </div>
-            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@L[e]</div> }</div></div> }
+            @if (_errosImp is { Count: > 0 }) { <div class="alert-box alert-erro">@Icons.Svg("alert")<div>@foreach (var e in _errosImp) { <div>@e</div> }</div></div> }
         </div>
     }
     else if (_passo == 4 && _res is not null)
     {
         <div class="panel">
-            <div class="panel-head"><div class="panel-title">@L["4. Resultado da importação"]</div></div>
+            <div class="panel-head"><div class="panel-title">4. Resultado da importação</div></div>
             <div class="imp-resumo">
-                <div class="imp-n pos"><b>@_res.Importadas</b>@L["importadas"]</div>
-                <div class="imp-n info"><b>@_res.Atualizadas</b>@L["atualizadas"]</div>
-                <div class="imp-n"><b>@_res.Ignoradas</b>@L["ignoradas"]</div>
-                <div class="imp-n neg"><b>@_res.Rejeitadas.Count</b>@L["rejeitadas"]</div>
-                <div class="imp-n"><b>@_res.ClientesCriados</b>@L["clientes novos"]</div>
+                <div class="imp-n pos"><b>@_res.Importadas</b>importadas</div>
+                <div class="imp-n info"><b>@_res.Atualizadas</b>atualizadas</div>
+                <div class="imp-n"><b>@_res.Ignoradas</b>ignoradas</div>
+                <div class="imp-n neg"><b>@_res.Rejeitadas.Count</b>rejeitadas</div>
+                <div class="imp-n"><b>@_res.ClientesCriados</b>clientes novos</div>
             </div>
             @if (_res.Rejeitadas.Count > 0)
             {
-                <h3 class="sec">@Icons.Svg("alert")@L["Linhas rejeitadas e motivos"]</h3>
-                <div class="table-wrap"><table class="grid-tbl"><thead><tr><th>@L["Linha"]</th><th>@L["Cliente"]</th><th>@L["Planta"]</th><th>@L["Motivo"]</th></tr></thead><tbody>
-                    @foreach (var e in _res.Rejeitadas) { <tr><td>@e.linha</td><td>@e.cliente</td><td>@e.planta</td><td class="neg">@L[e.motivo]</td></tr> }
+                <h3 class="sec">@Icons.Svg("alert")Linhas rejeitadas e motivos</h3>
+                <div class="table-wrap"><table class="grid-tbl"><thead><tr><th>Linha</th><th>Cliente</th><th>Planta</th><th>Motivo</th></tr></thead><tbody>
+                    @foreach (var e in _res.Rejeitadas) { <tr><td>@e.linha</td><td>@e.cliente</td><td>@e.planta</td><td class="neg">@e.motivo</td></tr> }
                 </tbody></table></div>
-                <button class="btn-ghost mt8" @onclick="BaixarErros">@Icons.Svg("download")@L["Baixar lista de erros (CSV)"]</button>
+                <button class="btn-ghost mt8" @onclick="BaixarErros">@Icons.Svg("download")Baixar lista de erros (CSV)</button>
             }
             @if (_res.Avisos.Count > 0)
             {
-                <h3 class="sec">@Icons.Svg("info")@L["Avisos"]</h3>
-                <ul class="difs">@foreach (var a in _res.Avisos) { <li>@L.F("Linha {0}:", a.linha) @L[a.detalhe]</li> }</ul>
+                <h3 class="sec">@Icons.Svg("info")Avisos</h3>
+                <ul class="difs">@foreach (var a in _res.Avisos) { <li>Linha @a.linha: @a.detalhe</li> }</ul>
             }
-            <p class="muted mt16">@L["As plantas novas ficam como"] <strong>@L["localização pendente"]</strong> @L["até serem localizadas. A busca é em cascata: tenta o endereço; se não achar, para na cidade; depois no estado; depois no país."]</p>
+            <p class="muted mt16">As plantas novas ficam como <strong>localização pendente</strong> até serem localizadas. A busca é em cascata: tenta o endereço; se não achar, para na cidade; depois no estado; depois no país.</p>
             @PainelJob()
-            @if (Geo.Configurado && !Job.Rodando) { <button class="btn-primary" @onclick="IniciarJob">@Icons.Svg("pin")@L.F("Localizar no mapa as {0} plantas pendentes", _plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual"))</button> }
-            else if (!Geo.Configurado) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@L[Geo.Pendencia]</div></div> }
+            @if (Geo.Configurado && !Job.Rodando) { <button class="btn-primary" @onclick="IniciarJob">@Icons.Svg("pin")Localizar no mapa as @_plantas.Count(p => !p.TemCoord && p.GeoStatus != "manual") plantas pendentes</button> }
+            else if (!Geo.Configurado) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@Geo.Pendencia</div></div> }
 
             <div class="modal-actions">
-                <button class="btn-ghost" @onclick="ReiniciarImport">@L["Nova importação"]</button>
-                <button class="btn-primary" @onclick="@(() => { _aba = "plantas"; _chip = ""; ReiniciarImport(); Refiltrar(); })">@L["Ver plantas"]</button>
+                <button class="btn-ghost" @onclick="ReiniciarImport">Nova importação</button>
+                <button class="btn-primary" @onclick="@(() => { _aba = "plantas"; _chip = ""; ReiniciarImport(); Refiltrar(); })">Ver plantas</button>
             </div>
         </div>
     }
@@ -270,68 +270,68 @@ else if (_aba == "importar" && _pode)
 @* ---------------- diálogos ---------------- *@
 @if (_cli is not null)
 {
-    <Dialogo Titulo="@(string.IsNullOrEmpty(_cli.Id) ? L["Novo cliente"] : L["Editar cliente"])" OnFechar="@(() => _cli = null)" Erros="_erros">
+    <Dialogo Titulo="@(string.IsNullOrEmpty(_cli.Id) ? "Novo cliente" : "Editar cliente")" OnFechar="@(() => _cli = null)" Erros="_erros">
         <div class="form-grid">
-            <label class="fld full">@L["Nome do cliente *"]<input @bind="_cli.Nome" /></label>
-            <label class="fld">@L["Razão social"]<input @bind="_cli.RazaoSocial" /></label>
-            <label class="fld">@L["Documento"] <span class="hint">@L["opcional"]</span><input @bind="_cli.Documento" /></label>
-            <label class="fld">@L["Contato responsável"]<input @bind="_cli.Contato" /></label>
-            <label class="fld">@L["Telefone"]<input @bind="_cli.Telefone" /></label>
-            <label class="fld full">@L["E-mail"]<input type="email" @bind="_cli.Email" /></label>
-            <label class="fld full">@L["Observações"]<textarea @bind="_cli.Obs"></textarea></label>
-            <label class="fld chk"><input type="checkbox" @bind="_cli.Ativo" />@L["Cliente ativo"]</label>
+            <label class="fld full">Nome do cliente *<input @bind="_cli.Nome" /></label>
+            <label class="fld">Razão social<input @bind="_cli.RazaoSocial" /></label>
+            <label class="fld">Documento <span class="hint">opcional</span><input @bind="_cli.Documento" /></label>
+            <label class="fld">Contato responsável<input @bind="_cli.Contato" /></label>
+            <label class="fld">Telefone<input @bind="_cli.Telefone" /></label>
+            <label class="fld full">E-mail<input type="email" @bind="_cli.Email" /></label>
+            <label class="fld full">Observações<textarea @bind="_cli.Obs"></textarea></label>
+            <label class="fld chk"><input type="checkbox" @bind="_cli.Ativo" />Cliente ativo</label>
         </div>
-        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _cli = null)">@L["Cancelar"]</button><button class="btn-primary" @onclick="SalvarCliente">@Icons.Svg("check")@L["Salvar"]</button></div>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _cli = null)">Cancelar</button><button class="btn-primary" @onclick="SalvarCliente">@Icons.Svg("check")Salvar</button></div>
     </Dialogo>
 }
 
 @if (_pl is not null)
 {
-    <Dialogo Titulo="@(string.IsNullOrEmpty(_pl.Id) ? L["Nova planta / unidade"] : _pode ? L["Editar planta / unidade"] : L["Planta / unidade"])" Largo="true" OnFechar="FecharPlanta" Erros="_erros">
+    <Dialogo Titulo="@(string.IsNullOrEmpty(_pl.Id) ? "Nova planta / unidade" : _pode ? "Editar planta / unidade" : "Planta / unidade")" Largo="true" OnFechar="FecharPlanta" Erros="_erros">
         <fieldset disabled="@(!_pode)" class="semborda">
         <div class="pl-grid">
             <div>
                 <div class="form-grid">
-                    <label class="fld">@L["Cliente"] <span class="hint">@L["opcional"]</span><SeletorLista Itens="@(_clientes.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_pl.ClienteId" ValueChanged="@(async (string v) => { _pl.ClienteId = v; })" Placeholder="@L["— sem cliente —"]" Criar="CriarCli" RotuloCriar="@L["cliente"]" /></label>
-                    <label class="fld">@L["Nome da planta / unidade *"]<input @bind="_pl.Nome" /></label>
-                    <label class="fld">@L["País"]<input list="lista-paises" @bind="_pl.Pais" /></label>
-                    <label class="fld">@L["Estado / região"]<input @bind="_pl.Estado" /></label>
-                    <label class="fld">@L["Cidade"] <span class="hint">@L["mínimo para localizar no mapa"]</span><input @bind="_pl.Cidade" /></label>
-                    <label class="fld">@L["CEP / código postal"]<input @bind="_pl.Cep" /></label>
-                    <label class="fld">@L["Endereço (Address 1)"]<input @bind="_pl.Rua" /></label>
-                    <label class="fld">@L["Número"]<input @bind="_pl.Numero" /></label>
-                    <label class="fld full">@L["Complemento"]<input @bind="_pl.Complemento" /></label>
-                    <label class="fld full">@L["Endereço completo"] <span class="hint">@L["vazio = montado a partir dos campos acima; use para formatos internacionais"]</span><input @bind="_pl.EnderecoCompleto" placeholder="@Servicos.MontarEndereco(_pl)" /></label>
-                    <label class="fld">@L["Fuso horário *"]<CampoLista Value="@_pl.FusoHorario" ValueChanged="@((string v) => { _pl.FusoHorario = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" /></label>
-                    <label class="fld">@L["Contato local"]<input @bind="_pl.ContatoLocal" /></label>
-                    <label class="fld full">@L["Informações de acesso"]<input @bind="_pl.Acesso" placeholder="@L["Portaria, EPIs, integração…"]" /></label>
-                    <label class="fld full">@L["Observações"]<textarea @bind="_pl.Obs"></textarea></label>
-                    <label class="fld chk"><input type="checkbox" @bind="_pl.Ativo" />@L["Planta ativa"]</label>
+                    <label class="fld">Cliente <span class="hint">opcional</span><SeletorLista Itens="@(_clientes.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_pl.ClienteId" ValueChanged="@(async (string v) => { _pl.ClienteId = v; })" Placeholder="— sem cliente —" Criar="CriarCli" RotuloCriar="cliente" /></label>
+                    <label class="fld">Nome da planta / unidade *<input @bind="_pl.Nome" /></label>
+                    <label class="fld">País<input list="lista-paises" @bind="_pl.Pais" /></label>
+                    <label class="fld">Estado / região<input @bind="_pl.Estado" /></label>
+                    <label class="fld">Cidade <span class="hint">mínimo para localizar no mapa</span><input @bind="_pl.Cidade" /></label>
+                    <label class="fld">CEP / código postal<input @bind="_pl.Cep" /></label>
+                    <label class="fld">Endereço (Address 1)<input @bind="_pl.Rua" /></label>
+                    <label class="fld">Número<input @bind="_pl.Numero" /></label>
+                    <label class="fld full">Complemento<input @bind="_pl.Complemento" /></label>
+                    <label class="fld full">Endereço completo <span class="hint">vazio = montado a partir dos campos acima; use para formatos internacionais</span><input @bind="_pl.EnderecoCompleto" placeholder="@Servicos.MontarEndereco(_pl)" /></label>
+                    <label class="fld">Fuso horário *<CampoLista Value="@_pl.FusoHorario" ValueChanged="@((string v) => { _pl.FusoHorario = v; })" Opcoes="@(Vocab.Fusos)" Placeholder="" /></label>
+                    <label class="fld">Contato local<input @bind="_pl.ContatoLocal" /></label>
+                    <label class="fld full">Informações de acesso<input @bind="_pl.Acesso" placeholder="Portaria, EPIs, integração…" /></label>
+                    <label class="fld full">Observações<textarea @bind="_pl.Obs"></textarea></label>
+                    <label class="fld chk"><input type="checkbox" @bind="_pl.Ativo" />Planta ativa</label>
                 </div>
                 <datalist id="lista-paises">@foreach (var p in Vocab.Paises) {<option value="@p"></option>}</datalist>
             </div>
             <div>
-                <div class="loc-estado"><GeoBadge P="_pl" /><span class="muted sm">@L[_pl.GeoFonte]</span></div>
+                <div class="loc-estado"><GeoBadge P="_pl" /><span class="muted sm">@_pl.GeoFonte</span></div>
                 <div class="form-grid mt8">
-                    <label class="fld">@L["Latitude"]<input type="number" step="0.000001" value="@_lat" @onchange="e => MudarCoord(e.Value?.ToString(), true)" /></label>
-                    <label class="fld">@L["Longitude"]<input type="number" step="0.000001" value="@_lon" @onchange="e => MudarCoord(e.Value?.ToString(), false)" /></label>
+                    <label class="fld">Latitude<input type="number" step="0.000001" value="@_lat" @onchange="e => MudarCoord(e.Value?.ToString(), true)" /></label>
+                    <label class="fld">Longitude<input type="number" step="0.000001" value="@_lon" @onchange="e => MudarCoord(e.Value?.ToString(), false)" /></label>
                 </div>
-                <div class="px-link mt8"><input @bind="_linkPl" placeholder="@L["Cole o link do Google Maps ou as coordenadas da planta"]" aria-label="@L["Link do Google Maps"]" />
-                    <button type="button" class="btn-primary sm" @onclick="UsarLinkPlanta" disabled="@string.IsNullOrWhiteSpace(_linkPl)">@Icons.Svg("check")@L["Usar"]</button></div>
-                <div id="mapa-planta" class="mapa mapa-pl" role="application" aria-label="@L["Mapa para posicionar a planta"]"></div>
-                <p class="muted sm">@L["Clique no mapa ou arraste o marcador para corrigir a posição. A posição corrigida fica gravada como"] <strong>@L["ajustada manualmente"]</strong> @L["e não é sobrescrita pela consulta de endereço."]</p>
+                <div class="px-link mt8"><input @bind="_linkPl" placeholder="Cole o link do Google Maps ou as coordenadas da planta" aria-label="Link do Google Maps" />
+                    <button type="button" class="btn-primary sm" @onclick="UsarLinkPlanta" disabled="@string.IsNullOrWhiteSpace(_linkPl)">@Icons.Svg("check")Usar</button></div>
+                <div id="mapa-planta" class="mapa mapa-pl" role="application" aria-label="Mapa para posicionar a planta"></div>
+                <p class="muted sm">Clique no mapa ou arraste o marcador para corrigir a posição. A posição corrigida fica gravada como <strong>ajustada manualmente</strong> e não é sobrescrita pela consulta de endereço.</p>
                 @if (_pode)
                 {
-                    <button class="btn-ghost sm" @onclick="LocalizarEndereco" disabled="@(!Geo.Configurado || _localizando)" title="@(Geo.Configurado ? L["Consulta o endereço e guarda as coordenadas"] : L[Geo.Pendencia])">@Icons.Svg("search")@L["Localizar pelo endereço"]</button>
-                    @if (!Geo.Configurado) { <div class="alert-box alert-aviso mt8">@Icons.Svg("alert")<div>@L[Geo.Pendencia]</div></div> }
-                    @if (!string.IsNullOrEmpty(_msgGeoPl)) { <div class="alert-box alert-info mt8">@Icons.Svg("info")<div>@L[_msgGeoPl]</div></div> }
+                    <button class="btn-ghost sm" @onclick="LocalizarEndereco" disabled="@(!Geo.Configurado || _localizando)" title="@(Geo.Configurado ? "Consulta o endereço e guarda as coordenadas" : Geo.Pendencia)">@Icons.Svg("search")Localizar pelo endereço</button>
+                    @if (!Geo.Configurado) { <div class="alert-box alert-aviso mt8">@Icons.Svg("alert")<div>@Geo.Pendencia</div></div> }
+                    @if (!string.IsNullOrEmpty(_msgGeoPl)) { <div class="alert-box alert-info mt8">@Icons.Svg("info")<div>@_msgGeoPl</div></div> }
                 }
             </div>
         </div>
         </fieldset>
         <div class="modal-actions">
-            <button class="btn-ghost" @onclick="FecharPlanta">@(_pode ? L["Cancelar"] : L["Fechar"])</button>
-            @if (_pode) { <button class="btn-primary" @onclick="SalvarPlanta" disabled="@_salvando">@Icons.Svg("check")@L["Salvar"]</button> }
+            <button class="btn-ghost" @onclick="FecharPlanta">@(_pode ? "Cancelar" : "Fechar")</button>
+            @if (_pode) { <button class="btn-primary" @onclick="SalvarPlanta" disabled="@_salvando">@Icons.Svg("check")Salvar</button> }
         </div>
     </Dialogo>
 }
@@ -402,8 +402,8 @@ else if (_aba == "importar" && _pode)
     private RenderFragment GeoChip(string g, string motivo = "") => __builder =>
     {
         var (txt, css) = g switch { "ok" => ("Endereço exato", "st-pos"), "manual" => ("Exata (marcada)", "st-pos"), "aprox" => ("Aproximada", "st-warn"), _ => ("Sem localização", "st-neutral") };
-        <span class="badge @css" title="@L[motivo]">@Icons.Svg("pin", "bico")@L[txt]</span>
-        @if (g == "pendente" && !string.IsNullOrEmpty(motivo)) { <div class="muted xs geo-motivo">@Ui.Corte(L[motivo], 90)</div> }
+        <span class="badge @css" title="@motivo">@Icons.Svg("pin", "bico")@txt</span>
+        @if (g == "pendente" && !string.IsNullOrEmpty(motivo)) { <div class="muted xs geo-motivo">@Ui.Corte(motivo, 90)</div> }
     };
 
     private MarkupString RealceBusca(string nome)
@@ -421,11 +421,11 @@ else if (_aba == "importar" && _pode)
         var paginas = Math.Max(1, (int)Math.Ceiling(_lista.Count / (double)_tam));
         if (paginas <= 1) return;
         <div class="paginacao">
-            <button class="btn-ghost sm" disabled="@(PagPl <= 0)" @onclick="() => _pagPl = 0" title="@L["Primeira"]">«</button>
+            <button class="btn-ghost sm" disabled="@(PagPl <= 0)" @onclick="() => _pagPl = 0" title="Primeira">«</button>
             <button class="btn-ghost sm" disabled="@(PagPl <= 0)" @onclick="() => _pagPl = PagPl - 1">@Icons.Svg("chevron-left")</button>
-            <span>@L["Página"] <strong>@(PagPl + 1)</strong> @L.F("de {0}", paginas.ToString("N0")) · @(PagPl * _tam + 1)–@Math.Min(_lista.Count, (PagPl + 1) * _tam) @L.F("de {0}", _lista.Count.ToString("N0"))</span>
+            <span>Página <strong>@(PagPl + 1)</strong> de @paginas.ToString("N0") · @(PagPl * _tam + 1)–@Math.Min(_lista.Count, (PagPl + 1) * _tam) de @_lista.Count.ToString("N0")</span>
             <button class="btn-ghost sm" disabled="@(PagPl >= paginas - 1)" @onclick="() => _pagPl = PagPl + 1">@Icons.Svg("chevron-right")</button>
-            <button class="btn-ghost sm" disabled="@(PagPl >= paginas - 1)" @onclick="() => _pagPl = paginas - 1" title="@L["Última"]">»</button>
+            <button class="btn-ghost sm" disabled="@(PagPl >= paginas - 1)" @onclick="() => _pagPl = paginas - 1" title="Última">»</button>
         </div>
     };
 
@@ -436,7 +436,7 @@ else if (_aba == "importar" && _pode)
     private void EditarCliente(Cliente c) { _cli = c; _erros = null; }
     private void SalvarCliente()
     {
-        try { Svc.SalvarCliente(_ator, _cli!); _cli = null; Carregar(); Sessao.Avisar(L["Cliente salvo."]); }
+        try { Svc.SalvarCliente(_ator, _cli!); _cli = null; Carregar(); Sessao.Avisar("Cliente salvo."); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
 
@@ -513,7 +513,7 @@ else if (_aba == "importar" && _pode)
             _msgGeoPl = r.Nivel == "endereco" ? "Endereço localizado. Revise a posição no mapa." : r.Mensagem;
             await JS.InvokeVoidAsync("app.mapa.definir", "mapa-planta", _pl.Lat, _pl.Lon);
         }
-        else _msgGeoPl = L.F("{0} Você pode salvar assim (localização pendente) ou posicionar manualmente no mapa.", L[r.Mensagem]);
+        else _msgGeoPl = r.Mensagem + " Você pode salvar assim (localização pendente) ou posicionar manualmente no mapa.";
     }
 
     private async Task SalvarPlanta()
@@ -526,7 +526,7 @@ else if (_aba == "importar" && _pode)
             // o formulário já reflete a posição escolhida; só consulta endereço se algo mudou e não há posição manual
             await Svc.SalvarPlantaAsync(_ator, _pl, Geo);
             await FecharPlanta(); Carregar();
-            Sessao.Avisar(L["Planta salva."]);
+            Sessao.Avisar(_plantas.FirstOrDefault(p => p.Nome == _pl?.Nome) is null ? "Planta salva." : "Planta salva.");
         }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
         _salvando = false;
@@ -543,7 +543,7 @@ else if (_aba == "importar" && _pode)
         if (paginas <= 1) return;
         <div class="paginacao">
             <button class="btn-ghost sm" disabled="@(pag <= 0)" @onclick="() => ir(pag - 1)">@Icons.Svg("chevron-left")</button>
-            <span>@L.F("Página {0} de {1} · {2} registros", pag + 1, paginas, total.ToString("N0"))</span>
+            <span>Página @(pag + 1) de @paginas · @total.ToString("N0") registros</span>
             <button class="btn-ghost sm" disabled="@(pag >= paginas - 1)" @onclick="() => ir(pag + 1)">@Icons.Svg("chevron-right")</button>
         </div>
     };
@@ -556,17 +556,17 @@ else if (_aba == "importar" && _pode)
             <div>
                 @if (Job.Rodando)
                 {
-                    <strong>@(Job.Automatico ? L["Localização automática em segundo plano…"] : L["Localizando plantas no mapa…"]) @L.F("{0} de {1}", Job.Feitas.ToString("N0"), Job.Total.ToString("N0"))</strong>
+                    <strong>@(Job.Automatico ? "Localização automática em segundo plano…" : "Localizando plantas no mapa…") @Job.Feitas.ToString("N0") de @Job.Total.ToString("N0")</strong>
                     <div class="barra"><i style="width:@((Job.Total == 0 ? 0 : 100.0 * Job.Feitas / Job.Total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></i></div>
-                    <div class="sm">@L.F("{0} localizadas · {1} sem localização", Job.Localizadas.ToString("N0"), Job.Pendentes.ToString("N0")) · @Job.Atual@(Job.Restante is { } r ? " · " + L.F("faltam ≈ {0}", Tempo.Duracao(r)) : "")</div>
-                    <div class="sm muted">@L["Roda no servidor: pode fechar esta página. Plantas que dividem a mesma cidade reaproveitam a consulta."]</div>
-                    <button class="btn-ghost sm mt8" @onclick="Job.Parar">@L["Parar"]</button>
+                    <div class="sm">@Job.Localizadas.ToString("N0") localizadas · @Job.Pendentes.ToString("N0") sem localização · @Job.Atual@(Job.Restante is { } r ? $" · faltam ≈ {Tempo.Duracao(r)}" : "")</div>
+                    <div class="sm muted">Roda no servidor: pode fechar esta página. Plantas que dividem a mesma cidade reaproveitam a consulta.</div>
+                    <button class="btn-ghost sm mt8" @onclick="Job.Parar">Parar</button>
                 }
                 else
                 {
-                    <strong>@L.F(Job.Erro is null ? (Job.Automatico ? "Localização automática concluída: {0} localizada(s), {1} sem localização (de {2})" : "Localização concluída: {0} localizada(s), {1} sem localização (de {2})") : Job.Automatico ? "Localização automática pausada: {0} localizada(s), {1} sem localização (de {2})" : "Localização interrompida: {0} localizada(s), {1} sem localização (de {2})", Job.Localizadas.ToString("N0"), Job.Pendentes.ToString("N0"), Job.Total.ToString("N0"))</strong>
-                    @if (Job.Erro is not null) { <div class="sm">@L[Job.Erro]</div> }
-                    <div class="sm muted">@L.F("Consultas ao serviço de mapas: {0} (evitadas pelo cache: {1}).", Geo.ConsultasRealizadas.ToString("N0"), Geo.ConsultasEmCache.ToString("N0"))</div>
+                    <strong>@(Job.Automatico ? "Localização automática" : "Localização") @(Job.Erro is null ? "concluída" : Job.Automatico ? "pausada" : "interrompida"): @Job.Localizadas.ToString("N0") localizada(s), @Job.Pendentes.ToString("N0") sem localização (de @Job.Total.ToString("N0"))</strong>
+                    @if (Job.Erro is not null) { <div class="sm">@Job.Erro</div> }
+                    <div class="sm muted">Consultas ao serviço de mapas: @Geo.ConsultasRealizadas.ToString("N0") (evitadas pelo cache: @Geo.ConsultasEmCache.ToString("N0")).</div>
                 }
             </div>
         </div>
@@ -574,28 +574,28 @@ else if (_aba == "importar" && _pode)
 
     private void ReconferirJob()
     {
-        try { Job.Iniciar(_ator, reconferirAproximadas: true); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex).Select(x => L[x])), true); }
+        try { Job.Iniciar(_ator, reconferirAproximadas: true); } catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
     }
 
     private void IniciarJob()
     {
         try { Job.Iniciar(_ator); }
-        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex).Select(x => L[x])), true); }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
     }
 
     private void AoJob() => InvokeAsync(() => { if (!Job.Rodando) Carregar(); StateHasChanged(); });
 
     private async Task LocalizarPendentes()
     {
-        _localizando = true; _msgGeo = L["Consultando endereços (1 por segundo)…"]; StateHasChanged();
+        _localizando = true; _msgGeo = "Consultando endereços (1 por segundo)…"; StateHasChanged();
         try
         {
             var prog = new Progress<string>(m => { _msgGeo = m; InvokeAsync(StateHasChanged); });
             var (ok, falhas) = await Svc.LocalizarPendentesAsync(_ator, Geo, prog);
-            _msgGeo = L.F("Localização concluída: {0} localizada(s) (ao nível mais preciso encontrado: endereço, cidade, estado ou país); {1} continuam pendentes (sem dados suficientes ou não encontradas). Posicione-as manualmente no mapa.", ok, falhas);
+            _msgGeo = $"Localização concluída: {ok} localizada(s) (ao nível mais preciso encontrado: endereço, cidade, estado ou país); {falhas} continuam pendentes (sem dados suficientes ou não encontradas). Posicione-as manualmente no mapa.";
             Carregar();
         }
-        catch (Exception ex) { _msgGeo = string.Join(" ", Ui.Erros(ex).Select(x => L[x])); }
+        catch (Exception ex) { _msgGeo = string.Join(" ", Ui.Erros(ex)); }
         _localizando = false;
     }
 
@@ -642,7 +642,7 @@ else if (_aba == "importar" && _pode)
     private async Task ConfirmarImport()
     {
         _errosImp = null; _importando = true; StateHasChanged();
-        try { _res = await Task.Run(() => Imp.Aplicar(_ator, _linhas)); _passo = 4; Carregar(); Sessao.Avisar(L["Importação concluída."]); }
+        try { _res = await Task.Run(() => Imp.Aplicar(_ator, _linhas)); _passo = 4; Carregar(); Sessao.Avisar("Importação concluída."); }
         catch (Exception ex) { _errosImp = Ui.Erros(ex); }
         _importando = false;
     }

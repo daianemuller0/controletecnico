@@ -6,46 +6,46 @@
 <div class="hv fb">
     @if (Local)
     {
-        <div class="alert-box alert-aviso">@Icons.Svg("info")<div>@L["Salve a viagem para registrar o feedback do serviço."]</div></div>
+        <div class="alert-box alert-aviso">@Icons.Svg("info")<div>Salve a viagem para registrar o feedback do serviço.</div></div>
     }
     else
     {
         @if (Pode)
         {
             <div class="rs-cta">
-                <div class="rs-cta-txt"><strong>@L["Terminou a visita ao cliente?"]</strong>
-                    <span>@L["Envie o relatório do serviço: escolha como terminou, anexe o relatório e o POWRA STAR, e o e-mail sai pronto no Outlook, com a sua assinatura."]</span></div>
-                <button class="btn-primary rs-cta-btn" @onclick="() => _relatorioAberto = true">@Icons.Svg("mail")@L["Enviar relatório do serviço"]</button>
+                <div class="rs-cta-txt"><strong>Terminou a visita ao cliente?</strong>
+                    <span>Envie o relatório do serviço: escolha como terminou, anexe o relatório e o POWRA STAR, e o e-mail sai pronto no Outlook, com a sua assinatura.</span></div>
+                <button class="btn-primary rs-cta-btn" @onclick="() => _relatorioAberto = true">@Icons.Svg("mail")Enviar relatório do serviço</button>
             </div>
             <div class="panel hv-novo">
-                <div class="panel-head"><div class="panel-title">@Icons.Svg("review")@(_edit is null ? L["Feedback do serviço"] : L["Editar feedback"])</div></div>
-                <textarea class="hv-texto" rows="4" @bind="_texto" @bind:event="oninput" placeholder="@L["Conte como foi o serviço: o que foi feito, o que ficou pendente, condições encontradas no cliente, observações do cliente…"]"></textarea>
+                <div class="panel-head"><div class="panel-title">@Icons.Svg("review")@(_edit is null ? "Feedback do serviço" : "Editar feedback")</div></div>
+                <textarea class="hv-texto" rows="4" @bind="_texto" @bind:event="oninput" placeholder="Conte como foi o serviço: o que foi feito, o que ficou pendente, condições encontradas no cliente, observações do cliente…"></textarea>
                 @if (_edit is null)
                 {
                     <div class="fb-arquivos">
-                        <label class="dv-add fb-add" title="@L["Anexar arquivos ao feedback"]">@Icons.Svg("paperclip")<span>@L["Anexar feedback"]</span><small>@L["PDF, foto ou e-mail"]</small>
+                        <label class="dv-add fb-add" title="Anexar arquivos ao feedback">@Icons.Svg("paperclip")<span>Anexar feedback</span><small>PDF, foto ou e-mail</small>
                             <InputFile OnChange="Escolher" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.doc,.xls,.msg,.eml" /></label>
                         @foreach (var pd in _pend.ToList())
                         {
                             <div class="anexo">@Icons.Svg("file")<span>@pd.Nome</span><span class="muted sm">@(pd.Dados.Length / 1024) KB</span>
-                                <button class="row-act del" @onclick="() => _pend.Remove(pd)" title="@L["Tirar"]" aria-label="@L.F("Tirar {0}", pd.Nome)">@Icons.Svg("x")</button></div>
+                                <button class="row-act del" @onclick="() => _pend.Remove(pd)" title="Tirar" aria-label="Tirar @pd.Nome">@Icons.Svg("x")</button></div>
                         }
                     </div>
-                    <div class="muted sm">@L["PDF, foto (JPG/PNG), Word, Excel ou e-mail salvo (.msg/.eml), até 15 MB cada. Pode enviar só o texto, só o arquivo ou os dois."]</div>
+                    <div class="muted sm">PDF, foto (JPG/PNG), Word, Excel ou e-mail salvo (.msg/.eml), até 15 MB cada. Pode enviar só o texto, só o arquivo ou os dois.</div>
                 }
                 <div class="hv-rodape">
                     <span class="grow"></span>
-                    @if (_edit is not null) { <button class="btn-ghost" @onclick="Limpar">@L["Cancelar"]</button> }
-                    <button class="btn-primary" @onclick="Salvar" disabled="@(_enviando || (string.IsNullOrWhiteSpace(_texto) && _pend.Count == 0 && _edit is null))">@Icons.Svg("check")@(_enviando ? L["Enviando…"] : _edit is null ? L["Enviar feedback"] : L["Salvar alteração"])</button>
+                    @if (_edit is not null) { <button class="btn-ghost" @onclick="Limpar">Cancelar</button> }
+                    <button class="btn-primary" @onclick="Salvar" disabled="@(_enviando || (string.IsNullOrWhiteSpace(_texto) && _pend.Count == 0 && _edit is null))">@Icons.Svg("check")@(_enviando ? "Enviando…" : _edit is null ? "Enviar feedback" : "Salvar alteração")</button>
                 </div>
-                @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@L[e]</div> }</div></div> }
+                @if (_erros is { Count: > 0 }) { <div class="alert-box alert-erro mt8">@Icons.Svg("alert")<div>@foreach (var e in _erros) { <div>@e</div> }</div></div> }
             </div>
         }
 
         @if (_lista.Count == 0)
         {
-            <div class="empty-state sm"><div class="ico">@Icons.Svg("review")</div><h3>@L["Nenhum feedback ainda"]</h3>
-                <p>@(Pode ? L["Use o campo acima para contar como foi o serviço e anexar o relatório, fotos ou o aceite do cliente."] : L["O técnico escalado registra aqui como foi o serviço."])</p></div>
+            <div class="empty-state sm"><div class="ico">@Icons.Svg("review")</div><h3>Nenhum feedback ainda</h3>
+                <p>@(Pode ? "Use o campo acima para contar como foi o serviço e anexar o relatório, fotos ou o aceite do cliente." : "O técnico escalado registra aqui como foi o serviço.")</p></div>
         }
         <ol class="hv-lista">
             @foreach (var f in _lista)
@@ -57,11 +57,11 @@
                 <li class="hv-item" style="--c:@cor">
                     <span class="hv-ico">@Icons.Svg(rel?.Icone ?? "review")</span>
                     <div class="hv-corpo">
-                        <div class="hv-cab"><strong>@f.AutorNome</strong><span class="tag" style="color:@cor">@(rel is null ? L["Feedback do serviço"] : L.F("Relatório: {0}", L[rel.Rotulo]))</span>
-                            <span class="muted sm">@Tempo.ParaLocal(f.EscritoEm, Fuso).ToString("dd/MM/yyyy HH:mm")@(f.EditadoEm is not null ? " · " + L["editado"] : "")</span>
-                            @if (meu) { <span class="hv-acoes"><button class="btn-link" @onclick="() => Editar(f)">@L["Editar"]</button><button class="btn-link perigo" @onclick="() => _excluir = f">@L["Excluir"]</button></span> }</div>
-                        @if (rel is not null) { <div class="muted sm rs-env">@Icons.Svg("mail")<b>@f.Assunto</b> · @L["para"] @f.EnviadoPara · @L[f.Envio]</div> }
-                        @if (!string.IsNullOrWhiteSpace(f.Texto)) { <div class="hv-txt">@(rel is not null && RelatorioServico.PedeTexto(rel.Key) ? L[rel.TituloTexto] + " " : "")@f.Texto</div> }
+                        <div class="hv-cab"><strong>@f.AutorNome</strong><span class="tag" style="color:@cor">@(rel is null ? "Feedback do serviço" : "Relatório: " + rel.Rotulo)</span>
+                            <span class="muted sm">@Tempo.ParaLocal(f.EscritoEm, Fuso).ToString("dd/MM/yyyy HH:mm")@(f.EditadoEm is not null ? " · editado" : "")</span>
+                            @if (meu) { <span class="hv-acoes"><button class="btn-link" @onclick="() => Editar(f)">Editar</button><button class="btn-link perigo" @onclick="() => _excluir = f">Excluir</button></span> }</div>
+                        @if (rel is not null) { <div class="muted sm rs-env">@Icons.Svg("mail")<b>@f.Assunto</b> · para @f.EnviadoPara · @f.Envio</div> }
+                        @if (!string.IsNullOrWhiteSpace(f.Texto)) { <div class="hv-txt">@(rel is not null && RelatorioServico.PedeTexto(rel.Key) ? rel.TituloTexto + " " : "")@f.Texto</div> }
                         @if (anexos.Count > 0 || meu)
                         {
                             <div class="fb-anexos">
@@ -70,12 +70,12 @@
                                     <div class="anexo">@Icons.Svg("file")
                                         @if (VerAnexos) { <a href="/arquivos/@an.Id" target="_blank" rel="noopener">@an.NomeOriginal</a> } else { <span>@an.NomeOriginal</span> }
                                         <span class="muted sm">@(an.Tamanho / 1024) KB</span>
-                                        @if (VerAnexos) { <a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal" title="@L["Baixar"]">@Icons.Svg("download")</a> }
-                                        @if (meu) { <button class="row-act del" @onclick="() => RemoverAnexo(an)" title="@L["Remover arquivo"]" aria-label="@L.F("Remover {0}", an.NomeOriginal)">@Icons.Svg("x")</button> }</div>
+                                        @if (VerAnexos) { <a class="btn-link" href="/arquivos/@an.Id?baixar=true" download="@an.NomeOriginal" title="Baixar">@Icons.Svg("download")</a> }
+                                        @if (meu) { <button class="row-act del" @onclick="() => RemoverAnexo(an)" title="Remover arquivo" aria-label="Remover @an.NomeOriginal">@Icons.Svg("x")</button> }</div>
                                 }
                                 @if (meu)
                                 {
-                                    <label class="btn-link fb-mais">@Icons.Svg("plus")@L["Anexar arquivo"]<InputFile OnChange="e => AnexarEm(f, e)" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.doc,.xls,.msg,.eml" /></label>
+                                    <label class="btn-link fb-mais">@Icons.Svg("plus")Anexar arquivo<InputFile OnChange="e => AnexarEm(f, e)" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.doc,.xls,.msg,.eml" /></label>
                                 }
                             </div>
                         }
@@ -94,10 +94,10 @@
 
 @if (_excluir is not null)
 {
-    <Dialogo Titulo="@L["Excluir feedback do serviço"]" OnFechar="@(() => _excluir = null)">
-        <p class="confirma-txt">@L["Você tem certeza que quer excluir este feedback? Os arquivos anexados a ele também serão excluídos."]</p>
+    <Dialogo Titulo="Excluir feedback do serviço" OnFechar="@(() => _excluir = null)">
+        <p class="confirma-txt">Você tem certeza que quer excluir este feedback? Os arquivos anexados a ele também serão excluídos.</p>
         @if (!string.IsNullOrWhiteSpace(_excluir.Texto)) { <p class="muted">@(_excluir.Texto.Length > 200 ? _excluir.Texto[..200] + "…" : _excluir.Texto)</p> }
-        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _excluir = null)">@L["Não"]</button><button class="btn-danger" @onclick="Excluir">@Icons.Svg("trash")@L["Sim, excluir"]</button></div>
+        <div class="modal-actions"><button class="btn-ghost" @onclick="@(() => _excluir = null)">Não</button><button class="btn-danger" @onclick="Excluir">@Icons.Svg("trash")Sim, excluir</button></div>
     </Dialogo>
 }
 
@@ -155,7 +155,7 @@
             {   // era só o arquivo e nenhum entrou: não deixa um feedback vazio na lista
                 Svc.ExcluirFeedback(Ator, f.Id); _erros = falhas; return;
             }
-            Sessao.Avisar(_edit is null ? L["Feedback do serviço registrado."] : L["Feedback alterado."]);
+            Sessao.Avisar(_edit is null ? "Feedback do serviço registrado." : "Feedback alterado.");
             Limpar(); Carregar(); await OnContagem.InvokeAsync(_lista.Count);
             if (falhas.Count > 0) _erros = falhas;
         }
@@ -171,20 +171,20 @@
         foreach (var file in e.GetMultipleFiles(20))
             try { await using var s = file.OpenReadStream(Armazenamento.TamanhoMaximo); await Svc.AnexarAsync(Ator, "feedback", f.Id, file.Name, s); n++; }
             catch (Exception ex) { falhas.Add($"{file.Name}: {string.Join(" ", Ui.Erros(ex))}"); }
-        if (n > 0) Sessao.Avisar(L.F("{0} arquivo(s) anexado(s) ao feedback.", n));
+        if (n > 0) Sessao.Avisar($"{n} arquivo(s) anexado(s) ao feedback.");
         if (falhas.Count > 0) _erros = falhas;
         Carregar();
     }
 
     private void RemoverAnexo(Anexo a)
     {
-        try { Svc.RemoverAnexo(Ator, a.Id); Sessao.Avisar(L["Arquivo removido."]); Carregar(); }
+        try { Svc.RemoverAnexo(Ator, a.Id); Sessao.Avisar("Arquivo removido."); Carregar(); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
 
     private async Task Excluir()
     {
-        try { Svc.ExcluirFeedback(Ator, _excluir!.Id); _excluir = null; if (_edit is not null) Limpar(); Carregar(); Sessao.Avisar(L["Feedback excluído."]); await OnContagem.InvokeAsync(_lista.Count); }
+        try { Svc.ExcluirFeedback(Ator, _excluir!.Id); _excluir = null; if (_edit is not null) Limpar(); Carregar(); Sessao.Avisar("Feedback excluído."); await OnContagem.InvokeAsync(_lista.Count); }
         catch (Exception ex) { _excluir = null; Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
     }
 }

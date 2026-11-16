@@ -3,21 +3,21 @@
 @inject Db Db
 @inject Geocoder Geo
 
-<Dialogo Titulo="@L["Informe a cidade da planta"]" OnFechar="Fechar" Erros="_erros">
-    <p>@L["A planta"] <strong>@_p?.Nome</strong> @L["não tem cidade cadastrada. Informe abaixo: os dados são gravados direto no cadastro da planta e ela é localizada no mapa."]</p>
+<Dialogo Titulo="Informe a cidade da planta" OnFechar="Fechar" Erros="_erros">
+    <p>A planta <strong>@_p?.Nome</strong> não tem cidade cadastrada. Informe abaixo: os dados são gravados direto no cadastro da planta e ela é localizada no mapa.</p>
     <div class="form-grid">
-        <label class="fld">@L["País"]<input list="paises-cp" @bind="_pais" /></label>
-        <label class="fld">@L["Estado"]<input @bind="_estado" /></label>
-        <label class="fld">@L["Cidade *"]<input @bind="_cidade" autofocus /></label>
-        <label class="fld">@L["Endereço"] <span class="hint">@L["opcional"]</span><input @bind="_end" /></label>
+        <label class="fld">País<input list="paises-cp" @bind="_pais" /></label>
+        <label class="fld">Estado<input @bind="_estado" /></label>
+        <label class="fld">Cidade *<input @bind="_cidade" autofocus /></label>
+        <label class="fld">Endereço <span class="hint">opcional</span><input @bind="_end" /></label>
     </div>
     <datalist id="paises-cp">@foreach (var x in Vocab.Paises) {<option value="@x"></option>}</datalist>
-    <p class="muted sm">@L["A localização é buscada em cascata: endereço → cidade → estado → país. Se o endereço não for encontrado, a planta fica marcada na cidade; se a cidade não for encontrada, no estado; e assim por diante."]
-        @if (!Geo.Configurado) { <span class="warn"> @L["Geocodificação desativada: a planta será gravada com localização pendente."]</span> }</p>
-    @if (!string.IsNullOrEmpty(_resultado)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@L[_resultado]</div></div> }
+    <p class="muted sm">A localização é buscada em cascata: endereço → cidade → estado → país. Se o endereço não for encontrado, a planta fica marcada na cidade; se a cidade não for encontrada, no estado; e assim por diante.
+        @if (!Geo.Configurado) { <span class="warn"> Geocodificação desativada: a planta será gravada com localização pendente.</span> }</p>
+    @if (!string.IsNullOrEmpty(_resultado)) { <div class="alert-box alert-info">@Icons.Svg("info")<div>@_resultado</div></div> }
     <div class="modal-actions">
-        <button class="btn-ghost" @onclick="Fechar">@L["Cancelar"]</button>
-        <button class="btn-primary" @onclick="Salvar" disabled="@_salvando">@Icons.Svg("check")@(_salvando ? L["Localizando…"] : L["Salvar e localizar"])</button>
+        <button class="btn-ghost" @onclick="Fechar">Cancelar</button>
+        <button class="btn-primary" @onclick="Salvar" disabled="@_salvando">@Icons.Svg("check")@(_salvando ? "Localizando…" : "Salvar e localizar")</button>
     </div>
 </Dialogo>
 

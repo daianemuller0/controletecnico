@@ -8,95 +8,95 @@
 @inject NavigationManager Nav
 @inject IConfiguration Cfg
 
-<PageTitle>@L["Visão operacional"] · Controle Técnico</PageTitle>
+<PageTitle>Visão operacional · Controle Técnico</PageTitle>
 
 <div class="page-head compacto">
     <div>
-        <h1>@L["Visão operacional"]</h1>
-        <p class="subtitle">@L["Onde cada técnico está, o que está fazendo e quando fica disponível."]</p>
+        <h1>Visão operacional</h1>
+        <p class="subtitle">Onde cada técnico está, o que está fazendo e quando fica disponível.</p>
     </div>
     <div class="momento-ctl">
         <span class="momento-chip @ClasseMomento" title="@TituloMomento">@TextoMomento</span>
         <label class="flt-data">@Icons.Svg("calendar")
-            <input type="datetime-local" value="@_dataStr" @onchange="AoMudarData" aria-label="@L["Data e hora da visualização"]" />
+            <input type="datetime-local" value="@_dataStr" @onchange="AoMudarData" aria-label="Data e hora da visualização" />
         </label>
-        <button class="btn-ghost sm" @onclick="VoltarAgora" disabled="@_agora">@Icons.Svg("clock")@L["Agora"]</button>
-        <button class="btn-ghost sm" @onclick="@(() => Recarregar(true))" title="@L["Recarregar dados"]">@Icons.Svg("refresh")</button>
-        <button class="btn-primary sm" @onclick="IniciarAuto" title="@L["Apresentação automática em tela cheia: mapa e indicadores, um por vez"]">@Icons.Svg("monitor")@L["Modo automático"]</button>
+        <button class="btn-ghost sm" @onclick="VoltarAgora" disabled="@_agora">@Icons.Svg("clock")Agora</button>
+        <button class="btn-ghost sm" @onclick="@(() => Recarregar(true))" title="Recarregar dados">@Icons.Svg("refresh")</button>
+        <button class="btn-primary sm" @onclick="IniciarAuto" title="Apresentação automática em tela cheia: mapa e indicadores, um por vez">@Icons.Svg("monitor")Modo automático</button>
     </div>
 </div>
 
 @if (_carregando)
 {
     <div class="kpi-linha">@for (var i = 0; i < 8; i++) { <div class="kpi-tile skeleton" style="height:78px"></div> }</div>
-    <div class="state-box">@Icons.Svg("clock")<div>@L["Carregando a situação da equipe…"]</div></div>
+    <div class="state-box">@Icons.Svg("clock")<div>Carregando a situação da equipe…</div></div>
 }
 else if (_erro is not null)
 {
-    <div class="state-box state-err">@Icons.Svg("alert")<div><strong>@L["Não foi possível carregar os dados."]</strong><div class="muted">@L[_erro]</div></div><button class="btn-ghost" @onclick="@(() => Recarregar(true))">@L["Tentar de novo"]</button></div>
+    <div class="state-box state-err">@Icons.Svg("alert")<div><strong>Não foi possível carregar os dados.</strong><div class="muted">@_erro</div></div><button class="btn-ghost" @onclick="@(() => Recarregar(true))">Tentar de novo</button></div>
 }
 else
 {
-    <div class="kpi-linha" role="group" aria-label="@L["Indicadores"]">
-        @Kpi("disponivel", L["Disponíveis"], _kDisp.Count, "check", "#1f9254", L["Técnicos sem compromisso neste momento (inclui quem não tem programação)"])
-        @Kpi("atendimento", L["Em atendimento"], _kAtend.Count, "customers", "#0369a1", L["Na planta do cliente"])
-        @Kpi("viagem", L["Em viagem"], _kViag.Count, "plane", "#d9822b", L["Em deslocamento"])
-        @Kpi("ferias", L["Em férias"], _kFer.Count, "sun", "#7b4fc0", L["Férias vigentes"])
-        @Kpi("viagens", L["Viagens previstas"], _kViagensPrev.Count, "route", "#004785", L["Viagens ainda não iniciadas (rascunho, planejada ou confirmada)"])
-        @Kpi("conflitos", L["Conflitos"], _kConf.Count, "alert", "#c0392b", L["Técnicos com sobreposição ou deslocamento a verificar"])
-        @Kpi("docs", L["Docs a vencer"], _kDocs.Count, "clock", "#b7791f", L["Técnicos com documento próximo do vencimento ou vencido"])
-        @Kpi("pend", L["Pendências docs"], _kPend.Count, "shield", "#c0392b", L["Técnicos escalados sem todos os requisitos documentais"])
+    <div class="kpi-linha" role="group" aria-label="Indicadores">
+        @Kpi("disponivel", "Disponíveis", _kDisp.Count, "check", "#1f9254", "Técnicos sem compromisso neste momento (inclui quem não tem programação)")
+        @Kpi("atendimento", "Em atendimento", _kAtend.Count, "customers", "#0369a1", "Na planta do cliente")
+        @Kpi("viagem", "Em viagem", _kViag.Count, "plane", "#d9822b", "Em deslocamento")
+        @Kpi("ferias", "Em férias", _kFer.Count, "sun", "#7b4fc0", "Férias vigentes")
+        @Kpi("viagens", "Viagens previstas", _kViagensPrev.Count, "route", "#004785", "Viagens ainda não iniciadas (rascunho, planejada ou confirmada)")
+        @Kpi("conflitos", "Conflitos", _kConf.Count, "alert", "#c0392b", "Técnicos com sobreposição ou deslocamento a verificar")
+        @Kpi("docs", "Docs a vencer", _kDocs.Count, "clock", "#b7791f", "Técnicos com documento próximo do vencimento ou vencido")
+        @Kpi("pend", "Pendências docs", _kPend.Count, "shield", "#c0392b", "Técnicos escalados sem todos os requisitos documentais")
     </div>
     <div class="kpi-aux muted">
-        <span>@Icons.Svg("ban")@L.F("{0} indisponível(is)", _kInd.Count)</span>
+        <span>@Icons.Svg("ban")@_kInd.Count indisponível(is)</span>
         <span class="sep">·</span>
-        <span title="@L["Fora de viagem, no endereço do cadastro"]">@Icons.Svg("user")@L.F("{0} em casa", _estados.Count(e => e.LocalFonte == "casa" && e.Status == Vocab.OpDisponivel))</span>
-        <span title="@L["Fora de viagem, na empresa"]">@Icons.Svg("customers")@_estados.Count(e => e.LocalFonte == "howden") @L["na"] @_snap.HowdenNome</span>
+        <span title="Fora de viagem, no endereço do cadastro">@Icons.Svg("user")@_estados.Count(e => e.LocalFonte == "casa" && e.Status == Vocab.OpDisponivel) em casa</span>
+        <span title="Fora de viagem, na empresa">@Icons.Svg("customers")@_estados.Count(e => e.LocalFonte == "howden") na @_snap.HowdenNome</span>
 
         <span class="sep">·</span>
-        <span>@L.F("{0} técnico(s) ativos", _estados.Count) @(_estados.Count == 0 ? "" : L["na visão"])</span>
-        @if (_foraVisao > 0) { <span class="sep">·</span><span title="@L["Engenharia, terceiros, fábrica e quem viaja esporadicamente só aparecem quando estão em viagem ou atendimento"]">@L.F("{0} fora da visão (engenharia/terceiros/fábrica/esporádicos sem viagem)", _foraVisao)</span> }
+        <span>@_estados.Count técnico(s) ativos @(_estados.Count == 0 ? "" : "na visão")</span>
+        @if (_foraVisao > 0) { <span class="sep">·</span><span title="Engenharia, terceiros, fábrica e quem viaja esporadicamente só aparecem quando estão em viagem ou atendimento">@_foraVisao fora da visão (engenharia/terceiros/fábrica/esporádicos sem viagem)</span> }
     </div>
 
     <div class="filterbar op-filtros" role="search">
-        <label class="flt"><span class="flt-label">@L["Técnico"]</span>
-            <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@FTec" ValueChanged="@(async (string v) => { FTec = v; Aplicar(); })" Placeholder="@L["Todos"]" /></label>
-        <label class="flt"><span class="flt-label">@L["Especialidade"]</span>
-            <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@FEsp" ValueChanged="@(async (string v) => { FEsp = v; Aplicar(); })" Placeholder="@L["Todas"]" /></label>
-        <label class="flt"><span class="flt-label">@L["Status"]</span>
-            <select @bind="FStatus" @bind:after="Aplicar"><option value="">@L["Todos"]</option>@foreach (var s in Vocab.StatusOp.Where(x => x.Key != Vocab.OpSemProg)) {<option value="@s.Key">@L[s.Label]</option>}</select></label>
-        <label class="flt"><span class="flt-label">@L["Cliente"]</span>
-            <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@FCli" ValueChanged="@(async (string v) => { FCli = v; Aplicar(); })" Placeholder="@L["Todos"]" /></label>
-        <div class="flt flt-planta"><span class="flt-label">@L["Planta"]</span><SeletorPlanta Value="@FPlanta" ValueChanged="id => { FPlanta = id ?? string.Empty; Aplicar(); }" Vazio="@L["Todas as plantas"]" Placeholder="@L["Todas"]" SoAtivas="false" /></div>
-        <label class="flt" title="@L["Do local previsto (planta) ou, sem local, da cidade de residência"]"><span class="flt-label">@L["País"]</span>
-            <CampoLista Value="@FPais" ValueChanged="@((string v) => { FPais = v; Aplicar(); })" Opcoes="@(Paises)" Placeholder="@L["Todos"]" Class="field" /></label>
-        <label class="flt" title="@L["Do local previsto (planta) ou, sem local, da cidade de residência"]"><span class="flt-label">@L["Estado"]</span>
-            <CampoLista Value="@FUf" ValueChanged="@((string v) => { FUf = v; Aplicar(); })" Opcoes="@(Estados)" Placeholder="@L["Todos"]" Class="field" /></label>
-        <label class="flt" title="@L["Do local previsto (planta) ou, sem local, da cidade de residência"]"><span class="flt-label">@L["Cidade"]</span>
-            <CampoLista Value="@FCidade" ValueChanged="@((string v) => { FCidade = v; Aplicar(); })" Opcoes="@(Cidades)" Placeholder="@L["Todas"]" Class="field" /></label>
-        <label class="flt" title="@L["Técnicos com compromisso no período"]"><span class="flt-label">@L["Período de"]</span>
+        <label class="flt"><span class="flt-label">Técnico</span>
+            <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id)).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@FTec" ValueChanged="@(async (string v) => { FTec = v; Aplicar(); })" Placeholder="Todos" /></label>
+        <label class="flt"><span class="flt-label">Especialidade</span>
+            <SeletorLista Itens="@(_snap.Especialidades.Values.OrderBy(e => e.Nome).Select(e => new SeletorLista.ItemSel(e.Id, e.Nome)))" Value="@FEsp" ValueChanged="@(async (string v) => { FEsp = v; Aplicar(); })" Placeholder="Todas" /></label>
+        <label class="flt"><span class="flt-label">Status</span>
+            <select @bind="FStatus" @bind:after="Aplicar"><option value="">Todos</option>@foreach (var s in Vocab.StatusOp.Where(x => x.Key != Vocab.OpSemProg)) {<option value="@s.Key">@s.Label</option>}</select></label>
+        <label class="flt"><span class="flt-label">Cliente</span>
+            <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@FCli" ValueChanged="@(async (string v) => { FCli = v; Aplicar(); })" Placeholder="Todos" /></label>
+        <div class="flt flt-planta"><span class="flt-label">Planta</span><SeletorPlanta Value="@FPlanta" ValueChanged="id => { FPlanta = id ?? string.Empty; Aplicar(); }" Vazio="Todas as plantas" Placeholder="Todas" SoAtivas="false" /></div>
+        <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">País</span>
+            <CampoLista Value="@FPais" ValueChanged="@((string v) => { FPais = v; Aplicar(); })" Opcoes="@(Paises)" Placeholder="Todos" Class="field" /></label>
+        <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Estado</span>
+            <CampoLista Value="@FUf" ValueChanged="@((string v) => { FUf = v; Aplicar(); })" Opcoes="@(Estados)" Placeholder="Todos" Class="field" /></label>
+        <label class="flt" title="Do local previsto (planta) ou, sem local, da cidade de residência"><span class="flt-label">Cidade</span>
+            <CampoLista Value="@FCidade" ValueChanged="@((string v) => { FCidade = v; Aplicar(); })" Opcoes="@(Cidades)" Placeholder="Todas" Class="field" /></label>
+        <label class="flt" title="Técnicos com compromisso no período"><span class="flt-label">Período de</span>
             <input type="date" class="flt-date" value="@Ui.DataInput(FDe)" @onchange="e => { FDe = Ui.DoDataInput(e.Value?.ToString()); Aplicar(); }" /></label>
-        <label class="flt"><span class="flt-label">@L["até"]</span>
+        <label class="flt"><span class="flt-label">até</span>
             <input type="date" class="flt-date" value="@Ui.DataInput(FAte)" @onchange="e => { FAte = Ui.DoDataInput(e.Value?.ToString()); Aplicar(); }" /></label>
-        @if (TemFiltro) { <button class="btn-link" @onclick="Limpar">@Icons.Svg("x")@L["Limpar filtros"]</button> }
+        @if (TemFiltro) { <button class="btn-link" @onclick="Limpar">@Icons.Svg("x")Limpar filtros</button> }
     </div>
     @if (!string.IsNullOrEmpty(_kpi))
     {
-        <div class="chips-ativos">@L["Indicador:"] <span class="chip active">@NomeKpi(_kpi) <button class="chip-x" @onclick="@(() => { _kpi = ""; Aplicar(); })" aria-label="@L["Remover filtro do indicador"]">×</button></span></div>
+        <div class="chips-ativos">Indicador: <span class="chip active">@NomeKpi(_kpi) <button class="chip-x" @onclick="@(() => { _kpi = ""; Aplicar(); })" aria-label="Remover filtro do indicador">×</button></span></div>
     }
 
     @if (_kpi == "viagens")
     {
-        <section class="panel" aria-label="@L["Viagens previstas"]" style="margin-bottom:12px">
-            <div class="panel-head"><div class="panel-title">@L["Viagens previstas"] <span class="hint">@L.F("{0} viagem(ns) — a lista de técnicos abaixo pode ter menos linhas, pois um técnico pode ter várias viagens", _kViagensPrev.Count)</span></div></div>
+        <section class="panel" aria-label="Viagens previstas" style="margin-bottom:12px">
+            <div class="panel-head"><div class="panel-title">Viagens previstas <span class="hint">@_kViagensPrev.Count viagem(ns) — a lista de técnicos abaixo pode ter menos linhas, pois um técnico pode ter várias viagens</span></div></div>
             <div class="table-wrap"><table class="grid-tbl">
-                <thead><tr><th>@L["Projeto"]</th><th>@L["Viagem"]</th><th>@L["Destino"]</th><th>@L["Início"]</th><th>@L["Técnicos"]</th><th>@L["Status"]</th></tr></thead>
+                <thead><tr><th>Projeto</th><th>Viagem</th><th>Destino</th><th>Início</th><th>Técnicos</th><th>Status</th></tr></thead>
                 <tbody>
                 @foreach (var v in _kViagensPrev.Select(id => _snap.Viagem(id)).Where(v => v is not null).OrderBy(v => _prevIni[v!.Id]))
                 {
                     var nomes = Ui.Ids(v!.TecnicoIds).Select(t => _snap.Tecnicos.TryGetValue(t, out var tc) ? tc.Nome : "?").ToList();
-                    <tr><td>@if (string.IsNullOrWhiteSpace(v.Projeto)) { <span class="proj-tag vazio">@L["sem projeto"]</span> } else { <span class="proj-tag">@v.Projeto</span> }</td><td><a href="/viagens/@v.Id">@v.Codigo</a></td><td>@(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)</td><td>@Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)</td>
-                        <td>@(nomes.Count == 0 ? L["sem técnico"] : string.Join(", ", nomes))</td><td>@L[Vocab.StatusViagem.FirstOrDefault(x => x.Key == v.Status)?.Label ?? v.Status]</td></tr>
+                    <tr><td>@if (string.IsNullOrWhiteSpace(v.Projeto)) { <span class="proj-tag vazio">sem projeto</span> } else { <span class="proj-tag">@v.Projeto</span> }</td><td><a href="/viagens/@v.Id">@v.Codigo</a></td><td>@(string.IsNullOrEmpty(v.Destino) ? "—" : v.Destino)</td><td>@Ui.Hora(_prevIni[v.Id], _snap.FusoPadrao, _snap)</td>
+                        <td>@(nomes.Count == 0 ? "sem técnico" : string.Join(", ", nomes))</td><td>@(Vocab.StatusViagem.FirstOrDefault(x => x.Key == v.Status)?.Label ?? v.Status)</td></tr>
                 }
                 </tbody></table></div>
         </section>
@@ -104,15 +104,15 @@ else
 
     @if (_snap.HowdenLat is null && _estados.Any(e => e.LocalFonte == "howden"))
     {
-        <div class="alert-box alert-aviso">@Icons.Svg("alert")<div><strong>@L.F("{0} técnico(s) na {1} não aparecem no mapa", _estados.Count(e => e.LocalFonte == "howden"), _snap.HowdenNome)</strong> @L["porque a empresa ainda não tem a"] <strong>@L["posição exata"]</strong> @L["cadastrada."]
-            @if (_ator.Pode(Perm.Administrar)) { <a href="/admin?aba=cfg">@L["Definir agora"]</a><span> @L["(cole o link do Google Maps da empresa)."]</span> } else { <span>@L["Peça ao administrador: Administração → Configurações → Endereço da empresa."]</span> }</div></div>
+        <div class="alert-box alert-aviso">@Icons.Svg("alert")<div><strong>@_estados.Count(e => e.LocalFonte == "howden") técnico(s) na @_snap.HowdenNome não aparecem no mapa</strong> porque a empresa ainda não tem a <strong>posição exata</strong> cadastrada.
+            @if (_ator.Pode(Perm.Administrar)) { <a href="/admin?aba=cfg">Definir agora</a><span> (cole o link do Google Maps da empresa).</span> } else { <span>Peça ao administrador: Administração → Configurações → Endereço da empresa.</span> }</div></div>
     }
     <div class="op-grid">
-        <section class="op-lista panel" aria-label="@L["Técnicos"]">
-            <div class="panel-head"><div class="panel-title">@L["Equipe"] <span class="hint">@_visiveis.Count de @_estados.Count</span></div></div>
+        <section class="op-lista panel" aria-label="Técnicos">
+            <div class="panel-head"><div class="panel-title">Equipe <span class="hint">@_visiveis.Count de @_estados.Count</span></div></div>
             @if (_visiveis.Count == 0)
             {
-                <div class="empty-state sm"><div class="ico">@Icons.Svg("search")</div><h3>@L["Nenhum técnico encontrado"]</h3><p>@L["Ajuste ou limpe os filtros."]</p></div>
+                <div class="empty-state sm"><div class="ico">@Icons.Svg("search")</div><h3>Nenhum técnico encontrado</h3><p>Ajuste ou limpe os filtros.</p></div>
             }
             <div class="cards-tec">
                 @foreach (var e in _visiveis)
@@ -126,11 +126,11 @@ else
                             <div class="ct-linha">@Icons.Svg("pin")<span>@LinhaLocal(e)</span></div>
                             @if (e.Atual is { } at && e.Status == Vocab.OpAtendimento)
                             {
-                                <div class="ct-linha muted">@Icons.Svg("wrench")<span>@L.F("{0} · até {1}", L[at.Titulo], Ui.Hora(at.Fim, at.Fuso, _snap))</span></div>
+                                <div class="ct-linha muted">@Icons.Svg("wrench")<span>@at.Titulo · até @Ui.Hora(at.Fim, at.Fuso, _snap)</span></div>
                             }
                             else if (e.Proximo is { } nx)
                             {
-                                <div class="ct-linha muted">@Icons.Svg("calendar")<span>@L.F("Próx.: {0} · {1}", Ui.Corte(L[nx.Titulo], 34), Ui.Hora(nx.Ini, nx.Fuso, _snap))</span></div>
+                                <div class="ct-linha muted">@Icons.Svg("calendar")<span>Próx.: @Ui.Corte(nx.Titulo, 34) · @Ui.Hora(nx.Ini, nx.Fuso, _snap)</span></div>
                             }
                         </div>
                     </button>
@@ -138,14 +138,14 @@ else
             </div>
         </section>
 
-        <section class="op-mapa panel" aria-label="@L["Mapa"]">
+        <section class="op-mapa panel" aria-label="Mapa">
             <div class="mapa-leg">
-                <span class="leg"><i class="mk-amostra conf"></i>@L["Localização confirmada"]</span>
-                <span class="leg"><i class="mk-amostra prev"></i>@L["Localização prevista (agenda)"]</span>
-                <span class="leg"><i class="mk-amostra rota"></i>@L["Deslocamento (origem → destino; sem rastreamento)"]</span>
-                @foreach (var s in Vocab.StatusOp.Where(x => x.Key != Vocab.OpSemProg)) { <span class="leg"><i class="cor" style="background:@s.Color"></i>@L[s.Label]</span> }
+                <span class="leg"><i class="mk-amostra conf"></i>Localização confirmada</span>
+                <span class="leg"><i class="mk-amostra prev"></i>Localização prevista (agenda)</span>
+                <span class="leg"><i class="mk-amostra rota"></i>Deslocamento (origem → destino; sem rastreamento)</span>
+                @foreach (var s in Vocab.StatusOp.Where(x => x.Key != Vocab.OpSemProg)) { <span class="leg"><i class="cor" style="background:@s.Color"></i>@s.Label</span> }
             </div>
-            <div id="mapa-op" class="mapa" role="application" aria-label="@L["Mapa de localização da equipe"]" tabindex="0"></div>
+            <div id="mapa-op" class="mapa" role="application" aria-label="Mapa de localização da equipe" tabindex="0"></div>
             @if (_auto && !_autoGer)
             {
                 <div class="auto-card" style="--c:@_autoCor" aria-live="polite">
@@ -157,20 +157,20 @@ else
                             var it = _autoItens[i];
                             <li class="@(i == 0 ? "novo" : "")"><i style="background:@it.cor"></i><div><strong>@it.nome</strong>@if (!string.IsNullOrEmpty(it.det)) { <span>@it.det</span> }</div></li>
                         }
-                        @if (_autoMostraQtd && _autoItens.Count == 0) { <li class="vazio">@L["Nenhum no momento"]</li> }
+                        @if (_autoMostraQtd && _autoItens.Count == 0) { <li class="vazio">Nenhum no momento</li> }
                     </ul>
                 </div>
             }
             @if (_semMapa.Count > 0)
             {
                 <div class="sem-mapa">
-                    @Icons.Svg("help")<strong>@L.F("{0} sem localização no mapa:", _semMapa.Count)</strong>
+                    @Icons.Svg("help")<strong>@_semMapa.Count sem localização no mapa:</strong>
                     @foreach (var e in _semMapa) { <button class="chip" @onclick="() => AbrirTecnico(e.Tecnico.Id)">@e.Tecnico.Nome</button> }
                 </div>
             }
             <div class="mapa-nota muted">
-                @L["Posições"] <strong>@L["previstas"]</strong> @L["vêm da agenda e não são rastreamento por GPS. Durante a viagem só se mostram origem, destino e período."]
-                @if (!Geo.Configurado) { <span class="cfg-pend"> @(L["Geocodificação desativada: plantas sem coordenadas ficam \"localização pendente\"."])</span> }
+                Posições <strong>previstas</strong> vêm da agenda e não são rastreamento por GPS. Durante a viagem só se mostram origem, destino e período.
+                @if (!Geo.Configurado) { <span class="cfg-pend"> Geocodificação desativada: plantas sem coordenadas ficam "localização pendente".</span> }
             </div>
         </section>
     </div>
@@ -179,19 +179,19 @@ else
 @if (_auto && _autoGer)
 {
     <div class="auto-ger" style="--c:@_autoCor">
-        <div class="auto-ger-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub · @L.F("{0} técnicos ativos", _estados.Count)</div></div></div>
-        <PainelGerencial Auto="true" Mostrar="@_autoGraficos" Bus="@BusDoAtor()" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
+        <div class="auto-ger-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub · @_estados.Count técnicos ativos</div></div></div>
+        <PainelGerencial Auto="true" Mostrar="@_autoGraficos" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
     </div>
 }
 @* indicadores gerenciais: todos os perfis, menos o Técnico *@
-@if (_ator.Papel != Roles.Tecnico) { <PainelGerencial Bus="@BusDoAtor()" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" /> }
+@if (_ator.Papel != Roles.Tecnico) { <PainelGerencial VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" /> }
 
 @if (_grupo is not null)
 {
     <div class="modal-backdrop" @onclick="@(() => _grupo = null)">
-        <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-label="@L["Técnicos no local"]">
-            <div class="modal-topo"><h2>@_grupo.Titulo</h2><button class="icon-btn" @onclick="@(() => _grupo = null)" aria-label="@L["Fechar"]">@Icons.Svg("x")</button></div>
-            <p class="muted">@L.F("{0} técnico(s) neste local — escolha um para ver os detalhes.", _grupo.Estados.Count)</p>
+        <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-label="Técnicos no local">
+            <div class="modal-topo"><h2>@_grupo.Titulo</h2><button class="icon-btn" @onclick="@(() => _grupo = null)" aria-label="Fechar">@Icons.Svg("x")</button></div>
+            <p class="muted">@_grupo.Estados.Count técnico(s) neste local — escolha um para ver os detalhes.</p>
             <div class="cards-tec">
                 @foreach (var e in _grupo.Estados)
                 {
@@ -199,7 +199,7 @@ else
                     <button class="card-tec" @onclick="() => { _grupo = null; AbrirTecnico(e.Tecnico.Id); }">
                         <Avatar Nome="@e.Tecnico.Nome" FotoId="@e.Tecnico.FotoAnexoId" Cor="@it.Color" />
                         <div class="ct-corpo"><div class="ct-nome">@e.Tecnico.Nome</div><StatusBadge Item="@it" />
-                            <div class="ct-linha muted">@(e.ConfirmacaoVigente ? L["Localização confirmada"] : L["Localização prevista"])</div></div>
+                            <div class="ct-linha muted">@(e.ConfirmacaoVigente ? "Localização confirmada" : "Localização prevista")</div></div>
                     </button>
                 }
             </div>
@@ -214,36 +214,36 @@ else
 
 @if (_confirmando is not null)
 {
-    <Dialogo Titulo="@L.F("Confirmar localização · {0}", _confirmando.Nome)" OnFechar="@(() => _confirmando = null)" Erros="_errosConf">
-        <p class="muted">@L["Registra onde o técnico"] <strong>@L["está agora"]</strong>. @L["Fica separado da localização prevista pela agenda e mostra data, hora e quem informou."]</p>
-        <div class="segmented conf-modo" role="group" aria-label="@L["Onde está"]">
-            <button class="@(_confPlanta == ConfirmacaoLocal.Howden ? "active" : "")" @onclick="@(() => { _confPlanta = ConfirmacaoLocal.Howden; _confTexto = ""; })">@Icons.Svg("customers")@L["Na"] @_snap.HowdenNome</button>
-            <button class="@(_confPlanta == ConfirmacaoLocal.Casa ? "active" : "")" @onclick="@(() => { _confPlanta = ConfirmacaoLocal.Casa; _confTexto = ""; })">@Icons.Svg("user")@L["Em casa"]</button>
-            <button class="@(_confPlanta is not (ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa) ? "active" : "")" @onclick="@(() => _confPlanta = "")">@Icons.Svg("pin")@L["Numa planta / outro local"]</button>
+    <Dialogo Titulo="@($"Confirmar localização · {_confirmando.Nome}")" OnFechar="@(() => _confirmando = null)" Erros="_errosConf">
+        <p class="muted">Registra onde o técnico <strong>está agora</strong>. Fica separado da localização prevista pela agenda e mostra data, hora e quem informou.</p>
+        <div class="segmented conf-modo" role="group" aria-label="Onde está">
+            <button class="@(_confPlanta == ConfirmacaoLocal.Howden ? "active" : "")" @onclick="@(() => { _confPlanta = ConfirmacaoLocal.Howden; _confTexto = ""; })">@Icons.Svg("customers")Na @_snap.HowdenNome</button>
+            <button class="@(_confPlanta == ConfirmacaoLocal.Casa ? "active" : "")" @onclick="@(() => { _confPlanta = ConfirmacaoLocal.Casa; _confTexto = ""; })">@Icons.Svg("user")Em casa</button>
+            <button class="@(_confPlanta is not (ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa) ? "active" : "")" @onclick="@(() => _confPlanta = "")">@Icons.Svg("pin")Numa planta / outro local</button>
         </div>
         @if (_confPlanta == ConfirmacaoLocal.Howden)
         {
-            @if (_snap.HowdenLat is null) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@L["O endereço da Howden ainda não tem a"] <strong>@L["posição exata"]</strong>@L[", então não dá para mostrar no mapa."] @if (_ator.Pode(Perm.Administrar)) { <a href="/admin?aba=cfg">@L["Definir agora"]</a> } else { <span>@L["Peça ao administrador para definir em Administração → Configurações."]</span> }</div></div> }
-            else { <div class="alert-box alert-ok">@Icons.Svg("check")<div>@L["Vai aparecer no mapa na posição exata da empresa."]</div></div> }
+            @if (_snap.HowdenLat is null) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>O endereço da Howden ainda não tem a <strong>posição exata</strong>, então não dá para mostrar no mapa. @if (_ator.Pode(Perm.Administrar)) { <a href="/admin?aba=cfg">Definir agora</a> } else { <span>Peça ao administrador para definir em Administração → Configurações.</span> }</div></div> }
+            else { <div class="alert-box alert-ok">@Icons.Svg("check")<div>Vai aparecer no mapa na posição exata da empresa.</div></div> }
         }
         else if (_confPlanta == ConfirmacaoLocal.Casa)
         {
-            @if (_confirmando.CasaLat is null) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>@L["A casa deste técnico ainda não tem posição no mapa."] <a href="/tecnicos/@_confirmando.Id">@L["Definir na ficha"]</a></div></div> }
+            @if (_confirmando.CasaLat is null) { <div class="alert-box alert-aviso">@Icons.Svg("alert")<div>A casa deste técnico ainda não tem posição no mapa. <a href="/tecnicos/@_confirmando.Id">Definir na ficha</a></div></div> }
         }
         <div class="form-grid">
             @if (_confPlanta is not (ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa))
             {
-                <div class="fld full">@L["Planta"]<SeletorPlanta Value="@_confPlanta" ValueChanged="id => _confPlanta = id ?? string.Empty" Vazio="@L["— outro local (descrever abaixo) —"]" Placeholder="@L["— outro local (descrever abaixo) —"]" /></div>
-                <label class="fld full">@L["Descrição do local (opcional se escolheu uma planta)"]
-                    <input class="field" @bind="_confTexto" placeholder="@L["Ex.: Hotel Central, Calama"]" /></label>
+                <div class="fld full">Planta<SeletorPlanta Value="@_confPlanta" ValueChanged="id => _confPlanta = id ?? string.Empty" Vazio="— outro local (descrever abaixo) —" Placeholder="— outro local (descrever abaixo) —" /></div>
+                <label class="fld full">Descrição do local (opcional se escolheu uma planta)
+                    <input class="field" @bind="_confTexto" placeholder="Ex.: Hotel Central, Calama" /></label>
             }
-            <label class="fld full">@L["Observação"]
+            <label class="fld full">Observação
                 <input class="field" @bind="_confObs" /></label>
         </div>
-        @if (_confPlanta is not (ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa)) { <p class="muted sm">@L["Sem planta, a confirmação fica registrada em texto e não aparece no mapa (não há coordenadas)."]</p> }
+        @if (_confPlanta is not (ConfirmacaoLocal.Howden or ConfirmacaoLocal.Casa)) { <p class="muted sm">Sem planta, a confirmação fica registrada em texto e não aparece no mapa (não há coordenadas).</p> }
         <div class="modal-actions">
-            <button class="btn-ghost" @onclick="@(() => _confirmando = null)">@L["Cancelar"]</button>
-            <button class="btn-primary" @onclick="SalvarConfirmacao">@Icons.Svg("check")@L["Confirmar"]</button>
+            <button class="btn-ghost" @onclick="@(() => _confirmando = null)">Cancelar</button>
+            <button class="btn-primary" @onclick="SalvarConfirmacao">@Icons.Svg("check")Confirmar</button>
         </div>
     </Dialogo>
 }
@@ -307,20 +307,19 @@ else
         _carregando = _estados.Count == 0; _erro = null;
         try
         {
-            _snap = Svc.Foto(_ator);
+            _snap = Svc.Foto();
             _eventos = AgendaEngine.Eventos(_snap);
             _conflitos = AgendaEngine.Conflitos(_snap, _eventos);
             if (_agora) _instante = DateTime.UtcNow;
             _dataStr = Ui.ParaInput(_instante, _snap.FusoPadrao);
             Calcular();
             if (_painel is not null) _painel = _estados.FirstOrDefault(x => x.Tecnico.Id == _painel.Tecnico.Id);
-            if (aviso) Sessao.Avisar(L["Dados atualizados."]);
+            if (aviso) Sessao.Avisar("Dados atualizados.");
         }
         catch (Exception ex) { _erro = ex.Message; }
         _carregando = false; _redesenhar = true;
     }
 
-    private List<string> BusDoAtor() => Vocab.Bus.Select(b => b.Cod).Where(_ator.VeBu).ToList();
     private bool VeViagem(Viagem v) => _ator.VeTodaEquipe || Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId);
 
     private void Calcular()
@@ -433,8 +432,8 @@ else
         {
             if (g.Key == "") { _semMapa.AddRange(g.Select(x => x.e)); continue; }
             var primeiro = g.First();
-            var titulo = primeiro.e.Planta is not null ? _snap.NomePlanta(primeiro.e.Planta.Id) : (string.IsNullOrWhiteSpace(primeiro.p!.Value.texto) ? L["Local"] : L[primeiro.p.Value.texto]);
-            if (primeiro.e.Status == Vocab.OpViagem && primeiro.e.Atual is { } at) titulo = L.F("A caminho: {0}", at.LocalFim);
+            var titulo = primeiro.e.Planta is not null ? _snap.NomePlanta(primeiro.e.Planta.Id) : (string.IsNullOrWhiteSpace(primeiro.p!.Value.texto) ? "Local" : primeiro.p.Value.texto);
+            if (primeiro.e.Status == Vocab.OpViagem && primeiro.e.Atual is { } at) titulo = $"A caminho: {at.LocalFim}";
             _grupos[g.Key] = new GrupoMapa(g.Key, titulo, g.Select(x => x.e).ToList());
         }
     }
@@ -457,11 +456,11 @@ else
                 cor = cores.Count == 1 ? cores[0] : "#004785", tracejado = !todosConf, viagem,
                 aprox = !todosConf && !viagem && g.Estados.Any(e => e.Precisao == "aproximada"),
                 iniciais = Avatar.Iniciais(g.Estados[0].Tecnico.Nome),
-                rotulo = viagem ? L["Em deslocamento (posição no trajeto não rastreada)"] : todosConf ? L["Localização confirmada"]
-                    : g.Estados.All(e => e.LocalFonte == "howden") ? L.F("Na {0} — disponível", _snap.HowdenNome)
-                    : g.Estados.All(e => e.LocalFonte == "casa") ? L["Em casa (endereço do cadastro)"] : L["Localização prevista pela agenda"],
-                aviso = g.Estados.Any(e => e.Precisao == "aproximada") && !todosConf ? L["Posição APROXIMADA (só a cidade foi encontrada) — corrija o endereço no cadastro ou marque no mapa."] : "",
-                tecnicos = g.Estados.Select(e => new { nome = $"{e.Tecnico.Nome} — {L[Ui.Op(e.Status).Label]} ({(Posicao(e)!.Value.conf ? L["confirmada"] : L["prevista"])})", cor = Ui.Op(e.Status).Color }),
+                rotulo = viagem ? "Em deslocamento (posição no trajeto não rastreada)" : todosConf ? "Localização confirmada"
+                    : g.Estados.All(e => e.LocalFonte == "howden") ? $"Na {_snap.HowdenNome} — disponível"
+                    : g.Estados.All(e => e.LocalFonte == "casa") ? "Em casa (endereço do cadastro)" : "Localização prevista pela agenda",
+                aviso = g.Estados.Any(e => e.Precisao == "aproximada") && !todosConf ? "Posição APROXIMADA (só a cidade foi encontrada) — corrija o endereço no cadastro ou marque no mapa." : "",
+                tecnicos = g.Estados.Select(e => new { nome = $"{e.Tecnico.Nome} — {Ui.Op(e.Status).Label} ({(Posicao(e)!.Value.conf ? "confirmada" : "prevista")})", cor = Ui.Op(e.Status).Color }),
             });
         }
         foreach (var e in _visiveis.Where(e => vis.Contains(e.Tecnico.Id) && e.Status == Vocab.OpViagem && e.Atual is { LatIni: not null, LonIni: not null, LatFim: not null, LonFim: not null }))
@@ -482,7 +481,7 @@ else
     private async Task IniciarAuto()
     {
         if (_auto || _carregando) return;
-        if (!Sessao.IniciarAuto(Svc.ApresentacaoAtual())) { Sessao.Avisar(L["Nenhuma etapa selecionada. Configure em Administração → Apresentação."], true); return; }
+        if (!Sessao.IniciarAuto(Svc.ApresentacaoAtual())) { Sessao.Avisar("Nenhuma etapa selecionada. Configure em Administração → Apresentação.", true); return; }
         if (!_agora) VoltarAgora();
         if (Sessao.AutoFase == "agenda") { Nav.NavigateTo("/agenda"); return; }
         ComecarCiclo();
@@ -506,7 +505,7 @@ else
     private void Etapa(AutoEtapas.Etapa e)
     {
         Sessao.NotificarAuto();
-        _autoTitulo = L[e.Titulo]; _autoCor = e.Cor; _autoIcone = e.Icone; _autoSub = L[e.Sub];
+        _autoTitulo = e.Titulo; _autoCor = e.Cor; _autoIcone = e.Icone; _autoSub = e.Sub;
     }
 
     private bool _autoGer; private HashSet<string> _autoGraficos = new();
@@ -534,7 +533,7 @@ else
             }
         }
         catch (OperationCanceledException) { FimAuto(); }
-        catch (Exception ex) { Sessao.Avisar(L.F("Modo automático interrompido: {0}", L[ex.Message]), true); Sessao.PararAuto(); FimAuto(); }
+        catch (Exception ex) { Sessao.Avisar("Modo automático interrompido: " + ex.Message, true); Sessao.PararAuto(); FimAuto(); }
     }
 
     private async Task EtapaGerencial(AutoEtapas.Etapa et, CancellationToken ct)
@@ -558,15 +557,15 @@ else
             foreach (var e in g.Estados)
             {
                 var it = Ui.Op(e.Status);
-                _autoItens.Insert(0, (e.Tecnico.Nome, $"{L[it.Label]} · {Ui.Corte(g.Titulo, 40)}", it.Color));
+                _autoItens.Insert(0, (e.Tecnico.Nome, $"{it.Label} · {Ui.Corte(g.Titulo, 40)}", it.Color));
             }
             if (_autoItens.Count > 14) _autoItens = _autoItens.Take(14).ToList();
-            _autoSub = L.F("Local {0} de {1} · {2}", i, n, g.Titulo);
+            _autoSub = $"Local {i} de {n} · {g.Titulo}";
             StateHasChanged(); await Espera(passo, ct);
         }
         _revelar = null; _redesenhar = true;
-        _autoSub = L.F("{0} técnico(s) em {1} local(is)", _visiveis.Count, n) + (_semMapa.Count > 0 ? " · " + L.F("{0} sem localização", _semMapa.Count) : "");
-        foreach (var e in _semMapa) _autoItens.Insert(0, (e.Tecnico.Nome, L["Sem localização no mapa"], "#8793a6"));
+        _autoSub = $"{_visiveis.Count} técnico(s) em {n} local(is)" + (_semMapa.Count > 0 ? $" · {_semMapa.Count} sem localização" : "");
+        foreach (var e in _semMapa) _autoItens.Insert(0, (e.Tecnico.Nome, "Sem localização no mapa", "#8793a6"));
         StateHasChanged(); await Espera(2500, ct);
     }
 
@@ -592,14 +591,14 @@ else
         {
             var det = chave switch
             {
-                "disponivel" => e.Proximo is { } nx ? L.F("Próx.: {0} · {1}", Ui.Corte(L[nx.Titulo], 38), Ui.Hora(nx.Ini, nx.Fuso, _snap)) : LinhaLocal(e),
-                "atendimento" => e.Atual is { } a ? L.F("{0} · até {1}", Ui.Corte(L[a.Titulo], 40), Ui.Hora(a.Fim, a.Fuso, _snap)) : "",
-                "viagem" => e.Atual is { } v ? L.F("A caminho: {0} · chega {1}", Ui.Corte(v.LocalFim, 40), Ui.Hora(v.Fim, v.Fuso, _snap)) : "",
-                "ferias" => e.Atual is { } f ? L.F("Até {0}", Ui.Hora(f.Fim, f.Fuso, _snap)) : "",
-                "conflitos" => _conflitos.Where(c => c.TecnicoId == e.Tecnico.Id && c.B.Fim >= _instante).Select(c => L[c.Motivo]).FirstOrDefault() ?? L["Conflito de agenda"],
+                "disponivel" => e.Proximo is { } nx ? $"Próx.: {Ui.Corte(nx.Titulo, 38)} · {Ui.Hora(nx.Ini, nx.Fuso, _snap)}" : LinhaLocal(e),
+                "atendimento" => e.Atual is { } a ? $"{Ui.Corte(a.Titulo, 40)} · até {Ui.Hora(a.Fim, a.Fuso, _snap)}" : "",
+                "viagem" => e.Atual is { } v ? $"A caminho: {Ui.Corte(v.LocalFim, 40)} · chega {Ui.Hora(v.Fim, v.Fuso, _snap)}" : "",
+                "ferias" => e.Atual is { } f ? $"Até {Ui.Hora(f.Fim, f.Fuso, _snap)}" : "",
+                "conflitos" => _conflitos.Where(c => c.TecnicoId == e.Tecnico.Id && c.B.Fim >= _instante).Select(c => c.Motivo).FirstOrDefault() ?? "Conflito de agenda",
                 "docs" => string.Join("; ", DocEngine.Vencimentos(_snap, hoje).Where(l => l.Doc.TecnicoId == e.Tecnico.Id && l.Status is Vocab.DocProximo or Vocab.DocVencido)
-                    .Select(l => $"{l.Doc.Nome} ({(l.Status == Vocab.DocVencido ? L["vencido"] : L.F("vence {0}", l.Doc.Vencimento?.ToString("dd/MM/yyyy") ?? ""))})").Take(3)),
-                "pend" => L["Atendimento programado com requisito pendente"],
+                    .Select(l => $"{l.Doc.Nome} ({(l.Status == Vocab.DocVencido ? "vencido" : "vence " + (l.Doc.Vencimento?.ToString("dd/MM/yyyy") ?? ""))})").Take(3)),
+                "pend" => "Atendimento programado com requisito pendente",
                 _ => "",
             };
             return (e.Tecnico.Nome, det, Ui.Op(e.Status).Color);
@@ -647,10 +646,10 @@ else
 
     private string LinhaLocal(Estado e)
     {
-        if (e.LocalFonte == "nenhum") return L["Sem localização definida"];
-        if (!e.ConfirmacaoVigente && e.LocalFonte is "casa" or "howden") return Ui.Corte(L[e.LocalTexto], 44);
-        var tipo = e.ConfirmacaoVigente ? L["confirmada"] : L["prevista"];
-        return $"{Ui.Corte(L[e.ConfirmacaoVigente && e.Confirmacao is { } c ? c.Texto : e.LocalTexto], 40)} ({tipo})";
+        if (e.LocalFonte == "nenhum") return "Sem localização definida";
+        if (!e.ConfirmacaoVigente && e.LocalFonte is "casa" or "howden") return Ui.Corte(e.LocalTexto, 44);
+        var tipo = e.ConfirmacaoVigente ? "confirmada" : "prevista";
+        return $"{Ui.Corte(e.ConfirmacaoVigente && e.Confirmacao is { } c ? c.Texto : e.LocalTexto, 40)} ({tipo})";
     }
 
     // ---- data/hora ----
@@ -666,9 +665,9 @@ else
     private bool Futuro => _instante > DateTime.UtcNow.AddMinutes(5);
     private bool Passado => _instante < DateTime.UtcNow.AddMinutes(-5);
     private string ClasseMomento => Futuro ? "m-fut" : Passado ? "m-pas" : "m-now";
-    private string TextoMomento => L[Futuro ? "Previsão futura" : Passado ? "Período passado" : "Momento atual"];
-    private string TituloMomento => L[Futuro ? "Distribuição prevista a partir da agenda, não é situação real"
-        : Passado ? "Reconstituído a partir dos registros atuais da agenda" : "Situação neste instante"];
+    private string TextoMomento => Futuro ? "Previsão futura" : Passado ? "Período passado" : "Momento atual";
+    private string TituloMomento => Futuro ? "Distribuição prevista a partir da agenda, não é situação real"
+        : Passado ? "Reconstituído a partir dos registros atuais da agenda" : "Situação neste instante";
 
     // ---- indicadores ----
     private RenderFragment Kpi(string chave, string rotulo, int n, string icone, string cor, string dica) => __b =>
@@ -677,19 +676,19 @@ else
         __b.OpenElement(0, "button");
         __b.AddAttribute(1, "class", "kpi-tile" + (ativo ? " ativo" : ""));
         __b.AddAttribute(2, "style", $"--c:{cor}");
-        __b.AddAttribute(3, "title", L.F("{0} · clique para filtrar", dica));
+        __b.AddAttribute(3, "title", dica + " · clique para filtrar");
         __b.AddAttribute(4, "aria-pressed", ativo ? "true" : "false");
         __b.AddAttribute(5, "onclick", EventCallback.Factory.Create(this, () => { _kpi = ativo ? "" : chave; Aplicar(); }));
         __b.AddMarkupContent(6, $"<span class=\"kpi-ico\">{Icons.Svg(icone)}</span><span class=\"kpi-v\">{n}</span><span class=\"kpi-r\">{rotulo}</span>");
         __b.CloseElement();
     };
 
-    private string NomeKpi(string k) => L[k switch
+    private static string NomeKpi(string k) => k switch
     {
         "disponivel" => "Disponíveis", "atendimento" => "Em atendimento", "viagem" => "Em viagem", "ferias" => "Em férias",
         "viagens" => "Viagens previstas", "conflitos" => "Conflitos de agenda", "docs" => "Documentos a vencer / vencidos",
         "pend" => "Pendências para atendimentos programados", _ => k,
-    }];
+    };
 
     private void Limpar()
     {
@@ -711,7 +710,7 @@ else
         {
             Svc.ConfirmarLocal(_ator, _confirmando.Id, _confPlanta, _confTexto, null, null, _confObs);
             _confirmando = null;
-            Sessao.Avisar(L["Localização confirmada."]);
+            Sessao.Avisar("Localização confirmada.");
             await Recarregar(false);
         }
         catch (Exception ex) { _errosConf = Ui.Erros(ex); }

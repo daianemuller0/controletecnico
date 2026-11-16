@@ -1,14 +1,14 @@
 <div class="modal-backdrop" @onclick="Fundo" role="presentation">
-    <div class="modal @(Largo ? "modal-largo" : "")" role="dialog" aria-modal="true" aria-label="@L[Titulo]" @onclick:stopPropagation="true">
+    <div class="modal @(Largo ? "modal-largo" : "")" role="dialog" aria-modal="true" aria-label="@Titulo" @onclick:stopPropagation="true">
         <div class="modal-topo">
-            <h2>@L[Titulo]</h2>
-            <button type="button" class="icon-btn" @onclick="Fechar" aria-label="@L["Fechar"]">@Icons.Svg("x")</button>
+            <h2>@Titulo</h2>
+            <button type="button" class="icon-btn" @onclick="Fechar" aria-label="Fechar">@Icons.Svg("x")</button>
         </div>
         @if (Erros is { Count: > 0 })
         {
             <div class="alert-box alert-erro" role="alert">
                 @Icons.Svg("alert")
-                <div>@foreach (var e in Erros) { <div>@L[e]</div> }</div>
+                <div>@foreach (var e in Erros) { <div>@e</div> }</div>
             </div>
         }
         @ChildContent

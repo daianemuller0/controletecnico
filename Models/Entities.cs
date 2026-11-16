@@ -110,8 +110,6 @@ public class Viagem : Entity
     public string Codigo { get; set; } = "";
     /// <summary>Número do projeto: é por ele que a equipe controla as viagens.</summary>
     public string Projeto { get; set; } = "";
-    /// <summary>BU de origem da viagem: HSA (Brasil), HCHL (Chile) ou HPU (Peru). Vazia (viagens antigas) = HSA.</summary>
-    public string BU { get; set; } = "";
     /// <summary>Classificação da viagem: NB, AFM, SV, Visita comercial, Visita técnica ou outra digitada (que passa a ser sugerida).</summary>
     public string Classificacao { get; set; } = "";
     /// <summary>Equipamentos atendidos, um por linha.</summary>
@@ -342,8 +340,4 @@ public class Usuario : Entity
     /// <summary>Faz parte da equipe de controle de viagens (pode ser responsável por viagens).</summary>
     public bool EquipeControle { get; set; }
     public string FotoAnexoId { get; set; } = "";
-    /// <summary>BUs que o usuário enxerga, separadas por vírgula (HSA,HCHL,HPU). Vazio = todas.</summary>
-    public string Bus { get; set; } = "";
-    /// <summary>Idioma do sistema para o usuário: pt (padrão) ou es.</summary>
-    public string Idioma { get; set; } = "";
 }

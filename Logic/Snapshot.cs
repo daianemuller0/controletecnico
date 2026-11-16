@@ -8,9 +8,9 @@ namespace ControleTecnico.Logic;
 public sealed class Snapshot
 {
     public Dictionary<string, Tecnico> Tecnicos { get; init; } = new();
-    public Dictionary<string, Viagem> Viagens { get; private set; } = new();
-    public List<Trecho> Trechos { get; private set; } = new();
-    public List<Atendimento> Atendimentos { get; private set; } = new();
+    public Dictionary<string, Viagem> Viagens { get; init; } = new();
+    public List<Trecho> Trechos { get; init; } = new();
+    public List<Atendimento> Atendimentos { get; init; } = new();
     public List<Indisponibilidade> Indisp { get; init; } = new();
     public Dictionary<string, Planta> Plantas { get; init; } = new();
     public Dictionary<string, Cliente> Clientes { get; init; } = new();
@@ -90,18 +90,6 @@ public sealed class Snapshot
             // a Howden só vai ao mapa com posição EXATA (endereço encontrado ou marcada à mão)
             HowdenLat = hLat, HowdenLon = hLon,
         };
-    }
-
-    /// <summary>Só as viagens das BUs que a pessoa enxerga (com seus trechos e atendimentos). Atendimentos avulsos,
-    /// técnicos, plantas e indisponibilidades continuam visíveis: são recursos compartilhados entre as BUs.</summary>
-    public Snapshot ParaAtor(Ator a)
-    {
-        if (a.VeTodasBus) return this;
-        var c = (Snapshot)MemberwiseClone();
-        c.Viagens = Viagens.Values.Where(a.VeViagemBu).ToDictionary(v => v.Id);
-        c.Trechos = Trechos.Where(t => c.Viagens.ContainsKey(t.ViagemId)).ToList();
-        c.Atendimentos = Atendimentos.Where(x => string.IsNullOrEmpty(x.ViagemId) || c.Viagens.ContainsKey(x.ViagemId)).ToList();
-        return c;
     }
 
     public static string[] Ids(string? csv) =>

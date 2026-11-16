@@ -1,5 +1,5 @@
 @* Caixa com sugestões, mas que aceita QUALQUER texto digitado (opção manual). *@
-<input class="@Class" list="@_id" value="@Value" @onchange="Mudou" placeholder="@L[Placeholder]" autocomplete="off" disabled="@Disabled" />
+<input class="@Class" list="@_id" value="@Value" @onchange="Mudou" placeholder="@Placeholder" autocomplete="off" disabled="@Disabled" />
 <datalist id="@_id">@foreach (var o in _opcoes) {<option value="@o"></option>}</datalist>
 
 @code {

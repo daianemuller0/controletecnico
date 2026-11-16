@@ -95,13 +95,6 @@ public static class Vocab
     {
         (IndFerias, "Férias"), (IndFolga, "Folga"), (IndAfastamento, "Afastamento"), (IndBloqueio, "Bloqueio / outra"),
     };
-    /// <summary>Unidades de negócio (BU de origem da viagem e acesso dos usuários).</summary>
-    public static readonly (string Cod, string Nome)[] Bus = { ("HSA", "HSA — Brasil"), ("HCHL", "HCHL — Chile"), ("HPU", "HPU — Peru") };
-    public const string BuPadrao = "HSA";
-    /// <summary>BU da viagem (viagem antiga sem BU = HSA).</summary>
-    public static string BuDe(Viagem? v) => string.IsNullOrWhiteSpace(v?.BU) ? BuPadrao : v!.BU;
-    public static bool BuValida(string? bu) => Bus.Any(b => b.Cod == bu);
-
     /// <summary>Classificação da viagem: as da equipe e as digitadas pelos usuários (guardadas na configuração).</summary>
     public static readonly string[] ClassificacoesPadrao = { "NB", "AFM", "SV", "Visita comercial", "Visita técnica" };
     public const string CfgClassificacoes = "classificacoes_viagem";
