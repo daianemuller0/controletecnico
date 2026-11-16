@@ -33,7 +33,7 @@ public static class Idiomas
     {
         var res = new Dictionary<string, Dic>();
         var asm = Assembly.GetExecutingAssembly();
-        foreach (var nome in asm.GetManifestResourceNames().Where(n => n.Contains(".Idiomas.") && n.EndsWith(".json", StringComparison.OrdinalIgnoreCase)))
+        foreach (var nome in asm.GetManifestResourceNames().Where(n => n.Contains(".Idiomas.") && n.EndsWith(".json", StringComparison.OrdinalIgnoreCase)).OrderBy(n => n, StringComparer.Ordinal))
         {
             // ControleTecnico.Idiomas.es.telas.json -> "es"
             var partes = nome.Split('.'); var i = Array.IndexOf(partes, "Idiomas");
@@ -46,12 +46,12 @@ public static class Idiomas
             {
                 if (string.IsNullOrEmpty(pt) || string.IsNullOrEmpty(trad)) continue;
                 var chave = pt.Trim();
+                if (!d.Exatos.TryAdd(chave, trad.Trim())) continue;      // chave repetida em outro arquivo: vale a primeira (ordem alfabética)
                 if (_ph.IsMatch(chave))
                 {
                     var padrao = "^" + _ph.Replace(Regex.Escape(chave).Replace(@"\{", "{"), m => $"(?<p{m.Groups[1].Value}>.+?)") + "$";
                     try { d.Modelos.Add((new Regex(padrao, RegexOptions.Singleline | RegexOptions.Compiled), chave, trad.Trim())); } catch { }
                 }
-                d.Exatos[chave] = trad.Trim();
             }
         }
         // modelos mais específicos (mais texto fixo) primeiro
