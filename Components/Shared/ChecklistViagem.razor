@@ -10,19 +10,19 @@
 }
 <div class="panel ck">
     <div class="ck-topo">
-        <svg viewBox="0 0 84 84" class="ck-anel" role="img" aria-label="@feitos de @total itens concluídos">
+        <svg viewBox="0 0 84 84" class="ck-anel" role="img" aria-label="@L.F("{0} de {1} itens concluídos", feitos, total)">
             <circle cx="42" cy="42" r="@R.ToString(System.Globalization.CultureInfo.InvariantCulture)" fill="none" stroke="#ece9fb" stroke-width="9" />
             <circle cx="42" cy="42" r="@R.ToString(System.Globalization.CultureInfo.InvariantCulture)" fill="none" stroke="@cor" stroke-width="9" stroke-linecap="round"
                     stroke-dasharray="@((C * pct / 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)) @C.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" transform="rotate(-90 42 42)" class="ck-arco" />
             <text x="42" y="47" text-anchor="middle" class="ck-pct" fill="@cor">@pct.ToString("0")%</text>
         </svg>
         <div class="ck-resumo">
-            <div class="ck-tit">Lista de verificação</div>
-            <div class="ck-sub"><strong>@feitos de @total</strong> itens concluídos</div>
+            <div class="ck-tit">@L["Lista de verificação"]</div>
+            <div class="ck-sub"><strong>@feitos de @total</strong> @L["itens concluídos"]</div>
             <div class="ck-mosaico" aria-hidden="true">@foreach (var i in Itens) { <i class="@(i.Feito ? "on" : "")" style="@(i.Feito ? $"background:{cor}" : "")" title="@i.Texto"></i> }</div>
-            @if (pct >= 100) { <div class="ck-selo ok">@Icons.Svg("check")Tudo pronto!</div> }
-            else if (liberado is { Feito: true }) { <div class="ck-selo lib">@Icons.Svg("flag")Liberado para entrada no cliente</div> }
-            else { <div class="ck-selo pend">Faltam @(total - feitos) item(ns)</div> }
+            @if (pct >= 100) { <div class="ck-selo ok">@Icons.Svg("check")@L["Tudo pronto!"]</div> }
+            else if (liberado is { Feito: true }) { <div class="ck-selo lib">@Icons.Svg("flag")@L["Liberado para entrada no cliente"]</div> }
+            else { <div class="ck-selo pend">@L.F("Faltam {0} item(ns)", total - feitos)</div> }
         </div>
     </div>
     <ul class="ck-lista">
@@ -30,19 +30,19 @@
         {
             var idx = k; var it = Itens[k];
             <li class="@(it.Feito ? "feito" : "") @(DocEngine.Norm(it.Texto) == DocEngine.Norm(Checklist.ItemLiberado) ? "marco" : "")">
-                <button type="button" class="ck-item" disabled="@(!Pode)" @onclick="() => Marcar(idx, !it.Feito)" aria-pressed="@it.Feito" title="@(it.Feito ? "Clique para reabrir" : "Clique para marcar como pronto")">
+                <button type="button" class="ck-item" disabled="@(!Pode)" @onclick="() => Marcar(idx, !it.Feito)" aria-pressed="@it.Feito" title="@(it.Feito ? L["Clique para reabrir"] : L["Clique para marcar como pronto"])">
                     <span class="ck-bola">@if (it.Feito) { @Icons.Svg("check") }</span>
                     <span class="ck-txt">@it.Texto
                         @if (it.Feito && it.Em is { } em) { <small>@it.Por · @Tempo.ParaLocal(em, Sessao_Fuso).ToString("dd/MM HH:mm")</small> }</span>
                 </button>
-                @if (Pode) { <button type="button" class="ck-x" @onclick="() => Remover(idx)" title="Remover item" aria-label="Remover @it.Texto">×</button> }
+                @if (Pode) { <button type="button" class="ck-x" @onclick="() => Remover(idx)" title="@L["Remover item"]" aria-label="@($"{L["Remover"]} {it.Texto}")">×</button> }
             </li>
         }
     </ul>
     @if (Pode)
     {
-        <div class="ck-add"><span class="ck-bola vazio"></span><input placeholder="Adicionar um item" @bind="_novo" @bind:event="oninput" @onkeydown="Tecla" aria-label="Adicionar um item" />
-            @if (!string.IsNullOrWhiteSpace(_novo)) { <button type="button" class="btn-ghost sm" @onclick="Adicionar">Adicionar</button> }</div>
+        <div class="ck-add"><span class="ck-bola vazio"></span><input placeholder="@L["Adicionar um item"]" @bind="_novo" @bind:event="oninput" @onkeydown="Tecla" aria-label="@L["Adicionar um item"]" />
+            @if (!string.IsNullOrWhiteSpace(_novo)) { <button type="button" class="btn-ghost sm" @onclick="Adicionar">@L["Adicionar"]</button> }</div>
     }
 </div>
 
@@ -57,7 +57,7 @@
     private async Task Executar(Func<List<Checklist.Item>> f)
     {
         try { var l = f(); Itens = l; await OnMudou.InvokeAsync(l); }
-        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex)), true); }
+        catch (Exception ex) { Sessao.Avisar(string.Join(" ", Ui.Erros(ex).Select(x => L[x])), true); }
     }
     // viagem ainda não salva (ViagemId vazio): a lista fica na tela e é gravada junto com a viagem
     private bool Local => string.IsNullOrEmpty(ViagemId);

@@ -4,21 +4,21 @@
 @inject Servicos Svc
 @inject Sessao Sessao
 
-<PageTitle>Controladoria e viagens · Controle Técnico</PageTitle>
+<PageTitle>@L["Controladoria e viagens"] · Controle Técnico</PageTitle>
 
 <div class="page-head compacto">
     <div>
-        <h1>Controladoria e viagens</h1>
-        <p class="subtitle">Planeje, confirme e acompanhe os deslocamentos e atendimentos. Planejado e realizado ficam lado a lado.</p>
+        <h1>@L["Controladoria e viagens"]</h1>
+        <p class="subtitle">@L["Planeje, confirme e acompanhe os deslocamentos e atendimentos. Planejado e realizado ficam lado a lado."]</p>
     </div>
-    <div class="momento-ctl">@if (_ator.Pode(Perm.EditarViagens)) { <a class="btn-primary" href="/viagens/novo">@Icons.Svg("plus")Nova viagem</a> }</div>
+    <div class="momento-ctl">@if (_ator.Pode(Perm.EditarViagens)) { <a class="btn-primary" href="/viagens/novo">@Icons.Svg("plus")@L["Nova viagem"]</a> }</div>
 </div>
 
 @if (_souEquipe || _lista.Any(l => l.v.ResponsavelLogin == _ator.Login))
 {
     <div class="tabs" role="tablist">
-        <button role="tab" class="tab @(_minhas ? "active" : "")" @onclick="@(() => _minhas = true)">@Icons.Svg("user")Minhas viagens <span class="tab-n">@_lista.Count(l => l.v.ResponsavelLogin == _ator.Login)</span></button>
-        <button role="tab" class="tab @(!_minhas ? "active" : "")" @onclick="@(() => _minhas = false)">Todas as viagens <span class="tab-n">@_lista.Count</span></button>
+        <button role="tab" class="tab @(_minhas ? "active" : "")" @onclick="@(() => _minhas = true)">@Icons.Svg("user")@L["Minhas viagens"] <span class="tab-n">@_lista.Count(l => l.v.ResponsavelLogin == _ator.Login)</span></button>
+        <button role="tab" class="tab @(!_minhas ? "active" : "")" @onclick="@(() => _minhas = false)">@L["Todas as viagens"] <span class="tab-n">@_lista.Count</span></button>
     </div>
 }
 <div class="kpi-linha kpi-6">
@@ -26,58 +26,58 @@
     {
         var n = _lista.Count(v => v.v.Status == s.Key && (!_minhas || v.v.ResponsavelLogin == _ator.Login));
         <button class="kpi-tile @(_fSt == s.Key ? "ativo" : "")" style="--c:@s.Color" @onclick="() => _fSt = _fSt == s.Key ? string.Empty : s.Key" aria-pressed="@(_fSt == s.Key)">
-            <span class="kpi-ico">@Icons.Svg(s.Icon)</span><span class="kpi-v">@n</span><span class="kpi-r">@s.Label</span>
+            <span class="kpi-ico">@Icons.Svg(s.Icon)</span><span class="kpi-v">@n</span><span class="kpi-r">@L[s.Label]</span>
         </button>
     }
 </div>
 
 <div class="toolbar">
-    <input class="field busca" placeholder="Buscar projeto, código, cliente, destino, equipamento…" @bind="_busca" @bind:event="oninput" aria-label="Buscar viagem" />
-    <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id) && t.Ativo != _inativos).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_fTec" ValueChanged="@(async (string v) => { _fTec = v; })" Placeholder="@(_inativos ? "Todos os inativos" : "Todos os técnicos")" />
-    <button class="btn-ghost @(_inativos ? "on" : "")" aria-pressed="@_inativos" title="Mostra só os técnicos inativos (e as viagens deles)" @onclick="@(() => { _inativos = !_inativos; _fTec = ""; })">@Icons.Svg("user")Somente inativos</button>
-    <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; })" Placeholder="Todos os clientes" />
-    <select class="field w-auto" @bind="_fModal"><option value="">Carro e avião</option><option value="carro">Com trecho de carro</option><option value="aviao">Com trecho de avião</option></select>
-    <label class="chk-inline"><input type="checkbox" @bind="_futuras" />Só a partir de hoje</label>
+    <input class="field busca" placeholder="@L["Buscar projeto, código, cliente, destino, equipamento…"]" @bind="_busca" @bind:event="oninput" aria-label="@L["Buscar viagem"]" />
+    <SeletorLista Itens="@(_snap.Tecnicos.Values.Where(t => _ator.VeTecnico(t.Id) && t.Ativo != _inativos).OrderBy(t => t.Nome).Select(t => new SeletorLista.ItemSel(t.Id, t.Nome)))" Value="@_fTec" ValueChanged="@(async (string v) => { _fTec = v; })" Placeholder="@(_inativos ? L["Todos os inativos"] : L["Todos os técnicos"])" />
+    <button class="btn-ghost @(_inativos ? "on" : "")" aria-pressed="@_inativos" title="@L["Mostra só os técnicos inativos (e as viagens deles)"]" @onclick="@(() => { _inativos = !_inativos; _fTec = ""; })">@Icons.Svg("user")@L["Somente inativos"]</button>
+    <SeletorLista Itens="@(_snap.Clientes.Values.OrderBy(c => c.Nome).Select(c => new SeletorLista.ItemSel(c.Id, c.Nome)))" Value="@_fCli" ValueChanged="@(async (string v) => { _fCli = v; })" Placeholder="@L["Todos os clientes"]" />
+    <select class="field w-auto" @bind="_fModal"><option value="">@L["Carro e avião"]</option><option value="carro">@L["Com trecho de carro"]</option><option value="aviao">@L["Com trecho de avião"]</option></select>
+    <label class="chk-inline"><input type="checkbox" @bind="_futuras" />@L["Só a partir de hoje"]</label>
 </div>
 
 <div class="table-wrap"><table class="grid-tbl">
-    <thead><tr><th>Projeto</th><th>Viagem</th><th>Cliente final / destino</th><th>Técnicos</th><th>Período</th><th>Transporte</th><th>Horas prev./real.</th><th>Responsável</th><th>Lista de verificação</th><th>Status</th><th>Pendências</th>@if (_ator.Pode(Perm.EditarViagens)) { <th></th> }</tr></thead>
+    <thead><tr><th>@L["Projeto"]</th><th>@L["Viagem"]</th><th>@L["Cliente final / destino"]</th><th>@L["Técnicos"]</th><th>@L["Período"]</th><th>@L["Transporte"]</th><th>@L["Horas prev./real."]</th><th>@L["Responsável"]</th><th>@L["Lista de verificação"]</th><th>@L["Status"]</th><th>@L["Pendências"]</th>@if (_ator.Pode(Perm.EditarViagens)) { <th></th> }</tr></thead>
     <tbody>
     @foreach (var l in Filtradas)
     {
         <tr>
-            <td>@if (string.IsNullOrWhiteSpace(l.v.Projeto)) { <span class="proj-tag vazio" title="Viagem sem número de projeto">sem projeto</span> } else { <a href="/viagens/@l.v.Id" class="proj-tag">@l.v.Projeto</a> }
+            <td>@if (string.IsNullOrWhiteSpace(l.v.Projeto)) { <span class="proj-tag vazio" title="@L["Viagem sem número de projeto"]">@L["sem projeto"]</span> } else { <a href="/viagens/@l.v.Id" class="proj-tag">@l.v.Projeto</a> }
                 <span class="bu-tag">@Vocab.BuDe(l.v)</span>@if (!string.IsNullOrWhiteSpace(l.v.Classificacao)) { <span class="classif-tag">@l.v.Classificacao</span> }
-                @if (Ui.Linhas(l.v.Equipamentos) is { Count: > 0 } eqs) { <div class="muted sm" title="@string.Join(", ", eqs)">@eqs.Count equipamento(s)</div> }</td>
+                @if (Ui.Linhas(l.v.Equipamentos) is { Count: > 0 } eqs) { <div class="muted sm" title="@string.Join(", ", eqs)">@L.F("{0} equipamento(s)", eqs.Count)</div> }</td>
             <td><a href="/viagens/@l.v.Id"><strong>@l.v.Codigo</strong></a><div class="muted sm">@l.v.Responsavel</div></td>
-            <td>@_snap.Cliente(l.v.ClienteId)?.Nome<div class="muted sm">@l.v.Destino</div>@if (!string.IsNullOrEmpty(l.v.ContratantePlantaId)) { <div class="sm contratante" title="Cliente que comprou (contratante)">via @_snap.NomePlanta(l.v.ContratantePlantaId)</div> }</td>
+            <td>@_snap.Cliente(l.v.ClienteId)?.Nome<div class="muted sm">@l.v.Destino</div>@if (!string.IsNullOrEmpty(l.v.ContratantePlantaId)) { <div class="sm contratante" title="@L["Cliente que comprou (contratante)"]">@L["via"] @_snap.NomePlanta(l.v.ContratantePlantaId)</div> }</td>
             <td>@string.Join(", ", Ui.Ids(l.v.TecnicoIds).Select(i => _snap.Tecnico(i)?.Nome?.Split(' ')[0]))</td>
             <td>@(l.ini is null ? "—" : Ui.Periodo(l.ini.Value, l.fim!.Value, null, _snap))</td>
-            <td>@foreach (var m in l.modais) { <span class="tag">@(m == "aviao" ? "Avião" : m == "carro" ? "Carro" : "Outro")</span> }</td>
+            <td>@foreach (var m in l.modais) { <span class="tag">@(m == "aviao" ? L["Avião"] : m == "carro" ? L["Carro"] : L["Outro"])</span> }</td>
             <td>@(l.hp?.ToString("0.#") ?? "—") / @(l.hr?.ToString("0.#") ?? "—")</td>
             <td>@(string.IsNullOrWhiteSpace(l.v.Responsavel) ? "—" : l.v.Responsavel)</td>
-            <td>@{ var (f, t) = Checklist.Progresso(l.v); }<span class="ck-mini @(f == t && t > 0 ? "ok" : "")" title="@f de @t itens concluídos"><span class="b"><span style="width:@(t == 0 ? 0 : 100 * f / t)%"></span></span>@f/@t</span></td>
-            <td><StatusBadge Item="@Ui.StViagem(l.v.Status)" /></td>
-            <td>@if (l.conf > 0) { <span class="badge st-neg" title="Conflitos de agenda">@Icons.Svg("alert", "bico")@l.conf</span> } @if (l.pend > 0) { <span class="badge st-warn" title="Pendências documentais">@Icons.Svg("shield", "bico")@l.pend</span> } @if (l.conf + l.pend == 0) { <span class="muted">—</span> }</td>
-            @if (_ator.Pode(Perm.EditarViagens)) { <td class="acoes"><button class="icon-btn perigo" title="Excluir viagem" aria-label="Excluir viagem @l.v.Codigo" @onclick="() => _excluir = l.v">@Icons.Svg("trash")</button></td> }
+            <td>@{ var (f, t) = Checklist.Progresso(l.v); }<span class="ck-mini @(f == t && t > 0 ? "ok" : "")" title="@L.F("{0} de {1} itens concluídos", f, t)"><span class="b"><span style="width:@(t == 0 ? 0 : 100 * f / t)%"></span></span>@f/@t</span></td>
+            <td><StatusBadge Item="@StV(l.v.Status)" /></td>
+            <td>@if (l.conf > 0) { <span class="badge st-neg" title="@L["Conflitos de agenda"]">@Icons.Svg("alert", "bico")@l.conf</span> } @if (l.pend > 0) { <span class="badge st-warn" title="@L["Pendências documentais"]">@Icons.Svg("shield", "bico")@l.pend</span> } @if (l.conf + l.pend == 0) { <span class="muted">—</span> }</td>
+            @if (_ator.Pode(Perm.EditarViagens)) { <td class="acoes"><button class="icon-btn perigo" title="@L["Excluir viagem"]" aria-label="@L.F("Excluir viagem {0}", l.v.Codigo)" @onclick="() => _excluir = l.v">@Icons.Svg("trash")</button></td> }
         </tr>
     }
     </tbody>
 </table></div>
 @if (_excluir is not null)
 {
-    <Dialogo Titulo="Excluir viagem" OnFechar="@(() => _excluir = null)" Erros="_erros">
+    <Dialogo Titulo="@L["Excluir viagem"]" OnFechar="@(() => _excluir = null)" Erros="_erros">
         <ChildContent>
-            <p class="confirma-txt">Você tem certeza que quer excluir essa viagem?</p>
-            <p class="muted"><strong>@_excluir.Codigo</strong>@(string.IsNullOrWhiteSpace(_excluir.Projeto) ? "" : $" · Projeto {_excluir.Projeto}") · @_excluir.Destino — trechos, atendimentos e anexos também serão removidos. A exclusão fica registrada no histórico.</p>
+            <p class="confirma-txt">@L["Você tem certeza que quer excluir essa viagem?"]</p>
+            <p class="muted"><strong>@_excluir.Codigo</strong>@(string.IsNullOrWhiteSpace(_excluir.Projeto) ? "" : $" · {L["Projeto"]} {_excluir.Projeto}") · @_excluir.Destino — @L["trechos, atendimentos e anexos também serão removidos. A exclusão fica registrada no histórico."]</p>
         </ChildContent>
         <Rodape>
-            <button class="btn-ghost" @onclick="@(() => _excluir = null)">Não</button>
-            <button class="btn-danger" @onclick="ConfirmarExclusao">@Icons.Svg("trash")Sim, excluir</button>
+            <button class="btn-ghost" @onclick="@(() => _excluir = null)">@L["Não"]</button>
+            <button class="btn-danger" @onclick="ConfirmarExclusao">@Icons.Svg("trash")@L["Sim, excluir"]</button>
         </Rodape>
     </Dialogo>
 }
-@if (!Filtradas.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("plane")</div><h3>Nenhuma viagem encontrada</h3><p>Crie uma viagem ou ajuste os filtros.</p></div> }
+@if (!Filtradas.Any()) { <div class="empty-state sm"><div class="ico">@Icons.Svg("plane")</div><h3>@L["Nenhuma viagem encontrada"]</h3><p>@L["Crie uma viagem ou ajuste os filtros."]</p></div> }
 
 @code {
     private Ator _ator = new(); private Snapshot _snap = new();
@@ -97,7 +97,7 @@
     private void ConfirmarExclusao()
     {
         _erros = null;
-        try { var cod = _excluir!.Codigo; Svc.ExcluirViagem(_ator, _excluir.Id); _excluir = null; Carregar(); Sessao.Avisar($"Viagem {cod} excluída."); }
+        try { var cod = _excluir!.Codigo; Svc.ExcluirViagem(_ator, _excluir.Id); _excluir = null; Carregar(); Sessao.Avisar(L.F("Viagem {0} excluída.", cod)); }
         catch (Exception ex) { _erros = Ui.Erros(ex); }
     }
 
@@ -127,6 +127,7 @@
         }
     }
     private void Ao() => InvokeAsync(StateHasChanged);
+    private Item StV(string s) { var i = Ui.StViagem(s); return i with { Label = L[i.Label] }; }
     public void Dispose() => Sessao.Mudou -= Ao;
 
     private IEnumerable<(Viagem v, DateTime? ini, DateTime? fim, List<string> modais, double? hp, double? hr, int conf, int pend)> Filtradas => _lista
