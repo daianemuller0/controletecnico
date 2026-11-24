@@ -18,10 +18,15 @@ app.autoTela = (on, ref) => {
     setTimeout(() => { for (const id in app.mapa._m) app.mapa._m[id].map.invalidateSize(); }, 250);
 };
 
-// rola a página lentamente de cima para baixo durante `ms` (apresentação automática da agenda)
-app.autoAltura = () => { const el = document.scrollingElement || document.documentElement; return Math.max(0, el.scrollHeight - el.clientHeight); };
-app.autoRolar = (ms) => {
-    const el = document.scrollingElement || document.documentElement;
+// rola lentamente de cima para baixo durante `ms` (apresentação automática da agenda).
+// Com `id`, rola só aquela caixa (a agenda): o cabeçalho com os técnicos fica congelado no topo dela.
+app._rolavel = (id) => {
+    const c = id && document.getElementById(id);
+    return c && c.scrollHeight - c.clientHeight > 8 ? c : (document.scrollingElement || document.documentElement);
+};
+app.autoAltura = (id) => { const el = app._rolavel(id); return Math.max(0, el.scrollHeight - el.clientHeight); };
+app.autoRolar = (ms, id) => {
+    const el = app._rolavel(id);
     el.scrollTop = 0;
     const max = el.scrollHeight - el.clientHeight;
     if (max <= 8) return;

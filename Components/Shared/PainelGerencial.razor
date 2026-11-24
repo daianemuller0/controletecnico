@@ -41,8 +41,8 @@
     }
 
     @if (Ver("cartoes")) {<div class="gp-heads">
-        @Head(L["Ocupação no período"], $"{_ocup:0}%", L["Técnico-dias de campo ÷ técnico-dias úteis na empresa, sem férias, folgas e afastamentos"] + (_trainees > 0 ? " · " + L.F("sem {0} trainee(s)", _trainees) : ""), "#0369a1", _ocup)
-        @Head(L["Dias de campo"], _diasCampo.ToString("N0"), L["Técnico-dias com atendimento ou deslocamento"], "#004785", null)
+        @Head(L["Ocupação no período"], $"{_ocup:0}%", L["Técnico-dias de campo ÷ técnico-dias úteis na empresa, sem férias, folgas, afastamentos e feriados"] + (_trainees > 0 ? " · " + L.F("sem {0} trainee(s)", _trainees) : ""), "#0369a1", _ocup)
+        @Head(L["Dias de campo"], _diasCampo.ToString("N0"), L["Técnico-dias com atendimento ou deslocamento (todos os técnicos e todos os dias)"], "#004785", null)
         @Head(L["Viagens no período"], _nViagens.ToString("N0"), L.F("{0} realizada(s) · {1} em andamento ou prevista(s)", _nRealizadas, _nViagens - _nRealizadas), "#d9822b", null)
         @Head(L["Documentos em dia (hoje)"], $"{_docOk:0}%", L.F("{0} de {1} válidos", _docs.Valido + _docs.SemVenc, _docs.Total), _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
     </div>}
@@ -156,7 +156,7 @@
     [Parameter, EditorRequired] public List<Estado> Estados { get; set; } = new();
     [Parameter, EditorRequired] public List<Evento> Eventos { get; set; } = new();
     [Parameter] public DateTime Instante { get; set; } = DateTime.UtcNow;
-    /// <summary>Modo apresentação automática: tela cheia, tipografia grande e cartões entrando um a um (período: próximos 30 dias).</summary>
+    /// <summary>Modo apresentação automática: tela cheia, tipografia grande e cartões entrando um a um (período: o mês corrente).</summary>
     [Parameter] public bool Auto { get; set; }
     /// <summary>Quais blocos mostrar (null = todos). Chaves em AutoEtapas.Graficos.</summary>
     [Parameter] public HashSet<string>? Mostrar { get; set; }
@@ -228,24 +228,25 @@
         {
             // volta com o período e os técnicos que a pessoa tinha escolhido (vale enquanto estiver no programa)
             if (!Auto && Sessao.Indicadores is { } f) { _de = f.De; _ate = f.Ate; _atalho = f.Atalho; _tecFiltro = f.Tecnicos.ToHashSet(); _buFiltro = (f.Bus ?? new()).Where(Bus.Contains).ToHashSet(); Calcular(); return; }
-            Atalho(Auto ? "prox30" : "mes"); return;
+            Atalho("mes"); return;            // modo automático: sempre o mês corrente
         }
         Calcular();
     }
 
     private (DateTime ini, DateTime fim) Janela(DateTime dia) => (Tempo.ParaUtc(dia, Snap.FusoPadrao), Tempo.ParaUtc(dia.AddDays(1), Snap.FusoPadrao));
-    private static bool DiaUtil(DateTime d) => d.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
 
     private void Calcular()
     {
         if (!Auto) Sessao.Indicadores = new Sessao.FiltroIndicadores(_de, _ate, _atalho, _tecFiltro.ToList(), _buFiltro.ToList());
-        _estados = Estados.Where(e => Sel(e.Tecnico.Id)).ToList(); _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
+        // filtro de BU: técnicos pela BU de registro da ficha; viagens pela BU de origem da viagem
+        bool BuTec(Tecnico t) => _buFiltro.Count == 0 || _buFiltro.Contains(Vocab.BuDe(t));
+        _estados = Estados.Where(e => Sel(e.Tecnico.Id) && BuTec(e.Tecnico)).ToList(); _hoje = DocEngine.Hoje(Snap.FusoPadrao).Date;
         var (u0, _) = Janela(_de); var (_, u1) = Janela(_ate);
         _situacao = Vocab.StatusOp.Select(s => (L[s.Label], s.Color, _estados.Count(e => e.Status == s.Key))).Where(x => x.Item3 > 0).ToList();
 
         // ocupação: técnicos de campo, só nos dias em que estavam na empresa (início/saída da ficha);
         // trainees não entram (nem no numerador nem no denominador)
-        var campoTec = Snap.Tecnicos.Values.Where(t => Vocab.SempreDisponivel(t.Perfil) && Sel(t.Id)).ToList();
+        var campoTec = Snap.Tecnicos.Values.Where(t => Vocab.SempreDisponivel(t.Perfil) && Sel(t.Id) && BuTec(t)).ToList();
         var ocup = campoTec.Where(t => !t.Trainee).ToDictionary(t => t.Id);
         _trainees = campoTec.Count(t => t.Trainee && t.Ativo);
         // férias, folgas e afastamentos (mesmo a confirmar) tiram o dia da capacidade do técnico
@@ -257,7 +258,11 @@
             var (a, b) = Janela(d); var meio = a + (b - a) / 2;           // ausente no meio do dia = dia de ausência
             return l.Any(e => e.Ini <= meio && e.Fim > meio);
         }
-        int NaEmpresa(DateTime d) => ocup.Values.Count(t => t.NaEmpresaEm(d) && !Ausente(t.Id, d));
+        // dia que conta para o técnico: dia útil da jornada da ficha e que não seja feriado
+        var feriados = Feriados.DoPeriodo(Snap.FeriadosCfg, _de, _ate);
+        bool Util(Tecnico t, DateTime d) => Snapshot.Ids(t.DiasUteis).Contains(((int)d.DayOfWeek).ToString()) && !feriados.ContainsKey(d.Date);
+        bool Conta(Tecnico t, DateTime d) => t.NaEmpresaEm(d) && Util(t, d) && !Ausente(t.Id, d);
+        int NaEmpresa(DateTime d) => ocup.Values.Count(t => Conta(t, d));
 
         var visiveis = Snap.Viagens.Values.Where(v => (VeViagem is null || VeViagem(v)) && (_tecFiltro.Count == 0 || Snapshot.Ids(v.TecnicoIds).Any(_tecFiltro.Contains))
                 && (_buFiltro.Count == 0 || _buFiltro.Contains(Vocab.BuDe(v))))
@@ -265,14 +270,15 @@
         // com filtro de BU, só contam os compromissos das viagens daquela BU (atendimento avulso não tem BU)
         var ev = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && Sel(e.TecnicoId)
             && (e.ViagemId == "" ? _buFiltro.Count == 0 : visiveis.Contains(e.ViagemId))).ToList();
-        var evOc = ev.Where(e => ocup.ContainsKey(e.TecnicoId)).ToList();
+        // ocupação: todo o trabalho de campo dos técnicos que contam (de qualquer viagem), para não comparar só parte do numerador com a equipe toda
+        var evOc = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && ocup.ContainsKey(e.TecnicoId)).ToList();
         // técnico-dias de um dia: (atendimento, deslocamento, provisório)
         (int at, int des, int prov) Dia(DateTime d, List<Evento> lista, bool soNaEmpresa = false)
         {
             var (a, b) = Janela(d); int at = 0, des = 0, prov = 0;
             foreach (var g in lista.Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
             {
-                if (soNaEmpresa && !(ocup.TryGetValue(g.Key, out var tec) && tec.NaEmpresaEm(d) && !Ausente(g.Key, d))) continue;
+                if (soNaEmpresa && !(ocup.TryGetValue(g.Key, out var tec) && Conta(tec, d))) continue;
                 var bl = g.Where(e => e.Bloqueia).ToList();
                 if (bl.Any(e => !e.EhViagem)) at++; else if (bl.Any()) des++; else if (g.Any(e => e.Provisorio)) prov++;
             }
@@ -287,7 +293,7 @@
 
         // faixas: por semana até ~6 semanas; acima disso, por mês
         _porMes = (_ate - _de).TotalDays > 45;
-        _faixas = new(); int utilTot = 0, campoTot = 0;
+        _faixas = new(); int utilTot = 0, campoTot = 0, volume = 0;
         var ini0 = _porMes ? new DateTime(_de.Year, _de.Month, 1) : _de.AddDays(-(((int)_de.DayOfWeek + 6) % 7));
         for (var f = ini0; f <= _ate; f = _porMes ? f.AddMonths(1) : f.AddDays(7))
         {
@@ -296,10 +302,11 @@
             double at = 0, des = 0, prov = 0; int tecDias = 0, diasCampo = 0;
             for (var d = a; d <= b; d = d.AddDays(1))
             {
-                if (!DiaUtil(d)) continue;
+                // ocupação: só os dias úteis de cada técnico; volume de dias de campo: todos os dias (inclusive fim de semana e feriado)
                 tecDias += NaEmpresa(d); var r = Dia(d, evOc, soNaEmpresa: true); at += r.at; des += r.des; prov += r.prov;
                 var t = Dia(d, ev); diasCampo += t.at + t.des;
             }
+            volume += diasCampo;
             var tot = (double)Math.Max(1, tecDias);
             utilTot += tecDias; campoTot += (int)(at + des);
             var (ua, _) = Janela(a); var (_, ub) = Janela(b);
@@ -307,7 +314,7 @@
             var rot = _porMes ? f.ToString("MMM/yy", L.Cultura) : $"{a:dd/MM}";
             _faixas.Add((rot, 100 * at / tot, 100 * des / tot, 100 * prov / tot, nv, diasCampo));
         }
-        _diasCampo = campoTot; _ocup = utilTot == 0 ? 0 : 100.0 * campoTot / utilTot;
+        _diasCampo = volume; _ocup = utilTot == 0 ? 0 : 100.0 * campoTot / utilTot;
         _maxViag = Math.Max(1, _faixas.Select(x => x.viagens).DefaultIfEmpty(0).Max()); _maxDias = Math.Max(1, _faixas.Select(x => x.dias).DefaultIfEmpty(0).Max());
 
         // clientes com mais dias de atendimento no período

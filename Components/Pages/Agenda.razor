@@ -557,9 +557,9 @@ else
                     // rolagem lenta e constante (px/s por velocidade); a etapa dura o tempo que a rolagem precisar
                     var fator = Sessao.AutoVel switch { "lenta" => 2.8, "rapida" => 1.0, _ => 1.8 };
                     var pxs = Sessao.AutoVel switch { "lenta" => 22.0, "rapida" => 55.0, _ => 32.0 };
-                    double altura = 0; try { altura = await JS.InvokeAsync<double>("app.autoAltura"); } catch { }
+                    double altura = 0; try { altura = await JS.InvokeAsync<double>("app.autoAltura", "agenda-dnd"); } catch { }
                     var dur = Math.Max(baseMs * fator, altura / pxs * 1000 + 6000);
-                    try { await JS.InvokeVoidAsync("app.autoRolar", (int)dur); } catch { }
+                    try { await JS.InvokeVoidAsync("app.autoRolar", (int)dur, "agenda-dnd"); } catch { }
                     await Sessao.AutoEspera((int)(dur / fator), ct);
                 }
                 // próxima etapa do plano

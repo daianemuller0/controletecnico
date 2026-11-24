@@ -149,7 +149,7 @@ else
             @if (_auto && !_autoGer)
             {
                 <div class="auto-card" style="--c:@_autoCor" aria-live="polite">
-                    <div class="auto-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub</div></div></div>
+                    <div class="auto-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub@if (_autoMostraQtd && _kpi is "viagens" or "conflitos" or "pend") {<span> · @MesAuto()</span>}</div></div></div>
                     @if (_autoMostraQtd) { <div class="auto-qtd">@_autoQtd</div> }
                     <ul class="auto-lista">
                         @for (var i = 0; i < _autoItens.Count; i++)
@@ -179,7 +179,7 @@ else
 @if (_auto && _autoGer)
 {
     <div class="auto-ger" style="--c:@_autoCor">
-        <div class="auto-ger-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub · @L.F("{0} técnicos ativos", _estados.Count)</div></div></div>
+        <div class="auto-ger-topo"><span class="auto-ico">@Icons.Svg(_autoIcone)</span><div><div class="auto-tit">@_autoTitulo</div><div class="auto-sub">@_autoSub · @MesAuto() · @L.F("{0} técnicos ativos", _estados.Count)</div></div></div>
         <PainelGerencial Auto="true" Mostrar="@_autoGraficos" Bus="@BusDoAtor()" VeViagem="@VeViagem" Snap="@_snap" Estados="@_estados" Eventos="@_eventos" Instante="@_instante" />
     </div>
 }
@@ -336,13 +336,16 @@ else
         _kDisp = De(Vocab.OpDisponivel); _kAtend = De(Vocab.OpAtendimento); _kViag = De(Vocab.OpViagem);
         _kFer = De(Vocab.OpFerias); _kInd = De(Vocab.OpIndisponivel); _kSem = De(Vocab.OpSemProg);
 
+        // modo automático: tudo dentro do MÊS do dia mostrado (fora dele, sem limite de data)
+        var limite = _auto ? FimDoMes() : DateTime.MaxValue;
+
         // viagens previstas: ainda não iniciadas
         _viagensPrevPorTec = new(); _prevIni = new();
         var prev = new HashSet<string>();
         foreach (var v in _snap.Viagens.Values.Where(v => v.Status is Vocab.ViagemRascunho or Vocab.ViagemPlanejada or Vocab.ViagemConfirmada))
         {
             var ini = _eventos.Where(e => e.ViagemId == v.Id).Select(e => (DateTime?)e.Ini).Min();
-            if (ini is null || ini < _instante) continue;
+            if (ini is null || ini < _instante || ini >= limite) continue;
             // o técnico vê só as viagens em que está escalado; os demais perfis veem todas
             if (!_ator.VeTodaEquipe && !Ui.Ids(v.TecnicoIds).Contains(_ator.TecnicoId)) continue;
             prev.Add(v.Id); _prevIni[v.Id] = ini.Value;
@@ -352,7 +355,7 @@ else
         _kViagensPrev = prev;
 
         // conflitos
-        _kConf = _conflitos.Where(c => c.B.Fim >= _instante && ids.Contains(c.TecnicoId)).Select(c => c.TecnicoId).ToHashSet();
+        _kConf = _conflitos.Where(c => c.B.Fim >= _instante && c.B.Ini < limite && ids.Contains(c.TecnicoId)).Select(c => c.TecnicoId).ToHashSet();
 
         // documentos a vencer / vencidos
         var hoje = DocEngine.Hoje(_snap.FusoPadrao);
@@ -361,7 +364,7 @@ else
 
         // pendências documentais p/ atendimentos programados
         _kPend = new();
-        foreach (var a in _snap.Atendimentos.Where(a => a.FimPrev >= _instante))
+        foreach (var a in _snap.Atendimentos.Where(a => a.FimPrev >= _instante && a.IniPrev < limite))
         {
             var v = _snap.Viagem(a.ViagemId);
             if (v?.Status == Vocab.ViagemCancelada || (v is null && a.Status == Vocab.ViagemCancelada)) continue;
@@ -492,15 +495,25 @@ else
     private void ComecarCiclo()
     {
         Limpar(); _auto = true; _autoCts = new CancellationTokenSource();
-        StateHasChanged(); _ = LoopAuto(_autoCts.Token);
+        Calcular(); StateHasChanged(); _ = LoopAuto(_autoCts.Token);
     }
 
     private Task Espera(int ms, CancellationToken ct) => Sessao.AutoEspera(ms, ct);
 
+    /// <summary>Início (UTC) do mês seguinte ao dia mostrado: limite das contagens no modo automático.</summary>
+    private DateTime FimDoMes()
+    {
+        var d = Tempo.ParaLocal(_instante, _snap.FusoPadrao);
+        return Tempo.ParaUtc(new DateTime(d.Year, d.Month, 1).AddMonths(1), _snap.FusoPadrao);
+    }
+    private string MesAuto() { var d = Tempo.ParaLocal(_instante, _snap.FusoPadrao); var t = d.ToString("MMMM 'de' yyyy", L.Cultura); return char.ToUpper(t[0], L.Cultura) + t[1..]; }
+
     private void FimAuto()
     {
+        var eraAuto = _auto;
         _auto = false; _autoGer = false; _revelar = null; _autoAjustar = true; _kpi = ""; _autoItens = new();
-        Aplicar(); StateHasChanged();
+        if (eraAuto && _snap.Tecnicos.Count > 0) Calcular(); else Aplicar();
+        StateHasChanged();
     }
 
     private void Etapa(AutoEtapas.Etapa e)

@@ -142,7 +142,12 @@ Na parte de baixo da Visão operacional há um painel visual para a diretoria, c
 
 - Cartões: ocupação hoje, ocupação média dos próximos 30 dias, dias de campo previstos e % de documentos em dia.
 - Situação da equipe agora (rosca), ocupação semanal das próximas 8 semanas (atendimento, deslocamento e rascunho), viagens e dias de campo por mês (6 meses), clientes com mais dias de atendimento (90 dias), saúde documental e meio de transporte.
-- A ocupação considera dias úteis (seg–sex); dias de campo = técnico-dias com atendimento ou deslocamento planejado/confirmado. Rascunhos aparecem hachurados e não entram nos cartões.
+- **Ocupação** = técnico-dias de campo ÷ técnico-dias disponíveis.
+  - Contam só **técnicos de campo** que não sejam trainee, e só entre o **início na Howden** e a **data de saída** da ficha.
+  - Contam só os **dias úteis da jornada de cada técnico**; feriados ficam de fora e férias, folgas e afastamentos tiram o dia da base.
+  - Com filtro de **BU**, a ocupação usa os técnicos da BU de registro da ficha. Viagens, transporte e classificação usam a BU de origem da viagem.
+- **Dias de campo** = técnico-dias com atendimento ou deslocamento planejado/confirmado, de todos os técnicos e em todos os dias.
+- Rascunhos aparecem hachurados e não entram nos cartões.
 
 ## Modo automático (apresentação)
 
@@ -151,6 +156,11 @@ Botão **Modo automático** no topo da Visão operacional: abre o mapa em tela c
 0. Velocidade padrão **Normal** é propositalmente calma (≈1,8× o tempo base); há também **Lenta** (≈2,8×) e **Rápida**.
 1. O mapa monta a equipe **um local por vez** (com a lista de quem aparece), depois mostra, em sequência: **Disponíveis, Em atendimento, Em viagem, Em férias, Viagens previstas, Conflitos, Docs a vencer/vencidos e Pendências documentais** — cada etapa com o total grande, a lista de técnicos (ou viagens) e o filtro correspondente no mapa.
 1b. Depois dos indicadores o ciclo vai para a **Agenda** (próximos 30 dias e visão do mês, com rolagem lenta e constante pela equipe; a etapa dura o que a rolagem precisar) e volta ao mapa, recomeçando com dados atualizados.
+1c. No modo automático tudo vale para o **mês corrente**:
+   - **Viagens previstas**, **Conflitos** e **Pendências documentais** contam só o que acontece até o fim do mês, e o mês aparece no subtítulo da etapa.
+   - Os **Indicadores gerenciais** usam o período "Este mês".
+   - **Docs a vencer** continua pela antecedência de alerta configurada.
+   - Na **Agenda**, a rolagem acontece dentro da caixa da agenda, então o cabeçalho com os técnicos (ou os dias da semana, na visão do mês) fica congelado no topo.
 2. Controles no canto: **Pausar/Continuar**, velocidade **Lenta / Normal / Rápida** e **Parar** (ou tecla **Esc**). Ao parar, volta ao estado anterior da tela.
 3. A cada ciclo os dados são recarregados; o modo ativa o modo apresentação (sem dados sensíveis).
 

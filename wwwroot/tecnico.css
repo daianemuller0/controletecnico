@@ -535,6 +535,9 @@ body.auto-on .leaflet-control-zoom, body.auto-on .mapa-aviso { display: none; }
 /* agenda dentro do modo automático */
 body.auto-on .topbar, body.auto-on .demo-banner, body.auto-on .ag-barra, body.auto-on .page-head { display: none; }
 body.auto-on .content { padding-top: 70px; padding-bottom: 80px; }
+/* a agenda rola dentro da própria caixa: o cabeçalho (técnicos / dias da semana) fica congelado no topo */
+body.auto-on .ag-area { max-height: calc(100vh - 210px); }
+body.auto-on .mes-cab { position: sticky; top: 0; z-index: 3; }
 .auto-agenda-tit { position: fixed; top: 14px; left: 18px; z-index: 3100; display: flex; align-items: center; gap: 12px; background: #2a7f62; color: #fff; padding: 12px 22px; border-radius: 14px; font-size: 24px; font-weight: 800; box-shadow: 0 6px 22px rgba(0,30,70,.3); }
 .auto-agenda-tit svg { width: 28px; height: 28px; }
 
