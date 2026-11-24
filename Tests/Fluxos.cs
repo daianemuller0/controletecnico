@@ -1025,6 +1025,11 @@ public class AjustesCadastroTests
     }
 }
 
+/// <summary>Testes que dependem de estado global (Vocab.TiposIndExtras é recarregado a cada Foto()): rodam sozinhos, sem outros testes em paralelo.</summary>
+[CollectionDefinition("EstadoGlobal", DisableParallelization = true)]
+public class EstadoGlobalCollection { }
+
+[Collection("EstadoGlobal")]
 public class TiposCompromissoTests
 {
     [Fact]
@@ -1981,6 +1986,21 @@ public class PlannerTests
         var cap = PlannerEngine.Capacidade(d, d.Atividades, seg, seg.AddDays(4)).Single(c => c.Pessoa == "t:" + t.Id);
         Assert.Equal(45, cap.HorasCapacidade);                                                       // 5 dias × 9 h (08–17)
         Assert.Equal(60, cap.HorasPlanejadas, 1); Assert.Equal("sobrecarga", cap.Situacao);
+    }
+
+    [Fact]
+    public void Capacidade_so_conta_o_periodo_entre_inicio_e_saida_da_ficha()
+    {
+        using var a = new Amb();
+        var seg = DateTime.UtcNow.Date; while (seg.DayOfWeek != DayOfWeek.Monday) seg = seg.AddDays(1);
+        while (Feriados.DoPeriodo("", seg, seg.AddDays(4)).Count > 0) seg = seg.AddDays(7);
+        seg = PlannerEngine.Dia(seg);
+        var t = a.NovoTec(); t.DataInicio = seg.AddDays(2); t.DataSaida = seg.AddDays(3); a.Svc.SalvarTecnico(a.Admin, t);   // na empresa só qua e qui
+        var p = a.Svc.SalvarProjeto(a.Contr, new PlProjeto { Nome = "Parada", Status = PlVocab.PAndamento, Responsavel = "t:" + t.Id });
+        var d = a.Svc.PlannerDados(a.Contr);
+        var cap = PlannerEngine.Capacidade(d, d.Atividades, seg, seg.AddDays(4)).Single(c => c.Pessoa == "t:" + t.Id);
+        Assert.Equal(18, cap.HorasCapacidade);                                                       // 2 dias × 9 h
+        Assert.False(t.NaEmpresaEm(seg.AddDays(1))); Assert.True(t.NaEmpresaEm(seg.AddDays(2))); Assert.False(t.NaEmpresaEm(seg.AddDays(4)));
     }
 }
 

@@ -262,12 +262,13 @@
         var feriados = Feriados.DoPeriodo(Snap.FeriadosCfg, _de, _ate);
         bool Util(Tecnico t, DateTime d) => Snapshot.Ids(t.DiasUteis).Contains(((int)d.DayOfWeek).ToString()) && !feriados.ContainsKey(d.Date);
         bool Conta(Tecnico t, DateTime d) => t.NaEmpresaEm(d) && Util(t, d) && !Ausente(t.Id, d);
-        int NaEmpresa(DateTime d) => ocup.Values.Count(t => Conta(t, d));
+        int BaseDia(DateTime d) => ocup.Values.Count(t => Conta(t, d));
 
         var visiveis = Snap.Viagens.Values.Where(v => (VeViagem is null || VeViagem(v)) && (_tecFiltro.Count == 0 || Snapshot.Ids(v.TecnicoIds).Any(_tecFiltro.Contains))
                 && (_buFiltro.Count == 0 || _buFiltro.Contains(Vocab.BuDe(v))))
             .Select(v => v.Id).ToHashSet();
         // com filtro de BU, só contam os compromissos das viagens daquela BU (atendimento avulso não tem BU)
+        bool NaEmpresa(string tecId, DateTime d) => Snap.Tecnico(tecId) is { } tc && tc.NaEmpresaEm(d);
         var ev = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && Sel(e.TecnicoId)
             && (e.ViagemId == "" ? _buFiltro.Count == 0 : visiveis.Contains(e.ViagemId))).ToList();
         // ocupação: todo o trabalho de campo dos técnicos que contam (de qualquer viagem), para não comparar só parte do numerador com a equipe toda
@@ -278,6 +279,7 @@
             var (a, b) = Janela(d); int at = 0, des = 0, prov = 0;
             foreach (var g in lista.Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
             {
+                if (!NaEmpresa(g.Key, d)) continue;        // antes do início ou depois da saída: não conta em nenhum indicador
                 if (soNaEmpresa && !(ocup.TryGetValue(g.Key, out var tec) && Conta(tec, d))) continue;
                 var bl = g.Where(e => e.Bloqueia).ToList();
                 if (bl.Any(e => !e.EhViagem)) at++; else if (bl.Any()) des++; else if (g.Any(e => e.Provisorio)) prov++;
@@ -303,7 +305,7 @@
             for (var d = a; d <= b; d = d.AddDays(1))
             {
                 // ocupação: só os dias úteis de cada técnico; volume de dias de campo: todos os dias (inclusive fim de semana e feriado)
-                tecDias += NaEmpresa(d); var r = Dia(d, evOc, soNaEmpresa: true); at += r.at; des += r.des; prov += r.prov;
+                tecDias += BaseDia(d); var r = Dia(d, evOc, soNaEmpresa: true); at += r.at; des += r.des; prov += r.prov;
                 var t = Dia(d, ev); diasCampo += t.at + t.des;
             }
             volume += diasCampo;
@@ -318,9 +320,17 @@
         _maxViag = Math.Max(1, _faixas.Select(x => x.viagens).DefaultIfEmpty(0).Max()); _maxDias = Math.Max(1, _faixas.Select(x => x.dias).DefaultIfEmpty(0).Max());
 
         // clientes com mais dias de atendimento no período
+        // técnico-dias de atendimento por cliente: cada dia do período em que o técnico estava em atendimento e na empresa
+        int DiasAtend(Evento e)
+        {
+            var n = 0;
+            for (var d = Tempo.ParaLocal(e.Ini > u0 ? e.Ini : u0, Snap.FusoPadrao).Date; Janela(d).ini < (e.Fim < u1 ? e.Fim : u1); d = d.AddDays(1))
+                if (NaEmpresa(e.TecnicoId, d)) n++;
+            return n;
+        }
         _clientes = ev.Where(e => e.Tipo == Vocab.EvAtendimento && e.ClienteId != "")
-            .GroupBy(e => e.ClienteId).Select(g => (Snap.Cliente(g.Key)?.Nome ?? "—", g.Sum(e => (int)Math.Ceiling((Math.Min(e.Fim.Ticks, u1.Ticks) - Math.Max(e.Ini.Ticks, u0.Ticks)) / (double)TimeSpan.TicksPerDay))))
-            .OrderByDescending(x => x.Item2).Take(5).ToList();
+            .GroupBy(e => e.ClienteId).Select(g => (Snap.Cliente(g.Key)?.Nome ?? "—", g.Sum(DiasAtend)))
+            .Where(x => x.Item2 > 0).OrderByDescending(x => x.Item2).Take(5).ToList();
 
         // documentos (situação de hoje)
         var ids = _estados.Select(e => e.Tecnico.Id).ToHashSet();

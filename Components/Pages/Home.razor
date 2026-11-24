@@ -326,7 +326,9 @@ else
     private void Calcular()
     {
         var agora = DateTime.UtcNow;
-        var todos = _snap.Tecnicos.Values.Where(t => t.Ativo && _ator.VeTecnico(t.Id))
+        // só quem estava na empresa no dia mostrado (início e saída da ficha): antes de entrar e depois de sair não conta
+        var diaMostrado = Tempo.ParaLocal(_instante, _snap.FusoPadrao).Date;
+        var todos = _snap.Tecnicos.Values.Where(t => t.NaEmpresaEm(diaMostrado) && _ator.VeTecnico(t.Id))
             .Select(t => AgendaEngine.EstadoEm(_snap, _eventos, t, _instante, agora)).ToList();
         // engenharia, terceiros, fábrica e quem viaja esporadicamente: só entram na visão em viagem ou atendimento (nunca contam como disponíveis)
         _estados = todos.Where(e => Vocab.NaVisao(e.Tecnico.Perfil, e.Status)).ToList();

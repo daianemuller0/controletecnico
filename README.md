@@ -147,6 +147,10 @@ Na parte de baixo da Visão operacional há um painel visual para a diretoria, c
   - Contam só os **dias úteis da jornada de cada técnico**; feriados ficam de fora e férias, folgas e afastamentos tiram o dia da base.
   - Com filtro de **BU**, a ocupação usa os técnicos da BU de registro da ficha. Viagens, transporte e classificação usam a BU de origem da viagem.
 - **Dias de campo** = técnico-dias com atendimento ou deslocamento planejado/confirmado, de todos os técnicos e em todos os dias.
+- **Período na empresa** (início na Howden e data de saída da ficha): fora desse período o técnico não conta em **nenhum** indicador.
+  - Ele sai da situação da equipe, dos cartões do topo, dos documentos e das pendências do dia mostrado.
+  - Ele também sai da ocupação, dos dias de campo, dos dias de atendimento por cliente e da capacidade da equipe do Planner.
+  - As contagens de **viagens** (viagens no período, por classificação e transporte) são por viagem, não por técnico, e não mudam.
 - Rascunhos aparecem hachurados e não entram nos cartões.
 
 ## Modo automático (apresentação)

@@ -268,6 +268,7 @@ public static class PlannerEngine
             for (var dia = de; dia <= ate; dia = dia.AddDays(1))
             {
                 if (!dias.Contains((int)dia.DayOfWeek) || feriados.ContainsKey(dia)) continue;
+                if (tec is not null && !tec.NaEmpresaEm(dia)) continue;       // antes do início na Howden ou depois da saída: sem capacidade
                 if (tec is not null && d.Snap.Indisp.Any(i => i.TecnicoId == tec.Id && i.Ini < Tempo.ParaUtc(dia.AddDays(1), tec.FusoHorario) && i.Fim > Tempo.ParaUtc(dia, tec.FusoHorario))) continue;
                 diasUteis.Add(dia);
             }
