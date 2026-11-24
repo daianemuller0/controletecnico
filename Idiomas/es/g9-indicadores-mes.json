@@ -1,4 +1,26 @@
 {
   "Técnico-dias de campo ÷ técnico-dias úteis na empresa, sem férias, folgas, afastamentos e feriados": "Días-técnico en terreno ÷ días-técnico hábiles en la empresa, sin vacaciones, días libres, licencias ni feriados",
-  "Técnico-dias com atendimento ou deslocamento (todos os técnicos e todos os dias)": "Días-técnico con atención en planta o traslado (todos los técnicos y todos los días)"
+  "Técnico-dias com atendimento ou deslocamento (todos os técnicos e todos os dias)": "Días-técnico con atención en planta o traslado (todos los técnicos y todos los días)",
+  "Técnico-dias ocupados (planta, viagem e compromissos) ÷ técnico-dias úteis na empresa, sem feriados e sem o que fica fora da conta (férias, folgas, afastamentos, compromisso pessoal)": "Días-técnico ocupados (planta, viaje y compromisos) ÷ días-técnico hábiles en la empresa, sin feriados y sin lo que queda fuera del cálculo (vacaciones, días libres, licencias, compromiso personal)",
+  "Viagem (deslocamento e estadia)": "Viaje (traslado y estadía)",
+  "Compromissos": "Compromisos",
+  "{0}: atendimento {1}%, viagem {2}%, compromissos {3}%, previsto (rascunho) {4}%": "{0}: atención {1}%, viaje {2}%, compromisos {3}%, previsto (borrador) {4}%",
+  "Cor de cada tipo e como cada compromisso conta na ocupação": "Color de cada tipo y cómo cada compromiso cuenta en la ocupación",
+  "Cores e ocupação": "Colores y ocupación",
+  "Cores e ocupação dos tipos da agenda": "Colores y ocupación de los tipos de la agenda",
+  "A cor vale na agenda, na ficha do técnico, na viagem e nos indicadores. Para cada compromisso, escolha como ele entra na ocupação da equipe.": "El color se usa en la agenda, en la ficha del técnico, en el viaje y en los indicadores. Para cada compromiso, elija cómo entra en la ocupación del equipo.",
+  "Cor": "Color",
+  "Na ocupação": "En la ocupación",
+  "Cor de {0}": "Color de {0}",
+  "Ocupação de {0}": "Ocupación de {0}",
+  "Conta como ocupado": "Cuenta como ocupado",
+  "Fora da conta": "Fuera del cálculo",
+  "Não ocupa": "No ocupa",
+  "entra na ocupação, como atendimento e viagem": "entra en la ocupación, como atención y viaje",
+  "o dia sai da ocupação, como férias (nem ocupado nem disponível)": "el día sale de la ocupación, como vacaciones (ni ocupado ni disponible)",
+  "o técnico continua contando como disponível": "el técnico sigue contando como disponible",
+  "conta como ocupado (planta)": "cuenta como ocupado (planta)",
+  "conta como ocupado (viagem)": "cuenta como ocupado (viaje)",
+  "Padrão": "Predeterminado",
+  "Cores e ocupação salvas.": "Colores y ocupación guardados."
 }

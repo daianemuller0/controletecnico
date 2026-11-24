@@ -23,6 +23,7 @@
             <a class="btn-ghost" href="/viagens/novo">@Icons.Svg("plane")@L["Nova viagem"]</a>
         }
         <button class="btn-ghost" @onclick="AbrirFeriados" title="@L["Feriados nacionais e os cadastrados pela equipe"]">@Icons.Svg("calendar")@L["Feriados"]</button>
+        @if (_ator.Pode(Perm.EditarAgenda)) { <button class="btn-ghost" @onclick="AbrirCores" title="@L["Cor de cada tipo e como cada compromisso conta na ocupação"]">@Icons.Svg("layers")@L["Cores e ocupação"]</button> }
         <button class="btn-ghost @(_conflitos.Count > 0 ? "alerta" : "")" @onclick="@(() => _verConflitos = true)" title="@L["Sobreposições e deslocamentos a verificar"]">
             @Icons.Svg("alert")@L.F("Conflitos ({0})", _conflitos.Count)
         </button>
@@ -86,7 +87,7 @@
 </div>
 
 <div class="ag-legenda" aria-label="@L["Legenda"]">
-    @foreach (var t in Vocab.TiposEvento) { <span class="leg"><i class="cor" style="background:@t.Color"></i>@L[t.Label]</span> }
+    @foreach (var t in Vocab.TiposAgendaTodos) { <span class="leg"><i class="cor" style="background:@Vocab.Cor(t.Key)"></i>@L[t.Label]</span> }
     <span class="leg"><i class="amostra ev-conf"></i>@L["Confirmado"]</span>
     <span class="leg"><i class="amostra ev-plan"></i>@L["Planejado"]</span>
     <span class="leg"><i class="amostra ev-prov"></i>@L["Provisório (rascunho)"]</span>
@@ -158,7 +159,7 @@ else
                         @foreach (var (ev, lane, _) in lanes)
                         {
                             var ini = ev.Ini < rs ? rs : ev.Ini; var fim = ev.Fim > re ? re : ev.Fim;
-                            <button class="@ClasseEv(ev) tl-ev" style="left:@Pct((ini - rs).TotalMinutes / total)%;width:@Pct(Math.Max(0.9, (fim - ini).TotalMinutes / total * 100) / 100)%;top:@(lane * 28 + 5)px;--c:@Ui.TipoEv(ev.Tipo).Color"
+                            <button class="@ClasseEv(ev) tl-ev" style="left:@Pct((ini - rs).TotalMinutes / total)%;width:@Pct(Math.Max(0.9, (fim - ini).TotalMinutes / total * 100) / 100)%;top:@(lane * 28 + 5)px;--c:@ev.Cor"
                                     title="@Dica(ev)" aria-label="@Dica(ev)" draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@Loc(ev.Ini).ToString("yyyy-MM-dd")"
                                     @onclick="() => AbrirEvento(ev)">
                                 @Icons.Svg(Ui.TipoEv(ev.Tipo).Icon, "ev-ico")<span class="ev-txt">@L[ev.Titulo]</span>@if (_confIds.Contains(ev.Id)) { <span class="ev-x-ico" title="@L["Conflito"]">!</span> }
@@ -219,7 +220,7 @@ else
                         @foreach (var (ev, lane, _) in lanes)
                         {
                             var ini = ev.Ini < rs ? rs : ev.Ini; var fim = ev.Fim > re ? re : ev.Fim;
-                            <button class="@ClasseEv(ev) tv-ev" style="top:@Pct((ini - rs).TotalMinutes / total)%;height:@Pct((fim - ini).TotalMinutes / total)%;left:calc(@Pct(lane / (double)nl)% + 2px);width:calc(@Pct(1.0 / nl)% - 4px);--c:@Ui.TipoEv(ev.Tipo).Color"
+                            <button class="@ClasseEv(ev) tv-ev" style="top:@Pct((ini - rs).TotalMinutes / total)%;height:@Pct((fim - ini).TotalMinutes / total)%;left:calc(@Pct(lane / (double)nl)% + 2px);width:calc(@Pct(1.0 / nl)% - 4px);--c:@ev.Cor"
                                     title="@Dica(ev)" aria-label="@Dica(ev)" draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@Loc(ev.Ini).ToString("yyyy-MM-dd")"
                                     @onclick="() => AbrirEvento(ev)">
                                 @Icons.Svg(Ui.TipoEv(ev.Tipo).Icon, "ev-ico")<span class="ev-txt">@L[ev.Titulo]</span>@if (_confIds.Contains(ev.Id)) { <span class="ev-x-ico" title="@L["Conflito"]">!</span> }
@@ -247,7 +248,7 @@ else
                     @if (ferM is not null) { <span class="mes-fer">@L[ferM]</span> }
                     @foreach (var ev in evs.Take(4))
                     {
-                        <button class="@ClasseEv(ev) mes-ev" style="--c:@Ui.TipoEv(ev.Tipo).Color" title="@Dica(ev)" aria-label="@Dica(ev)"
+                        <button class="@ClasseEv(ev) mes-ev" style="--c:@ev.Cor" title="@Dica(ev)" aria-label="@Dica(ev)"
                                 draggable="@(PodeArrastar(ev) ? "true" : "false")" data-dnd="@ev.Fonte|@ev.FonteId|@ev.TecnicoId|@Loc(ev.Ini).ToString("yyyy-MM-dd")" @onclick="() => AbrirEvento(ev)">
                             <b>@Avatar.Iniciais(NomeTec(ev.TecnicoId))</b> <span class="ev-txt">@L[ev.Titulo]</span>@if (_confIds.Contains(ev.Id)) { <span class="ev-x-ico">!</span> }
                         </button>
@@ -269,7 +270,7 @@ else
     <div class="drawer-backdrop" @onclick="@(() => _det = null)"></div>
     <aside class="drawer" role="dialog" aria-label="@L["Detalhes do compromisso"]">
         <div class="painel-topo">
-            <span class="ev-selo" style="background:@Ui.TipoEv(ev.Tipo).Color">@Icons.Svg(Ui.TipoEv(ev.Tipo).Icon)</span>
+            <span class="ev-selo" style="background:@ev.Cor">@Icons.Svg(Ui.TipoEv(ev.Tipo).Icon)</span>
             <div class="painel-id"><h2>@L[ev.Titulo]</h2>
                 <div><StatusBadge Item="@Ui.TipoEv(ev.Tipo)" /> <span class="tag @(ev.Provisorio ? "prov" : ev.Status == "confirmado" ? "ok" : "")">@(ev.Provisorio ? L["Provisório (rascunho)"] : ev.Status == "confirmado" ? L["Confirmado"] : L["Planejado"])</span></div></div>
             <button class="icon-btn" @onclick="@(() => _det = null)" aria-label="@L["Fechar"]">@Icons.Svg("x")</button>
@@ -331,6 +332,38 @@ else
         <div class="modal-actions">
             <button class="btn-ghost" @onclick="@(() => _reag = null)">@L["Cancelar"]</button>
             <button class="btn-primary" disabled="@(_reag.Sim is null || _reag.Sim.Bloqueado || (_reag.Sim.Conflitos.Count > 0 && !_reag.AceitaAvisos))" @onclick="ConfirmarReagendar">@Icons.Svg("check")@L["Reagendar"]</button>
+        </div>
+    </Dialogo>
+}
+
+@if (_cores is not null)
+{
+    <Dialogo Titulo="@L["Cores e ocupação dos tipos da agenda"]" Largo="true" OnFechar="@(() => _cores = null)" Erros="_errosCores">
+        <p class="muted sm">@L["A cor vale na agenda, na ficha do técnico, na viagem e nos indicadores. Para cada compromisso, escolha como ele entra na ocupação da equipe."]</p>
+        <table class="grid-tbl cores-tbl">
+            <thead><tr><th>@L["Tipo"]</th><th>@L["Cor"]</th><th>@L["Na ocupação"]</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var c in _cores)
+            {
+                <tr>
+                    <td><span class="cor-amostra" style="background:@c.Cor"></span><strong>@L[c.Label]</strong></td>
+                    <td><input type="color" value="@c.Cor" @onchange="@(e => c.Cor = e.Value?.ToString() ?? c.Cor)" aria-label="@L.F("Cor de {0}", L[c.Label])" /></td>
+                    <td>@if (c.Compromisso)
+                        {
+                            <select class="field" value="@c.Modo" @onchange="@(e => c.Modo = e.Value?.ToString() ?? c.Modo)" aria-label="@L.F("Ocupação de {0}", L[c.Label])">
+                                @foreach (var m in Vocab.ModosOcupacao) { <option value="@m.Key">@L[m.Label]</option> }
+                            </select>
+                            <div class="muted sm">@L[Vocab.ModosOcupacao.First(m => m.Key == c.Modo).Dica]</div>
+                        }
+                        else { <span class="muted sm">@(c.Key == Vocab.EvAtendimento ? L["conta como ocupado (planta)"] : L["conta como ocupado (viagem)"])</span> }</td>
+                    <td>@if (c.Cor != Vocab.CorPadrao(c.Key).ToLowerInvariant() || (c.Compromisso && c.Modo != Vocab.ModoPadrao(c.Key))) { <button class="btn-link" @onclick="@(() => { c.Cor = Vocab.CorPadrao(c.Key).ToLowerInvariant(); c.Modo = c.Compromisso ? Vocab.ModoPadrao(c.Key) : ""; })">@L["Padrão"]</button> }</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        <div class="modal-actions">
+            <button class="btn-ghost" @onclick="@(() => _cores = null)">@L["Cancelar"]</button>
+            <button class="btn-primary" @onclick="SalvarCores">@Icons.Svg("check")@L["Salvar"]</button>
         </div>
     </Dialogo>
 }
@@ -615,6 +648,20 @@ else
 
     private Dictionary<DateTime, string> _feriados = new();
     private bool _verFeriados, _ferAnual = true; private int _anoFer; private DateTime _ferDia = DateTime.Today; private string _ferNome = ""; private List<string>? _errosFer;
+    // ---- cores e ocupação dos tipos ----
+    private sealed class CorTipo { public string Key = "", Label = "", Cor = "", Modo = ""; public bool Compromisso; }
+    private List<CorTipo>? _cores; private List<string>? _errosCores;
+    private void AbrirCores()
+    {
+        _errosCores = null;
+        _cores = Vocab.TiposAgendaTodos.Select(t => new CorTipo { Key = t.Key, Label = t.Label, Compromisso = t.Compromisso, Cor = Vocab.Cor(t.Key).ToLowerInvariant(), Modo = t.Compromisso ? Vocab.ModoOcupacao(t.Key) : "" }).ToList();
+    }
+    private void SalvarCores()
+    {
+        try { Svc.SalvarTiposAgenda(_ator, _cores!.Select(c => (c.Key, c.Cor, c.Modo))); _cores = null; _snap = Svc.Foto(_ator); Montar(); Sessao.Avisar(L["Cores e ocupação salvas."]); }
+        catch (Exception ex) { _errosCores = Ui.Erros(ex); }
+    }
+
     private void AbrirFeriados() { _anoFer = _ref.Year; _errosFer = null; _verFeriados = true; }
     private void AdicionarFeriado()
     {

@@ -2057,3 +2057,52 @@ public class PlannerTelasTests
         Assert.DoesNotContain("Custo planejado", wb2.Worksheet("Projetos").Row(1).CellsUsed().Select(c => c.GetString()));
     }
 }
+
+[Collection("EstadoGlobal")]
+public class CoresOcupacaoTests
+{
+    private static Evento Ev(string id, string tipo, string fonte, DateTime ini, DateTime fim) =>
+        new() { Id = id, ViagemId = "v1", TecnicoId = "t1", Tipo = tipo, Fonte = fonte, Ini = ini, Fim = fim, Status = "confirmado" };
+
+    [Fact]
+    public void Viagem_conta_os_dias_entre_os_compromissos_menos_a_pausa_em_casa()
+    {
+        var d = new DateTime(2026, 3, 2, 0, 0, 0, DateTimeKind.Utc);
+        var evs = new List<Evento>
+        {
+            Ev("a", Vocab.EvIda, "trecho", d.AddHours(8), d.AddHours(12)),                         // seg: ida
+            Ev("b", Vocab.EvAtendimento, "atend", d.AddDays(2).AddHours(8), d.AddDays(2).AddHours(17)),   // qua: planta
+            Ev("c", Vocab.EvRetorno, "trecho", d.AddDays(3).AddHours(8), d.AddDays(3).AddHours(12)),      // qui: volta para casa
+            Ev("e", Vocab.EvIda, "trecho", d.AddDays(7).AddHours(8), d.AddDays(7).AddHours(12)),          // seg seguinte: nova ida
+        };
+        var est = AgendaEngine.Estadias(evs);
+        Assert.Equal(2, est.Count);                                                                   // seg→qua e qua→qui; a pausa em casa não
+        Assert.Contains(est, x => x.Ini == d.AddHours(12) && x.Fim == d.AddDays(2).AddHours(8) && x.EhViagem);
+        Assert.DoesNotContain(est, x => x.Ini >= d.AddDays(3).AddHours(12) && x.Fim <= d.AddDays(7).AddHours(8));
+    }
+
+    [Fact]
+    public void Compromisso_pessoal_fica_fora_da_conta_e_cores_sao_configuraveis()
+    {
+        using var a = new Amb();
+        var pessoal = a.Svc.CriarTipoCompromisso(a.Contr, "Compromisso pessoal");
+        var trein = a.Svc.CriarTipoCompromisso(a.Contr, "Treinamento");
+        a.Svc.Foto();
+        Assert.Equal(Vocab.OcupAusente, Vocab.ModoOcupacao(pessoal));
+        Assert.Equal(Vocab.OcupOcupado, Vocab.ModoOcupacao(trein));
+        Assert.Equal(Vocab.OcupAusente, Vocab.ModoOcupacao(Vocab.IndFerias));
+        Assert.Equal(Vocab.CorPadrao(Vocab.EvBloqueio), Vocab.Cor(trein));                     // sem configuração: cor de bloqueio
+        a.Svc.SalvarTiposAgenda(a.Contr, new[] { (trein, "#12ab34", Vocab.OcupLivre), (Vocab.EvAtendimento, "#0000ff", "") });
+        a.Svc.Foto();
+        Assert.Equal("#12ab34", Vocab.Cor(trein)); Assert.Equal(Vocab.OcupLivre, Vocab.ModoOcupacao(trein)); Assert.Equal("#0000ff", Vocab.Cor(Vocab.EvAtendimento));
+        Assert.Throws<ValidacaoException>(() => a.Svc.SalvarTiposAgenda(a.Contr, new[] { (trein, "vermelho", "") }));
+        Assert.Throws<UnauthorizedAccessException>(() => a.Svc.SalvarTiposAgenda(a.Consulta, new[] { (trein, "#000000", "") }));
+        // o compromisso leva o tipo original no evento (cor e regra de ocupação)
+        var t = a.NovoTec();
+        var i = a.Svc.SalvarIndisponibilidade(a.Contr, new Indisponibilidade { TecnicoId = t.Id, Tipo = trein, Ini = Amb.Fut(3), Fim = Amb.Fut(3, 17) });
+        var ev = AgendaEngine.Eventos(a.Svc.Foto()).Single(e => e.FonteId == i.Id);
+        Assert.Equal(trein, ev.ChaveTipo); Assert.Equal("#12ab34", ev.Cor);
+        a.Svc.SalvarTiposAgenda(a.Contr, Array.Empty<(string, string, string)>());              // volta tudo ao padrão
+        a.Svc.Foto();
+    }
+}

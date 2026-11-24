@@ -76,8 +76,8 @@ else
     </div>
 
     <div class="diarias">
-        @Bloco("ida", "Deslocamento de ida", "plane", "#d9822b", _ida, _fusoOrigem, _fusoPlanta, Dias(_ida.Ini, _ida.Fim), true)
-        @Bloco("serv", "Serviço", "customers", "#0369a1", _serv, _fusoPlanta, _fusoPlanta, Dias(_serv.Ini, _serv.Fim), false)
+        @Bloco("ida", "Deslocamento de ida", "plane", Vocab.Cor(Vocab.EvIda), _ida, _fusoOrigem, _fusoPlanta, Dias(_ida.Ini, _ida.Fim), true)
+        @Bloco("serv", "Serviço", "customers", Vocab.Cor(Vocab.EvAtendimento), _serv, _fusoPlanta, _fusoPlanta, Dias(_serv.Ini, _serv.Fim), false)
         @foreach (var x in _extras)
         {
             @BlocoExtra(x)
@@ -90,7 +90,7 @@ else
                 <span class="muted sm">@L["Translado: o técnico volta para casa no meio da viagem e depois retorna (o serviço é pausado nesse intervalo). Serviço: outro período de serviço na mesma planta, com o mesmo serviço ou outro."]</span>
             </div>
         }
-        @Bloco("volta", "Deslocamento de volta", "plane", "#c26a14", _volta, _fusoPlanta, _fusoOrigem, Dias(_volta.Ini, _volta.Fim), true)
+        @Bloco("volta", "Deslocamento de volta", "plane", Vocab.Cor(Vocab.EvRetorno), _volta, _fusoPlanta, _fusoOrigem, Dias(_volta.Ini, _volta.Fim), true)
     </div>
 
     <DocumentosViagem ViagemId="@(_novo ? "" : Id)" Pendentes="_docsPend" Ator="@_ator" Pode="@_pode" VerAnexos="@_verAnexos" />

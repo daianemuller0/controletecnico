@@ -95,7 +95,7 @@ else
         <div class="trecho @(x.T.Modal == Vocab.ModalAviao ? "t-aviao" : "t-carro")">
             <div class="trecho-cab">
                 <span class="trecho-n">@(i + 1)</span>
-                <span class="ev-selo sm" style="background:@(x.T.Tipo == Vocab.TrechoRetorno ? Ui.TipoEv(Vocab.EvRetorno).Color : x.T.Tipo == Vocab.TrechoEntre ? Ui.TipoEv(Vocab.EvEntre).Color : Ui.TipoEv(Vocab.EvIda).Color)">@Icons.Svg(x.T.Modal == Vocab.ModalAviao ? "plane" : "car")</span>
+                <span class="ev-selo sm" style="background:@(x.T.Tipo == Vocab.TrechoRetorno ? Vocab.Cor(Vocab.EvRetorno) : x.T.Tipo == Vocab.TrechoEntre ? Vocab.Cor(Vocab.EvEntre) : Vocab.Cor(Vocab.EvIda))">@Icons.Svg(x.T.Modal == Vocab.ModalAviao ? "plane" : "car")</span>
                 <strong>@(string.IsNullOrWhiteSpace(x.T.Origem) ? L["Origem"] : x.T.Origem) → @(string.IsNullOrWhiteSpace(x.T.Destino) ? L["Destino"] : x.T.Destino)</strong>
                 <span class="grow"></span>
                 @if (_pode)

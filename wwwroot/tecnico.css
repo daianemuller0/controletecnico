@@ -829,3 +829,22 @@ body.apresentacao .gp-cl-l { font-size: 18px; grid-template-columns: minmax(160p
 .idioma-sel a.on { background: #004785; color: #fff; }
 .login-idioma { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; font-size: 12.5px; }
 .login-idioma a { color: #5b6b80; text-decoration: none; font-weight: 700; } .login-idioma a.on { color: #004785; text-decoration: underline; }
+
+/* ---- cores e ocupação dos tipos da agenda ---- */
+.cores-tbl td { vertical-align: middle; white-space: normal; }
+.cores-tbl input[type=color] { width: 46px; height: 30px; padding: 0 2px; border: 1px solid var(--border); border-radius: 6px; background: #fff; cursor: pointer; }
+.cores-tbl select.field { min-width: 190px; }
+.cor-amostra { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 8px; vertical-align: -2px; }
+
+/* ---- gráficos de pizza legíveis de longe (TV grande no modo automático / apresentação) ---- */
+.gp-leg li { gap: 7px; } .gp-leg .gp-leg-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gp-leg strong { margin-left: 0; padding-left: 10px; } .gp-leg .gp-leg-p { color: #6b7a90; font-size: .85em; min-width: 3.2em; text-align: right; }
+.gp-auto .gp-donut-wrap, body.apresentacao .gp-donut-wrap { flex-wrap: nowrap; gap: clamp(14px, 1.4vw, 40px); }
+.gp-auto .gp-donut, body.apresentacao .gp-donut { width: clamp(150px, 12vw, 380px); height: auto; max-height: 100%; }
+.gp-auto .gp-dn, body.apresentacao .gp-dn { font-size: 32px; font-weight: 800; fill: #0f1f36; }
+.gp-auto .gp-dl, body.apresentacao .gp-dl { font-size: 12.5px; font-weight: 700; fill: #3b4a61; }
+.gp-auto .gp-leg, body.apresentacao .gp-leg { font-size: clamp(15px, 1.2vw, 34px); gap: .5em; font-weight: 600; color: #16233a; flex: 1; }
+.gp-auto .gp-leg i, body.apresentacao .gp-leg i { width: .9em; height: .9em; border-radius: .22em; }
+.gp-auto .gp-leg strong, body.apresentacao .gp-leg strong { font-size: 1.2em; font-weight: 800; color: #0f1f36; }
+.gp-auto .gp-leg .gp-leg-p, body.apresentacao .gp-leg .gp-leg-p { font-weight: 700; color: #4a5a70; }
+.gp-auto .gp-leg li { white-space: nowrap; }

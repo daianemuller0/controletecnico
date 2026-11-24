@@ -10,6 +10,11 @@ public sealed record Evento
     public string Id { get; init; } = "";
     /// <summary>trecho | atend | ind</summary>
     public string Fonte { get; init; } = "";
+    /// <summary>Compromisso (Fonte "ind"): o tipo original, inclusive os criados pela equipe (Tipo vira "bloqueio" para eles).</summary>
+    public string TipoInd { get; init; } = "";
+    /// <summary>Chave da cor e da regra de ocupação deste evento.</summary>
+    public string ChaveTipo => Fonte == "ind" && TipoInd != "" ? TipoInd : Tipo;
+    public string Cor => Vocab.Cor(ChaveTipo);
     public string FonteId { get; init; } = "";
     public string TecnicoId { get; init; } = "";
     public string Tipo { get; init; } = "";
@@ -101,6 +106,30 @@ public static class AgendaEngine
         return (ini, fim);
     }
 
+    /// <summary>Dias de estadia: entre os compromissos de uma mesma viagem o técnico continua em viagem (hotel, fim de semana
+    /// fora de casa…). Não vale para a pausa em casa no meio da viagem (um retorno seguido de uma nova ida). Usado nos indicadores.</summary>
+    public static List<Evento> Estadias(IEnumerable<Evento> eventos)
+    {
+        var res = new List<Evento>();
+        foreach (var g in eventos.Where(e => e.ViagemId != "" && e.Fonte is "trecho" or "atend" && e.Status != "cancelado").GroupBy(e => (e.ViagemId, e.TecnicoId)))
+        {
+            var l = g.OrderBy(e => e.Ini).ThenBy(e => e.Fim).ToList();
+            var ultimo = l[0];                                   // o compromisso que termina mais tarde até aqui
+            for (var i = 1; i < l.Count; i++)
+            {
+                var prox = l[i];
+                if (prox.Ini > ultimo.Fim && !(ultimo.Tipo == Vocab.EvRetorno && prox.Tipo == Vocab.EvIda))
+                    res.Add(ultimo with
+                    {
+                        Id = $"s:{ultimo.Id}:{prox.Id}", Fonte = "estadia", FonteId = "", Tipo = Vocab.EvEntre, Ini = ultimo.Fim, Fim = prox.Ini, Titulo = "Estadia",
+                        Status = ultimo.Bloqueia && prox.Bloqueia ? ultimo.Status : "provisorio",
+                    });
+                if (prox.Fim > ultimo.Fim) ultimo = prox;
+            }
+        }
+        return res;
+    }
+
     public static List<Evento> Eventos(Snapshot s, bool incluirCanceladas = false, string? tecnicoId = null)
     {
         var lista = new List<Evento>();
@@ -178,7 +207,7 @@ public static class AgendaEngine
             var tipo = i.Tipo switch { Vocab.IndFerias => Vocab.EvFerias, Vocab.IndFolga => Vocab.EvFolga, Vocab.IndAfastamento => Vocab.EvAfastamento, _ => Vocab.EvBloqueio };
             lista.Add(new Evento
             {
-                Id = $"i:{i.Id}", Fonte = "ind", FonteId = i.Id, TecnicoId = i.TecnicoId, Tipo = tipo, Ini = i.Ini, Fim = i.Fim,
+                Id = $"i:{i.Id}", Fonte = "ind", FonteId = i.Id, TipoInd = i.Tipo, TecnicoId = i.TecnicoId, Tipo = tipo, Ini = i.Ini, Fim = i.Fim,
                 Status = i.Provisoria ? "provisorio" : "confirmado",
                 // tipo criado pelo usuário (ex.: Treinamento): aparece com o próprio nome, com a cor de bloqueio
                 Titulo = (Vocab.TipoIndPadrao(i.Tipo) ? Vocab.Get(Vocab.TiposEvento, tipo).Label : Vocab.RotuloInd(i.Tipo)) + (string.IsNullOrWhiteSpace(i.Motivo) ? "" : $" — {i.Motivo}"),

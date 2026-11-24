@@ -130,6 +130,43 @@ public static class Vocab
             .Select(l => l.Split('|', 2)).Where(p => p.Length == 2 && p[0] != "" && p[1].Trim() != "").Select(p => (p[0], p[1].Trim())).ToList();
     public static string GravarTiposExtras(IEnumerable<(string Key, string Label)> tipos) => string.Join("\n", tipos.Select(t => $"{t.Key}|{t.Label}"));
 
+    // ---- cor de cada tipo da agenda e como cada compromisso entra na ocupação (Agenda → Cores e ocupação) ----
+    /// <summary>Linhas "chave|#rrggbb|modo" (modo só para compromissos).</summary>
+    public const string CfgTiposAgenda = "tipos_agenda";
+    /// <summary>ocupado = conta como técnico ocupado; ausente = o dia sai da conta (como férias); livre = não ocupa (o técnico segue disponível).</summary>
+    public const string OcupOcupado = "ocupado", OcupAusente = "ausente", OcupLivre = "livre";
+    public static readonly (string Key, string Label, string Dica)[] ModosOcupacao =
+    {
+        (OcupOcupado, "Conta como ocupado", "entra na ocupação, como atendimento e viagem"),
+        (OcupAusente, "Fora da conta", "o dia sai da ocupação, como férias (nem ocupado nem disponível)"),
+        (OcupLivre, "Não ocupa", "o técnico continua contando como disponível"),
+    };
+    public static IReadOnlyDictionary<string, (string Cor, string Modo)> TiposAgendaCfg { get; set; } = new Dictionary<string, (string, string)>();
+    public static Dictionary<string, (string Cor, string Modo)> LerTiposAgenda(string? cfg)
+    {
+        var res = new Dictionary<string, (string, string)>();
+        foreach (var l in (cfg ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var p = l.Split('|'); if (p.Length < 2 || p[0] == "") continue;
+            res[p[0]] = (CorValida(p[1]) ? p[1].ToLowerInvariant() : "", p.Length > 2 && ModosOcupacao.Any(m => m.Key == p[2]) ? p[2] : "");
+        }
+        return res;
+    }
+    public static string GravarTiposAgenda(IEnumerable<(string Key, string Cor, string Modo)> itens) => string.Join("\n", itens.Select(i => $"{i.Key}|{i.Cor}|{i.Modo}"));
+    public static bool CorValida(string? c) => c is { Length: 7 } && c[0] == '#' && c.Skip(1).All(Uri.IsHexDigit);
+
+    /// <summary>Tipos de viagem/atendimento (só cor) e todos os tipos de compromisso, inclusive os criados pela equipe.</summary>
+    public static IEnumerable<(string Key, string Label, bool Compromisso)> TiposAgendaTodos =>
+        new[] { EvAtendimento, EvIda, EvRetorno, EvEntre }.Select(k => (k, Get(TiposEvento, k).Label, false))
+            .Concat(TiposIndTodos.Select(t => (t.Key, t.Key == IndBloqueio ? "Bloqueio / indisponibilidade" : t.Label, true)));
+    public static string CorPadrao(string? key) => TiposEvento.Any(t => t.Key == key) ? Get(TiposEvento, key).Color : Get(TiposEvento, EvBloqueio).Color;
+    /// <summary>Cor do tipo (a escolhida pela equipe ou a padrão).</summary>
+    public static string Cor(string? key) => key is not null && TiposAgendaCfg.TryGetValue(key, out var c) && c.Cor != "" ? c.Cor : CorPadrao(key);
+    /// <summary>Padrão: férias, folga e afastamento ficam fora da conta; "Compromisso pessoal" (ou nome com "pessoal") também; os demais compromissos ocupam.</summary>
+    public static string ModoPadrao(string? key) =>
+        key is IndFerias or IndFolga or IndAfastamento || ControleTecnico.Logic.DocEngine.Norm(RotuloInd(key)).Contains("pessoal") ? OcupAusente : OcupOcupado;
+    public static string ModoOcupacao(string? key) => key is not null && TiposAgendaCfg.TryGetValue(key, out var c) && c.Modo != "" ? c.Modo : ModoPadrao(key);
+
     // ---- trechos ----
     public const string TrechoIda = "ida", TrechoRetorno = "retorno", TrechoEntre = "entre_plantas";
     public static readonly (string Key, string Label)[] TiposTrecho =

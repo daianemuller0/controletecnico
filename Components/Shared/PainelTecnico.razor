@@ -120,7 +120,7 @@
     <ul class="mini-agenda">
         @foreach (var ev in Proximos)
         {
-            <li><span class="dot" style="background:@Ui.TipoEv(ev.Tipo).Color"></span>
+            <li><span class="dot" style="background:@ev.Cor"></span>
                 <div><div class="mini-t">@L[ev.Titulo] @if (ev.Provisorio) { <span class="tag prov">@L["provisório"]</span> }</div>
                     <div class="muted sm">@Ui.Periodo(ev.Ini, ev.Fim, ev.Fuso, Snap)</div></div></li>
         }

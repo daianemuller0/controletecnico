@@ -41,7 +41,7 @@
     }
 
     @if (Ver("cartoes")) {<div class="gp-heads">
-        @Head(L["Ocupação no período"], $"{_ocup:0}%", L["Técnico-dias de campo ÷ técnico-dias úteis na empresa, sem férias, folgas, afastamentos e feriados"] + (_trainees > 0 ? " · " + L.F("sem {0} trainee(s)", _trainees) : ""), "#0369a1", _ocup)
+        @Head(L["Ocupação no período"], $"{_ocup:0}%", L["Técnico-dias ocupados (planta, viagem e compromissos) ÷ técnico-dias úteis na empresa, sem feriados e sem o que fica fora da conta (férias, folgas, afastamentos, compromisso pessoal)"] + (_trainees > 0 ? " · " + L.F("sem {0} trainee(s)", _trainees) : ""), "#0369a1", _ocup)
         @Head(L["Dias de campo"], _diasCampo.ToString("N0"), L["Técnico-dias com atendimento ou deslocamento (todos os técnicos e todos os dias)"], "#004785", null)
         @Head(L["Viagens no período"], _nViagens.ToString("N0"), L.F("{0} realizada(s) · {1} em andamento ou prevista(s)", _nRealizadas, _nViagens - _nRealizadas), "#d9822b", null)
         @Head(L["Documentos em dia (hoje)"], $"{_docOk:0}%", L.F("{0} de {1} válidos", _docs.Valido + _docs.SemVenc, _docs.Total), _docOk >= 90 ? "#1f9254" : _docOk >= 75 ? "#b7791f" : "#c0392b", _docOk)
@@ -52,7 +52,7 @@
             <h3>@L["Situação da equipe agora"]</h3>
             <div class="gp-donut-wrap">
                 @Donut(_situacao.Select(x => (x.rot, x.cor, (double)x.n)).ToList(), _estados.Count.ToString(), L["técnicos"])
-                <ul class="gp-leg">@foreach (var x in _situacao) {<li><i style="background:@x.cor"></i>@x.rot <strong>@x.n</strong></li>}</ul>
+                <ul class="gp-leg">@foreach (var x in _situacao) {<li><i style="background:@x.cor"></i><span class="gp-leg-n">@x.rot</span><strong>@x.n</strong><span class="gp-leg-p">@Parte(x.n, _situacao.Sum(y => y.n))</span></li>}</ul>
             </div>
         </div>}
 
@@ -61,18 +61,19 @@
             <div class="gp-barras" role="img" aria-label="@L["Ocupação no período"]">
                 @foreach (var s in _faixas)
                 {
-                    <div class="gp-col" title="@(L.F("{0}: atendimento {1}%, deslocamento {2}%, previsto (rascunho) {3}%", s.rot, s.at.ToString("0"), s.des.ToString("0"), s.prov.ToString("0")))">
+                    <div class="gp-col" title="@(L.F("{0}: atendimento {1}%, viagem {2}%, compromissos {3}%, previsto (rascunho) {4}%", s.rot, s.at.ToString("0"), s.des.ToString("0"), s.comp.ToString("0"), s.prov.ToString("0")))">
                         <div class="gp-pilha">
                             <span class="seg prov" style="height:@Pct(s.prov)"></span>
-                            <span class="seg des" style="height:@Pct(s.des)"></span>
-                            <span class="seg at" style="height:@Pct(s.at)"></span>
+                            <span class="seg comp" style="height:@Pct(s.comp);background:@Vocab.Cor(Vocab.EvBloqueio)"></span>
+                            <span class="seg des" style="height:@Pct(s.des);background:@Vocab.Cor(Vocab.EvIda)"></span>
+                            <span class="seg at" style="height:@Pct(s.at);background:@Vocab.Cor(Vocab.EvAtendimento)"></span>
                         </div>
-                        <div class="gp-val">@((s.at + s.des + s.prov).ToString("0"))%</div>
+                        <div class="gp-val">@((s.at + s.des + s.comp + s.prov).ToString("0"))%</div>
                         <div class="gp-rot">@s.rot</div>
                     </div>
                 }
             </div>
-            <div class="gp-leg-h"><span><i style="background:#0369a1"></i>@L["Atendimento"]</span><span><i style="background:#d9822b"></i>@L["Deslocamento"]</span><span><i class="hat"></i>@L["Rascunho (ainda não confirmado)"]</span></div>
+            <div class="gp-leg-h"><span><i style="background:@Vocab.Cor(Vocab.EvAtendimento)"></i>@L["Atendimento"]</span><span><i style="background:@Vocab.Cor(Vocab.EvIda)"></i>@L["Viagem (deslocamento e estadia)"]</span><span><i style="background:@Vocab.Cor(Vocab.EvBloqueio)"></i>@L["Compromissos"]</span><span><i class="hat"></i>@L["Rascunho (ainda não confirmado)"]</span></div>
         </div>}
 
         @if (Ver("meses")) {<div class="gp-card gp-largo">
@@ -144,7 +145,7 @@
             {
                 <div class="gp-donut-wrap">
                     @Donut(_modais.Select(x => (x.rot, x.cor, (double)x.n)).ToList(), _modais.Sum(x => x.n).ToString(), L["trechos"])
-                    <ul class="gp-leg">@foreach (var x in _modais) {<li><i style="background:@x.cor"></i>@x.rot <strong>@x.n</strong></li>}</ul>
+                    <ul class="gp-leg">@foreach (var x in _modais) {<li><i style="background:@x.cor"></i><span class="gp-leg-n">@x.rot</span><strong>@x.n</strong><span class="gp-leg-p">@Parte(x.n, _modais.Sum(y => y.n))</span></li>}</ul>
                 </div>
             }
         </div>}
@@ -214,7 +215,7 @@
 
     // ---- resultados
     private List<(string rot, string cor, int n)> _situacao = new();
-    private List<(string rot, double at, double des, double prov, int viagens, int dias)> _faixas = new();
+    private List<(string rot, double at, double des, double comp, double prov, int viagens, int dias)> _faixas = new();
     private bool _porMes; private int _maxViag = 1, _maxDias = 1;
     private List<(string nome, int dias)> _clientes = new();
     private (int Total, int Valido, int SemVenc, int Proximo, int Vencido) _docs;
@@ -249,8 +250,8 @@
         var campoTec = Snap.Tecnicos.Values.Where(t => Vocab.SempreDisponivel(t.Perfil) && Sel(t.Id) && BuTec(t)).ToList();
         var ocup = campoTec.Where(t => !t.Trainee).ToDictionary(t => t.Id);
         _trainees = campoTec.Count(t => t.Trainee && t.Ativo);
-        // férias, folgas e afastamentos (mesmo a confirmar) tiram o dia da capacidade do técnico
-        var ausencias = Eventos.Where(e => e.EhAusencia && e.Status != "cancelado" && e.Fim > u0 && e.Ini < u1 && ocup.ContainsKey(e.TecnicoId))
+        // compromissos "fora da conta" (férias, folgas, afastamentos, compromisso pessoal… mesmo a confirmar) tiram o dia da base do técnico
+        var ausencias = Eventos.Where(e => e.Fonte == "ind" && Vocab.ModoOcupacao(e.ChaveTipo) == Vocab.OcupAusente && e.Status != "cancelado" && e.Fim > u0 && e.Ini < u1 && ocup.ContainsKey(e.TecnicoId))
             .GroupBy(e => e.TecnicoId).ToDictionary(g => g.Key, g => g.ToList());
         bool Ausente(string tecId, DateTime d)
         {
@@ -269,22 +270,26 @@
             .Select(v => v.Id).ToHashSet();
         // com filtro de BU, só contam os compromissos das viagens daquela BU (atendimento avulso não tem BU)
         bool NaEmpresa(string tecId, DateTime d) => Snap.Tecnico(tecId) is { } tc && tc.NaEmpresaEm(d);
-        var ev = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && Sel(e.TecnicoId)
+        // a viagem inteira conta: além dos trechos e da planta, os dias entre eles (hotel, fim de semana fora)
+        var todosEv = Eventos.Concat(AgendaEngine.Estadias(Eventos)).ToList();
+        var ev = todosEv.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && Sel(e.TecnicoId)
             && (e.ViagemId == "" ? _buFiltro.Count == 0 : visiveis.Contains(e.ViagemId))).ToList();
-        // ocupação: todo o trabalho de campo dos técnicos que contam (de qualquer viagem), para não comparar só parte do numerador com a equipe toda
-        var evOc = Eventos.Where(e => e.Status != "cancelado" && !e.EhIndisp && e.Fim > u0 && e.Ini < u1 && ocup.ContainsKey(e.TecnicoId)).ToList();
-        // técnico-dias de um dia: (atendimento, deslocamento, provisório)
-        (int at, int des, int prov) Dia(DateTime d, List<Evento> lista, bool soNaEmpresa = false)
+        // ocupação: planta, viagem e compromissos que ocupam (Agenda → Cores e ocupação), de qualquer viagem, dos técnicos que contam
+        var evOc = todosEv.Where(e => e.Status != "cancelado" && (!e.EhIndisp || (e.Fonte == "ind" && Vocab.ModoOcupacao(e.ChaveTipo) == Vocab.OcupOcupado))
+            && e.Fim > u0 && e.Ini < u1 && ocup.ContainsKey(e.TecnicoId)).ToList();
+        // técnico-dias de um dia: (atendimento, viagem, compromisso, provisório)
+        (int at, int des, int comp, int prov) Dia(DateTime d, List<Evento> lista, bool soNaEmpresa = false)
         {
-            var (a, b) = Janela(d); int at = 0, des = 0, prov = 0;
+            var (a, b) = Janela(d); int at = 0, des = 0, comp = 0, prov = 0;
             foreach (var g in lista.Where(e => e.Ini < b && e.Fim > a).GroupBy(e => e.TecnicoId))
             {
                 if (!NaEmpresa(g.Key, d)) continue;        // antes do início ou depois da saída: não conta em nenhum indicador
                 if (soNaEmpresa && !(ocup.TryGetValue(g.Key, out var tec) && Conta(tec, d))) continue;
                 var bl = g.Where(e => e.Bloqueia).ToList();
-                if (bl.Any(e => !e.EhViagem)) at++; else if (bl.Any()) des++; else if (g.Any(e => e.Provisorio)) prov++;
+                if (bl.Any(e => e.Fonte != "ind" && !e.EhViagem)) at++; else if (bl.Any(e => e.Fonte != "ind")) des++;
+                else if (bl.Any()) comp++; else if (g.Any(e => e.Provisorio)) prov++;
             }
-            return (at, des, prov);
+            return (at, des, comp, prov);
         }
 
         // viagens que começam no período (não canceladas)
@@ -301,20 +306,20 @@
         {
             var fFim = (_porMes ? f.AddMonths(1) : f.AddDays(7)).AddDays(-1);
             var a = f < _de ? _de : f; var b = fFim > _ate ? _ate : fFim;
-            double at = 0, des = 0, prov = 0; int tecDias = 0, diasCampo = 0;
+            double at = 0, des = 0, comp = 0, prov = 0; int tecDias = 0, diasCampo = 0;
             for (var d = a; d <= b; d = d.AddDays(1))
             {
                 // ocupação: só os dias úteis de cada técnico; volume de dias de campo: todos os dias (inclusive fim de semana e feriado)
-                tecDias += BaseDia(d); var r = Dia(d, evOc, soNaEmpresa: true); at += r.at; des += r.des; prov += r.prov;
+                tecDias += BaseDia(d); var r = Dia(d, evOc, soNaEmpresa: true); at += r.at; des += r.des; comp += r.comp; prov += r.prov;
                 var t = Dia(d, ev); diasCampo += t.at + t.des;
             }
             volume += diasCampo;
             var tot = (double)Math.Max(1, tecDias);
-            utilTot += tecDias; campoTot += (int)(at + des);
+            utilTot += tecDias; campoTot += (int)(at + des + comp);
             var (ua, _) = Janela(a); var (_, ub) = Janela(b);
             var nv = viagens.Count(x => x.ini >= ua && x.ini < ub);
             var rot = _porMes ? f.ToString("MMM/yy", L.Cultura) : $"{a:dd/MM}";
-            _faixas.Add((rot, 100 * at / tot, 100 * des / tot, 100 * prov / tot, nv, diasCampo));
+            _faixas.Add((rot, 100 * at / tot, 100 * des / tot, 100 * comp / tot, 100 * prov / tot, nv, diasCampo));
         }
         _diasCampo = volume; _ocup = utilTot == 0 ? 0 : 100.0 * campoTot / utilTot;
         _maxViag = Math.Max(1, _faixas.Select(x => x.viagens).DefaultIfEmpty(0).Max()); _maxDias = Math.Max(1, _faixas.Select(x => x.dias).DefaultIfEmpty(0).Max());
@@ -359,6 +364,7 @@
         _maxClassif = Math.Max(1, _classif.Max(x => x.real + x.and + x.prev));
     }
 
+    private static string Parte(int n, int tot) => tot <= 0 ? "" : $"{100.0 * n / tot:0}%";
     private static string Pct(double v) => Math.Clamp(v, 0, 100).ToString("0.#", CultureInfo.InvariantCulture) + "%";
     private static string Esc(double v, double max) => (max <= 0 ? 0 : Math.Clamp(100 * v / max, v > 0 ? 3 : 0, 100)).ToString("0.#", CultureInfo.InvariantCulture) + "%";
 
@@ -378,8 +384,8 @@
             <circle cx="70" cy="70" r="@R.ToString(CultureInfo.InvariantCulture)" fill="none" stroke="#e8edf3" stroke-width="20" />
             @foreach (var x in itens)
             {
-                var len = tot == 0 ? 0 : C * x.n / tot;
-                <circle cx="70" cy="70" r="@R.ToString(CultureInfo.InvariantCulture)" fill="none" stroke="@x.cor" stroke-width="20" stroke-dasharray="@len.ToString("0.##", CultureInfo.InvariantCulture) @((C - len).ToString("0.##", CultureInfo.InvariantCulture))" stroke-dashoffset="@((-acum).ToString("0.##", CultureInfo.InvariantCulture))" transform="rotate(-90 70 70)"><title>@x.rot: @x.n</title></circle>
+                var len = tot == 0 ? 0 : C * x.n / tot; var vis = itens.Count(y => y.n > 0) > 1 ? Math.Max(0, len - 1.6) : len;
+                <circle cx="70" cy="70" r="@R.ToString(CultureInfo.InvariantCulture)" fill="none" stroke="@x.cor" stroke-width="20" stroke-dasharray="@vis.ToString("0.##", CultureInfo.InvariantCulture) @((C - vis).ToString("0.##", CultureInfo.InvariantCulture))" stroke-dashoffset="@((-acum).ToString("0.##", CultureInfo.InvariantCulture))" transform="rotate(-90 70 70)"><title>@x.rot: @x.n</title></circle>
                 acum += len;
             }
             <text x="70" y="68" text-anchor="middle" class="gp-dn">@centro</text><text x="70" y="86" text-anchor="middle" class="gp-dl">@legenda</text>

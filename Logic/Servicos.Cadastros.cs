@@ -116,6 +116,28 @@ public sealed partial class Servicos
         return chave;
     }
 
+    /// <summary>Cor de cada tipo da agenda e como cada compromisso entra na ocupação. Itens sem mudança (cor e modo padrão) não são gravados.</summary>
+    public void SalvarTiposAgenda(Ator ator, IEnumerable<(string Key, string Cor, string Modo)> itens)
+    {
+        ator.Exigir(Perm.EditarAgenda);
+        var validos = Vocab.TiposAgendaTodos.ToDictionary(t => t.Key, t => t.Compromisso);
+        var res = new List<(string, string, string)>(); var erros = new List<string>();
+        foreach (var (k, cor0, modo0) in itens)
+        {
+            if (!validos.TryGetValue(k, out var comp)) continue;
+            var cor = (cor0 ?? "").Trim().ToLowerInvariant(); var modo = comp ? (modo0 ?? "") : "";
+            if (cor != "" && !Vocab.CorValida(cor)) { erros.Add($"Cor inválida para {Vocab.RotuloInd(k)}."); continue; }
+            if (modo != "" && Vocab.ModosOcupacao.All(m => m.Key != modo)) { erros.Add("Modo de ocupação inválido."); continue; }
+            if (cor == Vocab.CorPadrao(k).ToLowerInvariant()) cor = "";
+            if (modo == Vocab.ModoPadrao(k)) modo = "";
+            if (cor != "" || modo != "") res.Add((k, cor, modo));
+        }
+        if (erros.Count > 0) throw new ValidacaoException(erros);
+        Db.SetCfg(Vocab.CfgTiposAgenda, Vocab.GravarTiposAgenda(res), ator.Login);
+        Vocab.TiposAgendaCfg = Vocab.LerTiposAgenda(Db.Cfg(Vocab.CfgTiposAgenda));
+        Auditar(ator, "agenda.tipos.cores", "config", Vocab.CfgTiposAgenda, $"Cores e ocupação dos tipos da agenda atualizadas ({res.Count} personalizado(s))");
+    }
+
     /// <summary>Exclui um tipo criado pelos usuários (os de fábrica não saem). Não exclui se já houver compromisso desse tipo.</summary>
     public void ExcluirTipoCompromisso(Ator ator, string chave)
     {

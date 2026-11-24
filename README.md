@@ -136,13 +136,22 @@ Nenhuma caixa de lista prende o usuário ao que já existe:
 - Continuam como lista fechada apenas valores com regra no sistema: status, tipo de evento, meio de transporte, perfil de acesso, ordenação, itens por página e opções da importação.
 - Categorias digitadas à mão aparecem na seção **Documentos** do técnico (só as três categorias de treinamento ficam em Treinamentos).
 
+## Cores da agenda
+
+Em **Agenda → Cores e ocupação** (perfil com edição da agenda), cada tipo tem a sua cor: atendimento, viagens de ida e de retorno, deslocamento entre plantas, férias, folga, afastamento, bloqueio e os tipos criados pela equipe.
+- A cor vale na agenda e na legenda, na ficha e no painel do técnico, na tela da viagem e no gráfico de ocupação.
+- "Padrão" volta a cor de fábrica.
+
 ## Indicadores gerenciais (Visão operacional)
 
 Na parte de baixo da Visão operacional há um painel visual para a diretoria, calculado só a partir da agenda e dos cadastros (respeita a visibilidade de cada perfil e funciona no modo apresentação):
 
 - Cartões: ocupação hoje, ocupação média dos próximos 30 dias, dias de campo previstos e % de documentos em dia.
 - Situação da equipe agora (rosca), ocupação semanal das próximas 8 semanas (atendimento, deslocamento e rascunho), viagens e dias de campo por mês (6 meses), clientes com mais dias de atendimento (90 dias), saúde documental e meio de transporte.
-- **Ocupação** = técnico-dias de campo ÷ técnico-dias disponíveis.
+- **Ocupação** = técnico-dias ocupados ÷ técnico-dias disponíveis.
+  - **Ocupado** = dia na planta, dia de **viagem** e dia de **compromisso**. A viagem conta inteira: os trechos e também os dias entre eles (hotel, fim de semana fora), menos a pausa em casa no meio da viagem.
+  - Cada tipo de compromisso tem a sua regra em **Agenda → Cores e ocupação**: **Conta como ocupado**, **Fora da conta** (o dia sai da base, como férias) ou **Não ocupa**.
+  - Padrão: férias, folga, afastamento e **Compromisso pessoal** (qualquer tipo com "pessoal" no nome) ficam fora da conta; os demais compromissos (bloqueio, treinamento…) ocupam.
   - Contam só **técnicos de campo** que não sejam trainee, e só entre o **início na Howden** e a **data de saída** da ficha.
   - Contam só os **dias úteis da jornada de cada técnico**; feriados ficam de fora e férias, folgas e afastamentos tiram o dia da base.
   - Com filtro de **BU**, a ocupação usa os técnicos da BU de registro da ficha. Viagens, transporte e classificação usam a BU de origem da viagem.
